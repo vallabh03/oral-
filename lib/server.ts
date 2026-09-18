@@ -12,6 +12,8 @@ export function runtime() {
     PUBLIC_INTAKE_ENABLED?: string;
     PRIVACY_NOTICE?: string;
     CONSENT_VERSION?: string;
+    CONTACT_EMAIL?: string;
+    CONTACT_PHONE?: string;
   };
 }
 export function db() {
@@ -288,7 +290,7 @@ export async function seed(a: Actor) {
           a.tenant,
           names[i],
           "000000000" + i,
-          "Synthetic address — Hyderabad",
+          "Synthetic working area",
           30 + i * 5,
           camp,
           at,
@@ -332,6 +334,7 @@ export async function seed(a: Actor) {
             a.id,
           ),
       );
+    const demoSample = id("SAMP-ORL");
     if (i === 2)
       stmts.push(
         db()
@@ -339,7 +342,7 @@ export async function seed(a: Actor) {
             "INSERT INTO samples (id,patient_id,type,status,collected_at,collected_by,location,revision) VALUES (?,?,?,?,?,?,?,0)",
           )
           .bind(
-            id("SAMP-ORL"),
+            demoSample,
             pid,
             "Oral sample",
             "Collected",
@@ -347,8 +350,23 @@ export async function seed(a: Actor) {
             a.id,
             "Demo collection desk",
           ),
+        sampleEvent(a, demoSample, pid, "Collected"),
       );
     stmts.push(await auditStatement(a, "Synthetic patient registered", pid));
   }
   await db().batch(stmts);
+}
+
+// Append-only sample lifecycle event, written in the same batch as the status change.
+export function sampleEvent(
+  a: Actor,
+  sampleId: string,
+  patientId: string,
+  status: string,
+) {
+  return db()
+    .prepare(
+      "INSERT INTO sample_events (id,sample_id,patient_id,status,at,actor) VALUES (?,?,?,?,?,?)",
+    )
+    .bind("SEV-" + crypto.randomUUID(), sampleId, patientId, status, new Date().toISOString(), a.id);
 }

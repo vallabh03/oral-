@@ -58,3 +58,19 @@ New accounts use exactly three types: Doctor – Admin (`DOCTOR_ADMIN`), Tech Su
 Migration 0005 upgrades existing ADMIN and DOCTOR accounts. Legacy restricted roles retain their old restrictions and are not automatically promoted; new account creation offers only the three requested types. ADMIN_EMAIL bootstraps a Super Admin. Live access remains gated by the existing governance configuration. Demonstration mode continues to allow the full workflow on synthetic records; it is not a role simulation. Hosting infrastructure, environment secrets and deployment access remain controlled by the hosting owner, not by an application role. Audit and consent records remain append-only even for Super Admins.
 
 The Analysis & reporting view generates timestamped reports with pseudonymous participant records and sample/report status totals. It intentionally excludes names, phone numbers and free-text notes. Dashboard list metrics cover the returned workspace records (maximum 1,000 patients); exports cover the full authorised programme dataset.
+
+
+## Update — 18 Sep 2026
+
+- Public landing page rebuilt to the campaign brief (white / warm off-white / charcoal / soft grey, one bronze accent; no cartoon imagery). Contact details render only when `CONTACT_EMAIL` / `CONTACT_PHONE` are configured; none are invented.
+- Staff workspace re-themed to the same neutral palette.
+- Classification: the habit × lesion → group matrix and pathway wording now live in each protocol version (`classification`, defaulting to DRIVE SAFE v1.0). Examinations use the newest approved protocol. Groups are still assigned only after a completed, clinician-verified examination.
+- Scoped roles can now be created alongside the three programme-wide roles: Doctor, Counsellor, Lab, Registration and Patient (bound to exactly one existing participant). Doctors and counsellors only see participants assigned to them; the profile has separate doctor and counsellor assignment pickers.
+- Read-only Assistants no longer receive free-text clinical or counselling notes, clinical outcomes or unverified reports.
+- Patients no longer receive their internal group number or pathway label.
+- The oral examination requires recorded screening consent. Verified examinations cannot be edited; a new examination must be recorded to amend one.
+- Consent records use `CONSENT_VERSION` (demo records are prefixed `DEMO-`).
+- Migration 0006 adds append-only `sample_events` so every sample status change has its own timestamp and actor, shown as a history on each sample.
+- Added the X-Frame-Options, `frame-ancestors 'none'`, HSTS and COOP headers.
+
+Known trade-offs: the public intake still returns a generic "ask the registration desk" response on a duplicate name + phone, which confirms that a registration exists. Staff sign-in still depends on the Sites/ChatGPT identity proxy. Replacing it with an institution-controlled identity provider is recommended before live use.

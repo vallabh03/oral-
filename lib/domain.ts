@@ -1,13 +1,28 @@
 import { z } from "zod";
-export const accountTypes = [
+// Programme-wide accounts can see every participant in their workspace.
+export const programmeRoles = [
   "DOCTOR_ADMIN",
   "SUPER_ADMIN",
   "ASSISTANT",
+] as const;
+// Assignment-scoped accounts only see the participants assigned to them.
+export const accountTypes = [
+  ...programmeRoles,
+  "DOCTOR",
+  "COUNSELLOR",
+  "LAB",
+  "REGISTRATION",
+  "PATIENT",
 ] as const;
 export const roleLabels: Record<string, string> = {
   DOCTOR_ADMIN: "Doctor – Admin",
   SUPER_ADMIN: "Tech Support – Super Admin",
   ASSISTANT: "Assistant – Data & Reporting",
+  DOCTOR: "Doctor (assigned patients)",
+  COUNSELLOR: "Counsellor (assigned patients)",
+  LAB: "Lab staff (assigned samples)",
+  REGISTRATION: "Registration staff",
+  PATIENT: "Patient (own record only)",
 };
 export function hasRole(role: string, ...allowed: string[]) {
   const grants: Record<string, string[]> = {
@@ -19,15 +34,7 @@ export function hasRole(role: string, ...allowed: string[]) {
     (grants[role] || []).some((r) => allowed.includes(r))
   );
 }
-export const roles = [
-  ...accountTypes,
-  "ADMIN",
-  "REGISTRATION",
-  "COUNSELLOR",
-  "DOCTOR",
-  "LAB",
-  "PATIENT",
-] as const;
+export const roles = [...accountTypes, "ADMIN"] as const;
 export const sampleStates = [
   "Collected",
   "Sent to lab",
@@ -76,8 +83,34 @@ const condition = z.object({
   equals: value.optional(),
   notEquals: value.optional(),
 });
+// DRIVE SAFE v1.0 core matrix: habit present/absent × lesion present/absent.
+// Stored with each protocol so the medical team can revise the mapping and
+// pathway wording through an approved protocol version, not a code change.
+export const driveSafeMatrix: {
+  habit: boolean;
+  lesion: boolean;
+  group: "1" | "2" | "3" | "4";
+  pathway: string;
+}[] = [
+  { habit: false, lesion: false, group: "1", pathway: "Education" },
+  { habit: false, lesion: true, group: "2", pathway: "Clinical lesion pathway" },
+  { habit: true, lesion: false, group: "3", pathway: "Cessation + planned follow-up" },
+  { habit: true, lesion: true, group: "4", pathway: "Clinical lesion pathway + cessation" },
+];
+export type ClassificationMatrix = typeof driveSafeMatrix;
 export const protocolSchema = z
   .object({
+    classification: z
+      .array(
+        z.object({
+          habit: z.boolean(),
+          lesion: z.boolean(),
+          group: z.enum(["1", "2", "3", "4"]),
+          pathway: z.string().min(1).max(160),
+        }),
+      )
+      .length(4)
+      .default(driveSafeMatrix),
     version: z.string().min(1).max(40),
     questions: z
       .array(
@@ -114,6 +147,12 @@ export const protocolSchema = z
       .default([]),
   })
   .superRefine((p, ctx) => {
+    const combos = new Set(p.classification.map((c) => `${c.habit}/${c.lesion}`));
+    if (combos.size !== 4)
+      ctx.addIssue({
+        code: "custom",
+        message: "Classification must map each habit × lesion combination exactly once",
+      });
     const ids = new Set<string>();
     for (const q of p.questions) {
       if (ids.has(q.id))
@@ -218,12 +257,21 @@ export function classify(
   lesion: boolean,
   examCompleted: boolean,
   verified: boolean,
+  matrix: ClassificationMatrix = driveSafeMatrix,
 ) {
   if (!examCompleted || !verified)
     throw new Error(
       "Completed oral examination and clinician verification are required.",
     );
-  return !habit ? (lesion ? "2" : "1") : lesion ? "4" : "3";
+  const hit = matrix.find((c) => c.habit === habit && c.lesion === lesion);
+  if (!hit) throw new Error("Classification matrix is incomplete.");
+  return hit.group;
+}
+export function pathwayFor(
+  group: string,
+  matrix: ClassificationMatrix = driveSafeMatrix,
+) {
+  return matrix.find((c) => c.group === group)?.pathway ?? groupPaths[group];
 }
 export function nextSample(current: string, next: string) {
   return (
@@ -238,7 +286,7 @@ export function canAccess(
   patientId?: string,
 ) {
   return (
-    accountTypes.includes(role as (typeof accountTypes)[number]) ||
+    programmeRoles.includes(role as (typeof programmeRoles)[number]) ||
     role === "ADMIN" ||
     role === "REGISTRATION" ||
     (role === "DOCTOR" && p.doctor_id === actor) ||
@@ -263,6 +311,7 @@ export const pilotConsent =
   "I voluntarily agree to participate in the DRIVE SAFE oral health screening programme. I understand that this is a screening examination and does not replace a complete medical evaluation. I agree to be contacted regarding my screening result and follow-up if required.";
 export const pilot: Protocol = {
   version: "DRIVE-SAFE-1.0-draft",
+  classification: driveSafeMatrix,
   rules: [],
   questions: [
     {

@@ -122,7 +122,7 @@ export function QRImage({ value }: { value: string }) {
       width: 220,
       margin: 2,
       errorCorrectionLevel: "M",
-      color: { dark: "#244c43", light: "#ffffff" },
+      color: { dark: "#34383c", light: "#ffffff" },
     }).then((s) => active && setSrc(s));
     return () => {
       active = false;

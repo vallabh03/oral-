@@ -3,6 +3,9 @@ import { test } from "node:test";
 import {
   hasRole,
   accountTypes,
+  programmeRoles,
+  driveSafeMatrix,
+  pathwayFor,
   pilot,
   validateAnswers,
   classify,
@@ -125,14 +128,16 @@ test("configuration rejects duplicate IDs and forward conditional references", (
   );
 });
 
-test("three staff account types separate clinical, system, and read-only access", () => {
-  assert.deepEqual(
-    [...accountTypes],
-    ["DOCTOR_ADMIN", "SUPER_ADMIN", "ASSISTANT"],
-  );
-  const anyPatient = { id: "p2", doctor_id: "another-doctor" };
-  for (const role of accountTypes)
+test("programme-wide roles see all participants; scoped roles only their own", () => {
+  const anyPatient = { id: "p2", doctor_id: "another-doctor", counsellor_id: "c9" };
+  for (const role of programmeRoles)
     assert.equal(canAccess(role, "staff", anyPatient), true);
+  for (const role of ["DOCTOR", "COUNSELLOR", "LAB", "PATIENT"])
+    assert.equal(canAccess(role, "staff", anyPatient, "p1"), false, role);
+  assert.equal(canAccess("DOCTOR", "another-doctor", anyPatient), true);
+  assert.equal(canAccess("COUNSELLOR", "c9", anyPatient), true);
+  assert.equal(canAccess("PATIENT", "u", anyPatient, "p2"), true);
+  assert.ok(accountTypes.includes("COUNSELLOR"));
   for (const grant of ["ADMIN", "DOCTOR", "LAB", "REGISTRATION", "COUNSELLOR"])
     assert.equal(hasRole("DOCTOR_ADMIN", grant), true);
   assert.equal(
@@ -178,4 +183,14 @@ test("three staff account types separate clinical, system, and read-only access"
   );
   assert.equal(canAccess("unknown", "staff", anyPatient), false);
   assert.equal(hasRole("unknown", "SUPER_ADMIN"), false);
+});
+
+test("classification matrix is configurable but must cover every combination", () => {
+  const custom = driveSafeMatrix.map((c) =>
+    c.group === "3" ? { ...c, pathway: "Cessation + 6-month re-screen" } : c,
+  );
+  assert.equal(classify(true, false, true, true, custom), "3");
+  assert.equal(pathwayFor("3", custom), "Cessation + 6-month re-screen");
+  const broken = { ...pilot, classification: [...driveSafeMatrix.slice(0, 3), driveSafeMatrix[0]] };
+  assert.equal(protocolSchema.safeParse(broken).success, false);
 });

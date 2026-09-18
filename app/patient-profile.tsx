@@ -184,33 +184,39 @@ export default function PatientProfile({
               ))}
             {can("ADMIN") && (
               <div className="form-grid">
-                {["DOCTOR_ADMIN"].map((r) => (
-                  <Field key={r} label={"Assign " + r.toLowerCase()}>
-                    <Choice
-                      label="Select staff"
-                      value={
-                        p[
-                          ["DOCTOR", "DOCTOR_ADMIN"].includes(r)
-                            ? "doctor_id"
-                            : "counsellor_id"
-                        ] || ""
-                      }
-                      options={users
-                        .filter((u) => u.role === r && u.active)
-                        .map((u) => u.id)}
-                      onChange={(v) =>
-                        save("assign", { data: { role: r, userId: v } }).catch(
-                          () => {},
-                        )
-                      }
-                    />
-                    <small>
-                      {users.length
-                        ? "Choose an authorized staff account."
-                        : "Add staff accounts in live administration."}
-                    </small>
-                  </Field>
-                ))}
+                {[
+                  { slot: "doctor_id", label: "Assigned doctor", roles: ["DOCTOR", "DOCTOR_ADMIN"] },
+                  { slot: "counsellor_id", label: "Assigned counsellor", roles: ["COUNSELLOR"] },
+                ].map(({ slot, label, roles: allowed }) => {
+                  const staff = users.filter(
+                    (u) => allowed.includes(u.role) && u.active,
+                  );
+                  return (
+                    <Field key={slot} label={label}>
+                      <Choice
+                        label="Select staff"
+                        value={p[slot] || ""}
+                        options={staff.map((u) => u.id)}
+                        labels={Object.fromEntries(
+                          staff.map((u) => [u.id, u.name + " · " + (roleLabels[u.role] || u.role)]),
+                        )}
+                        onChange={(v) =>
+                          save("assign", {
+                            data: {
+                              role: staff.find((u) => u.id === v)?.role,
+                              userId: v,
+                            },
+                          }).catch(() => {})
+                        }
+                      />
+                      <small>
+                        {staff.length
+                          ? "Choose an authorised staff account."
+                          : "Add matching staff accounts in live administration."}
+                      </small>
+                    </Field>
+                  );
+                })}
               </div>
             )}
             {can("ADMIN", "REGISTRATION", "DOCTOR", "PATIENT") && (
@@ -380,6 +386,16 @@ export default function PatientProfile({
                 <small>
                   {s.location} · {new Date(s.collected_at).toLocaleString()}
                 </small>
+                {s.history?.length > 0 && (
+                  <ol className="sample-history" aria-label={"Status history for " + s.id}>
+                    {s.history.map((h: any) => (
+                      <li key={h.status + h.at}>
+                        <span>{h.status}</span>
+                        <time dateTime={h.at}>{new Date(h.at).toLocaleString()}</time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
                 {can("ADMIN", "LAB") && sampleStates.indexOf(s.status) < 3 && (
                   <button
                     className="text-button"

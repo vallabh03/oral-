@@ -188,3 +188,17 @@ export const intakeTokens = sqliteTable("intake_tokens", {
   expires: integer("expires").notNull(),
   used: integer("used").notNull().default(0),
 });
+
+// Append-only lifecycle history: one row per sample status change.
+export const sampleEvents = sqliteTable(
+  "sample_events",
+  {
+    id: text("id").primaryKey(),
+    sampleId: text("sample_id").notNull(),
+    patientId: text("patient_id").notNull(),
+    status: text("status").notNull(),
+    at: text("at").notNull(),
+    actor: text("actor").notNull(),
+  },
+  (t) => [index("sample_events_sample").on(t.sampleId, t.at)],
+);

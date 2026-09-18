@@ -13,6 +13,7 @@ import {
   failure,
   HttpError,
   boundedBody,
+  sampleEvent,
 } from "@/lib/server";
 export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
@@ -83,6 +84,7 @@ export async function POST(req: Request) {
             "UPDATE samples SET status='Report generated',revision=revision+1 WHERE id=? AND status='Processing'",
           )
           .bind(sid),
+        sampleEvent(a, sid, pid, "Report generated"),
         await auditStatement(
           a,
           "Report uploaded to private storage: " + rid,
@@ -116,7 +118,9 @@ export async function GET(req: Request) {
         throw new HttpError(403, "Report access denied.");
       if (a.role === "LAB" && r.lab_id !== a.id)
         throw new HttpError(404, "Report unavailable.");
-      if (["DOCTOR", "PATIENT"].includes(a.role) && r.status !== "Linked")
+      // Only lab and administrative/doctor-admin staff handle reports before
+      // verification; everyone else sees verified, linked reports only.
+      if (!hasRole(a.role, "ADMIN", "LAB") && r.status !== "Linked")
         throw new HttpError(
           403,
           "Only verified, linked reports can be viewed.",

@@ -17,6 +17,7 @@ import {
   originCheck,
   seed,
   boundedBody,
+  sampleEvent,
 } from "@/lib/server";
 import {
   registration,
@@ -27,12 +28,19 @@ import {
   hasRole,
   treatmentAllowed,
   classify,
-  groupPaths,
+  pathwayFor,
+  protocolSchema as protocolDef,
   impressions,
   findings,
   sites,
 } from "@/lib/domain";
 export const dynamic = "force-dynamic";
+// Consent records carry the approved wording version. Demo records are
+// labelled so they can never be mistaken for live consent.
+function consentVersion(a: { demo: boolean }) {
+  const v = runtime().CONSENT_VERSION?.trim();
+  return a.demo ? "DEMO-" + (v || "DRIVE-SAFE-1.0-provisional") : v || "DRIVE-SAFE-1.0-provisional";
+}
 export async function GET(req: Request) {
   try {
     const a = await actor(req);
@@ -42,7 +50,7 @@ export async function GET(req: Request) {
     if (pid) {
       const p = await patient(a, pid);
       await log(a, "Patient record viewed", pid);
-      const [cs, rs, ss, rps, answers, events] = await Promise.all(
+      const [cs, rs, ss, rps, answers, events, sevents] = await Promise.all(
         [
           "SELECT * FROM consents WHERE patient_id=? ORDER BY at",
           "SELECT * FROM records WHERE patient_id=? ORDER BY at DESC",
@@ -50,13 +58,18 @@ export async function GET(req: Request) {
           "SELECT id,sample_id,patient_id,filename,status,at,verified_by FROM reports WHERE patient_id=?",
           "SELECT question_id,question_text,version,answer,at FROM responses WHERE patient_id=? ORDER BY at",
           "SELECT action,at,actor FROM audit WHERE patient_id=? ORDER BY at DESC",
+          "SELECT sample_id,status,at,actor FROM sample_events WHERE patient_id=? ORDER BY at",
         ].map((q) => db().prepare(q).bind(pid).all<any>()),
       );
-      const full = a.demo || hasRole(a.role, "ADMIN", "DOCTOR", "ASSISTANT");
+      // Clinical staff see everything; read-only assistants see structured
+      // workflow data but never free-text clinical/counselling notes.
+      const full = a.demo || hasRole(a.role, "ADMIN", "DOCTOR");
+      const reporting = !full && a.role === "ASSISTANT";
       const records = rs.results
         .filter(
           (r) =>
             full ||
+            reporting ||
             (a.role === "COUNSELLOR" &&
               ["counselling", "followup", "referral"].includes(r.kind)) ||
             (a.role === "PATIENT" && r.kind === "followup"),
@@ -64,33 +77,46 @@ export async function GET(req: Request) {
         .map((r) => {
           const d = JSON.parse(r.data);
           if (!full) delete d.clinicalOutcome;
+          if (reporting) {
+            delete d.notes;
+            delete d.decision;
+          }
           return { ...r, data: d };
         });
       const reports = rps.results.filter(
         (r) =>
           (a.demo ||
-            hasRole(a.role, "ADMIN", "LAB", "ASSISTANT") ||
+            hasRole(a.role, "ADMIN", "LAB") ||
             r.status === "Linked") &&
           (a.demo ||
             a.role !== "LAB" ||
             ss.results.some((s) => s.id === r.sample_id && s.lab_id === a.id)),
       );
       const labs = a.role === "LAB";
+      // Patients see their pathway only as guidance from the care team, never
+      // the internal group number or classification label.
+      const hidden = ["qr_hash", "tenant"].concat(
+        a.role === "PATIENT" ? ["category", "pathway", "doctor_id", "counsellor_id"] : [],
+      );
       return response({
         patient: labs
           ? { id: p.id, name: p.name }
           : Object.fromEntries(
-              Object.entries(p).filter(
-                ([k]) => !["qr_hash", "tenant"].includes(k),
-              ),
+              Object.entries(p).filter(([k]) => !hidden.includes(k)),
             ),
         consents: labs ? [] : cs.results,
         records,
-        samples: ss.results.filter(
-          (s) => a.demo || a.role !== "LAB" || s.lab_id === a.id,
-        ),
+        samples: ss.results
+          .filter((s) => a.demo || a.role !== "LAB" || s.lab_id === a.id)
+          .map((s) => ({
+            ...s,
+            history: sevents.results
+              .filter((e) => e.sample_id === s.id)
+              .map(({ status, at }) => ({ status, at })),
+          })),
         reports,
-        answers: full || a.role === "COUNSELLOR" ? answers.results : [],
+        answers:
+          full || reporting || a.role === "COUNSELLOR" ? answers.results : [],
         timeline: full ? events.results : [],
       });
     }
@@ -281,7 +307,7 @@ export async function POST(req: Request) {
               pid,
               type,
               "granted",
-              "DRIVE-SAFE-1.0-provisional",
+              consentVersion(a),
               at,
               a.id,
               "Explicit checkbox",
@@ -381,12 +407,23 @@ export async function POST(req: Request) {
           400,
           "Live account management is unavailable in demonstration mode.",
         );
+      // A patient account is bound to exactly one existing live participant;
+      // staff accounts are never bound to a participant.
+      const linked = d.role === "PATIENT" ? d.patientId?.trim() || "" : null;
+      if (
+        linked !== null &&
+        !(await db()
+          .prepare("SELECT id FROM patients WHERE id=? AND tenant='live'")
+          .bind(linked)
+          .first())
+      )
+        throw new HttpError(400, "Enter an existing participant ID for a patient account.");
       await db().batch([
         db()
           .prepare(
             "INSERT INTO users (id,email,name,role,active,patient_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,role=excluded.role,active=excluded.active,patient_id=excluded.patient_id",
           )
-          .bind(d.id, d.email, d.name, d.role, d.active ? 1 : 0, null),
+          .bind(d.id, d.email, d.name, d.role, d.active ? 1 : 0, linked),
         await auditStatement(a, "User permissions updated"),
       ]);
       return response({ ok: true });
@@ -569,6 +606,11 @@ export async function POST(req: Request) {
         );
       if (d.followupDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.followupDate))
         throw new HttpError(400, "Choose a valid follow-up date.");
+      if (!(await consent("screening")))
+        throw new HttpError(
+          409,
+          "Screening consent must be recorded before the oral examination.",
+        );
       if (!d.completed) {
         await db().batch([
           db()
@@ -588,12 +630,27 @@ export async function POST(req: Request) {
         ]);
         return response({ ok: true });
       }
+      // Use the classification matrix of the newest approved protocol (any
+      // protocol in the isolated demo workspace); fall back to DRIVE SAFE v1.0.
+      const active = await db()
+        .prepare(
+          a.demo
+            ? "SELECT definition FROM protocols WHERE tenant=? ORDER BY rowid DESC LIMIT 1"
+            : "SELECT definition FROM protocols WHERE tenant=? AND status='Approved' ORDER BY rowid DESC LIMIT 1",
+        )
+        .bind(a.tenant)
+        .first<any>();
+      const matrix = active
+        ? protocolSchema.parse(JSON.parse(active.definition)).classification
+        : undefined;
       const group = classify(
         d.habit === true,
         d.lesion === true,
         d.completed,
         d.verified,
+        matrix,
       );
+      const pathway = pathwayFor(group, matrix);
       const ins = [
         db()
           .prepare(
@@ -610,7 +667,7 @@ export async function POST(req: Request) {
           ),
         db()
           .prepare("UPDATE patients SET category=?,pathway=? WHERE id=?")
-          .bind(group, groupPaths[group], pid),
+          .bind(group, pathway, pid),
       ];
       if (d.referral !== "No")
         ins.push(
@@ -681,7 +738,7 @@ export async function POST(req: Request) {
           pid,
         ),
       ]);
-      return response({ group, pathway: groupPaths[group] });
+      return response({ group, pathway });
     }
     if (b.action === "consent") {
       requireRole(a, "ADMIN", "REGISTRATION", "DOCTOR");
@@ -698,7 +755,16 @@ export async function POST(req: Request) {
           .prepare(
             "INSERT INTO consents (id,patient_id,type,status,version,at,actor,method) VALUES (?,?,?,?,?,?,?,?)",
           )
-          .bind(id("CON"), pid, d.type, d.status, "1.0", at, a.id, d.method),
+          .bind(
+            id("CON"),
+            pid,
+            d.type,
+            d.status,
+            consentVersion(a),
+            at,
+            a.id,
+            d.method,
+          ),
         await auditStatement(a, d.type + " consent " + d.status, pid),
       ]);
       return response({ ok: true });
@@ -846,6 +912,11 @@ export async function POST(req: Request) {
           .bind(b.recordId, pid, d.kind)
           .first<any>();
         if (!old) throw new HttpError(404, "Workflow record unavailable.");
+        if (old.kind === "assessment" && old.status === "Clinician verified")
+          throw new HttpError(
+            409,
+            "A verified examination cannot be edited. Record a new examination to amend it.",
+          );
         writes.push(
           db()
             .prepare(
@@ -930,6 +1001,7 @@ export async function POST(req: Request) {
             "INSERT INTO samples (id,patient_id,type,status,collected_at,collected_by,location,lab_id,revision) VALUES (?,?,?,?,?,?,?,?,0)",
           )
           .bind(sid, pid, d.type, "Collected", at, a.id, d.location, d.labId),
+        sampleEvent(a, sid, pid, "Collected"),
         await auditStatement(a, "Sample collected: " + sid, pid),
       ]);
       return response({ id: sid });
@@ -961,6 +1033,7 @@ export async function POST(req: Request) {
             "UPDATE samples SET status=?,revision=revision+1 WHERE id=? AND revision=?",
           )
           .bind(b.status, s.id, revision),
+        sampleEvent(a, s.id, pid, b.status),
         await auditStatement(a, "Sample " + s.id + ": " + b.status, pid),
       ]);
       return response({ ok: true });
@@ -1004,6 +1077,7 @@ export async function POST(req: Request) {
               "UPDATE samples SET status='Report verified',revision=revision+1 WHERE id=?",
             )
             .bind(r.sample_id),
+          sampleEvent(a, r.sample_id, pid, "Report verified"),
           await auditStatement(a, "Report verified: " + r.id, pid),
         ]);
       } else {
@@ -1023,6 +1097,7 @@ export async function POST(req: Request) {
               "UPDATE samples SET status='Report linked',revision=revision+1 WHERE id=?",
             )
             .bind(r.sample_id),
+          sampleEvent(a, r.sample_id, pid, "Report linked"),
           await auditStatement(a, "Report linked: " + r.id, pid),
         ]);
       }
