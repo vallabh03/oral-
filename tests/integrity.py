@@ -16,4 +16,11 @@ class Integrity(unittest.TestCase):
  def test_consent_history(self):
   self.db.execute("INSERT INTO consents VALUES ('c','p1','testing','granted','v1','now','u','written')")
   with self.assertRaises(sqlite3.IntegrityError):self.db.execute("UPDATE consents SET status='withdrawn'")
+ def test_role_migration_preserves_restricted_accounts(self):
+  for role in ['ADMIN','DOCTOR','PATIENT','LAB','COUNSELLOR','REGISTRATION']:
+   self.db.execute("INSERT INTO users(id,email,name,role) VALUES (?,?,?,?)",(role,role+'@test.invalid','Synthetic user',role))
+  self.db.executescript(pathlib.Path('drizzle/0005_staff_access_levels.sql').read_text())
+  mapped=dict(self.db.execute('SELECT id,role FROM users'))
+  self.assertEqual(mapped['ADMIN'],'SUPER_ADMIN');self.assertEqual(mapped['DOCTOR'],'DOCTOR_ADMIN')
+  for role in ['PATIENT','LAB','COUNSELLOR','REGISTRATION']:self.assertEqual(mapped[role],role)
 if __name__=='__main__':unittest.main()

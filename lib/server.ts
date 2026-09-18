@@ -1,7 +1,7 @@
 import { pilot, groupPaths } from "./domain";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { canAccess, roles } from "./domain";
+import { canAccess, roles, hasRole } from "./domain";
 export function runtime() {
   return env as unknown as {
     DB: D1Database;
@@ -34,7 +34,10 @@ export async function boundedBody(req: Request, limit: number) {
   }
   const result = new Uint8Array(total);
   let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return result;
 }
 export const id = (prefix: string) =>
@@ -73,7 +76,7 @@ export async function actor(req: Request): Promise<Actor> {
     return {
       id: u.userId,
       name: u.displayName,
-      role: "ADMIN",
+      role: "SUPER_ADMIN",
       tenant: "demo:" + u.userId,
       demo: true,
     };
@@ -95,7 +98,7 @@ export async function actor(req: Request): Promise<Actor> {
       .prepare(
         "INSERT OR IGNORE INTO users (id,email,name,role,active) VALUES (?,?,?,?,1)",
       )
-      .bind(u.userId, u.email, u.displayName, "ADMIN")
+      .bind(u.userId, u.email, u.displayName, "SUPER_ADMIN")
       .run();
     row = await db()
       .prepare("SELECT * FROM users WHERE id=? AND active=1")
@@ -117,7 +120,7 @@ export async function actor(req: Request): Promise<Actor> {
   };
 }
 export function requireRole(a: Actor, ...allow: string[]) {
-  if (!a.demo && !allow.includes(a.role))
+  if (!a.demo && !hasRole(a.role, ...allow))
     throw new HttpError(403, "Your role cannot perform this action.");
 }
 export async function patient(a: Actor, pid: string) {

@@ -23,7 +23,8 @@ import {
   protocolSchema,
   validateAnswers,
   nextSample,
-  roles,
+  accountTypes,
+  hasRole,
   treatmentAllowed,
   classify,
   groupPaths,
@@ -51,7 +52,7 @@ export async function GET(req: Request) {
           "SELECT action,at,actor FROM audit WHERE patient_id=? ORDER BY at DESC",
         ].map((q) => db().prepare(q).bind(pid).all<any>()),
       );
-      const full = a.demo || ["ADMIN", "DOCTOR"].includes(a.role);
+      const full = a.demo || hasRole(a.role, "ADMIN", "DOCTOR", "ASSISTANT");
       const records = rs.results
         .filter(
           (r) =>
@@ -67,12 +68,22 @@ export async function GET(req: Request) {
         });
       const reports = rps.results.filter(
         (r) =>
-          (a.demo || ["ADMIN", "LAB"].includes(a.role) || r.status === "Linked") &&
-          (a.demo || a.role !== "LAB" || ss.results.some(s=>s.id===r.sample_id && s.lab_id===a.id)),
+          (a.demo ||
+            hasRole(a.role, "ADMIN", "LAB", "ASSISTANT") ||
+            r.status === "Linked") &&
+          (a.demo ||
+            a.role !== "LAB" ||
+            ss.results.some((s) => s.id === r.sample_id && s.lab_id === a.id)),
       );
       const labs = a.role === "LAB";
       return response({
-        patient: labs ? { id: p.id, name: p.name } : Object.fromEntries(Object.entries(p).filter(([k])=>!["qr_hash","tenant"].includes(k))),
+        patient: labs
+          ? { id: p.id, name: p.name }
+          : Object.fromEntries(
+              Object.entries(p).filter(
+                ([k]) => !["qr_hash", "tenant"].includes(k),
+              ),
+            ),
         consents: labs ? [] : cs.results,
         records,
         samples: ss.results.filter(
@@ -118,7 +129,7 @@ export async function GET(req: Request) {
       .bind(a.tenant)
       .all<any>();
     const audit =
-      a.demo || a.role === "ADMIN"
+      a.demo || ["SUPER_ADMIN", "ADMIN"].includes(a.role)
         ? await db()
             .prepare(
               "SELECT id,patient_id,actor,action,at FROM audit WHERE tenant=? ORDER BY rowid DESC LIMIT 200",
@@ -128,11 +139,17 @@ export async function GET(req: Request) {
         : { results: [] };
     const users = a.demo
       ? { results: [] }
-      : a.role === "ADMIN"
+      : ["SUPER_ADMIN", "ADMIN"].includes(a.role)
         ? await db()
             .prepare("SELECT id,name,email,role,active FROM users")
             .all()
-        : { results: [] };
+        : a.role === "DOCTOR_ADMIN"
+          ? await db()
+              .prepare(
+                "SELECT id,name,role,active FROM users WHERE active=1 AND role IN ('DOCTOR_ADMIN','SUPER_ADMIN','LAB')",
+              )
+              .all()
+          : { results: [] };
     const records = await db()
       .prepare(
         `SELECT r.id,r.patient_id,r.kind,r.status,r.at,r.data FROM records r JOIN patients p ON p.id=r.patient_id WHERE p.${clause.replaceAll(" AND id", " AND p.id")} AND r.kind IN ('referral','counselling','followup')`,
@@ -163,7 +180,7 @@ export async function GET(req: Request) {
         .filter(
           (p) =>
             a.demo ||
-            ["ADMIN", "DOCTOR"].includes(a.role) ||
+            hasRole(a.role, "ADMIN", "DOCTOR", "ASSISTANT") ||
             p.status === "Approved",
         )
         .map((p) => ({ ...p, definition: JSON.parse(p.definition) })),
@@ -172,7 +189,7 @@ export async function GET(req: Request) {
       records: records.results.map((r) => ({
         ...r,
         data:
-          a.demo || ["ADMIN", "DOCTOR"].includes(a.role)
+          a.demo || hasRole(a.role, "ADMIN", "DOCTOR", "ASSISTANT")
             ? JSON.parse(r.data)
             : a.role === "COUNSELLOR"
               ? Object.fromEntries(
@@ -343,30 +360,22 @@ export async function POST(req: Request) {
       return response({ ok: true });
     }
     if (b.action === "user") {
-      requireRole(a, "ADMIN");
+      requireRole(a, "SUPER_ADMIN");
       const d = z
         .object({
           id: z.string().min(3).max(150),
           name: z.string().min(2).max(120),
           email: z.string().email(),
-          role: z.enum(roles),
+          role: z.enum(accountTypes),
           patientId: z.string().nullable(),
           active: z.boolean(),
         })
         .parse(b.data);
-      if (d.id === a.id && (!d.active || d.role !== "ADMIN"))
+      if (d.id === a.id && (!d.active || d.role !== "SUPER_ADMIN"))
         throw new HttpError(
           400,
           "You cannot remove your own administrator access.",
         );
-      if (d.role === "PATIENT") {
-        if (!d.patientId)
-          throw new HttpError(
-            400,
-            "Select the patient record for this account.",
-          );
-        await patient(a, d.patientId);
-      }
       if (a.demo)
         throw new HttpError(
           400,
@@ -377,7 +386,7 @@ export async function POST(req: Request) {
           .prepare(
             "INSERT INTO users (id,email,name,role,active,patient_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,role=excluded.role,active=excluded.active,patient_id=excluded.patient_id",
           )
-          .bind(d.id, d.email, d.name, d.role, d.active ? 1 : 0, d.patientId),
+          .bind(d.id, d.email, d.name, d.role, d.active ? 1 : 0, null),
         await auditStatement(a, "User permissions updated"),
       ]);
       return response({ ok: true });
@@ -697,7 +706,10 @@ export async function POST(req: Request) {
     if (b.action === "assign") {
       requireRole(a, "ADMIN");
       const d = z
-        .object({ role: z.enum(["DOCTOR", "COUNSELLOR"]), userId: z.string() })
+        .object({
+          role: z.enum(["DOCTOR_ADMIN", "DOCTOR", "COUNSELLOR"]),
+          userId: z.string(),
+        })
         .parse(b.data);
       if (
         !(await db()
@@ -712,7 +724,7 @@ export async function POST(req: Request) {
       await db().batch([
         db()
           .prepare(
-            `UPDATE patients SET ${d.role === "DOCTOR" ? "doctor_id" : "counsellor_id"}=? WHERE id=?`,
+            `UPDATE patients SET ${["DOCTOR", "DOCTOR_ADMIN"].includes(d.role) ? "doctor_id" : "counsellor_id"}=? WHERE id=?`,
           )
           .bind(d.userId, pid),
         await auditStatement(a, d.role + " assigned", pid),
@@ -905,7 +917,7 @@ export async function POST(req: Request) {
         d.labId &&
         !(await db()
           .prepare(
-            "SELECT id FROM users WHERE id=? AND role='LAB' AND active=1",
+            "SELECT id FROM users WHERE id=? AND role IN ('LAB','DOCTOR_ADMIN','SUPER_ADMIN') AND active=1",
           )
           .bind(d.labId)
           .first())

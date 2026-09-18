@@ -50,3 +50,11 @@ Physical iPhone Safari, iPhone Chrome, Android camera permissions/scanning, full
 ## Development
 
 Install using the existing lockfile. Start with `node scripts/run-framework.mjs dev`; build with `node scripts/run-framework.mjs build`. Database schema is in `db/schema.ts`; append new Drizzle migrations rather than rewriting deployed ones. Tests: `node --experimental-strip-types --test tests/domain.test.ts`, `python tests/integrity.py`, and `node tests/api.mjs` against the local dev server. The API test uses the starter's localhost-only mock sign-in, which is not present in the production build.
+
+
+## Staff access levels
+New accounts use exactly three types: Doctor – Admin (`DOCTOR_ADMIN`), Tech Support – Super Admin (`SUPER_ADMIN`), and Assistant – Data & Reporting (`ASSISTANT`). Doctors manage all programme patients, clinical care, samples and laboratory reports. Super admins manage accounts, role assignment, programme configuration, camps, operational data and audit access. Clinical approvals remain doctor-only. Assistants can review programme patient records, samples and reports and generate de-identified programme JSON reports, but cannot modify clinical data or accounts.
+
+Migration 0005 upgrades existing ADMIN and DOCTOR accounts. Legacy restricted roles retain their old restrictions and are not automatically promoted; new account creation offers only the three requested types. ADMIN_EMAIL bootstraps a Super Admin. Live access remains gated by the existing governance configuration. Demonstration mode continues to allow the full workflow on synthetic records; it is not a role simulation. Hosting infrastructure, environment secrets and deployment access remain controlled by the hosting owner, not by an application role. Audit and consent records remain append-only even for Super Admins.
+
+The Analysis & reporting view generates timestamped reports with pseudonymous participant records and sample/report status totals. It intentionally excludes names, phone numbers and free-text notes. Dashboard list metrics cover the returned workspace records (maximum 1,000 patients); exports cover the full authorised programme dataset.

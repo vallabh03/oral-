@@ -1,5 +1,26 @@
 import { z } from "zod";
+export const accountTypes = [
+  "DOCTOR_ADMIN",
+  "SUPER_ADMIN",
+  "ASSISTANT",
+] as const;
+export const roleLabels: Record<string, string> = {
+  DOCTOR_ADMIN: "Doctor – Admin",
+  SUPER_ADMIN: "Tech Support – Super Admin",
+  ASSISTANT: "Assistant – Data & Reporting",
+};
+export function hasRole(role: string, ...allowed: string[]) {
+  const grants: Record<string, string[]> = {
+    DOCTOR_ADMIN: ["ADMIN", "DOCTOR", "REGISTRATION", "LAB", "COUNSELLOR"],
+    SUPER_ADMIN: ["ADMIN", "REGISTRATION", "LAB", "COUNSELLOR"],
+  };
+  return (
+    allowed.includes(role) ||
+    (grants[role] || []).some((r) => allowed.includes(r))
+  );
+}
 export const roles = [
+  ...accountTypes,
   "ADMIN",
   "REGISTRATION",
   "COUNSELLOR",
@@ -217,6 +238,7 @@ export function canAccess(
   patientId?: string,
 ) {
   return (
+    accountTypes.includes(role as (typeof accountTypes)[number]) ||
     role === "ADMIN" ||
     role === "REGISTRATION" ||
     (role === "DOCTOR" && p.doctor_id === actor) ||
@@ -231,7 +253,7 @@ export function treatmentAllowed(
   decision: string,
 ) {
   return (
-    role === "DOCTOR" &&
+    hasRole(role, "DOCTOR") &&
     hasAssessment &&
     consented &&
     decision.trim().length >= 10

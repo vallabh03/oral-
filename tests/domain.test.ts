@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  hasRole,
+  accountTypes,
   pilot,
   validateAnswers,
   classify,
@@ -121,4 +123,59 @@ test("configuration rejects duplicate IDs and forward conditional references", (
     }).success,
     false,
   );
+});
+
+test("three staff account types separate clinical, system, and read-only access", () => {
+  assert.deepEqual(
+    [...accountTypes],
+    ["DOCTOR_ADMIN", "SUPER_ADMIN", "ASSISTANT"],
+  );
+  const anyPatient = { id: "p2", doctor_id: "another-doctor" };
+  for (const role of accountTypes)
+    assert.equal(canAccess(role, "staff", anyPatient), true);
+  for (const grant of ["ADMIN", "DOCTOR", "LAB", "REGISTRATION", "COUNSELLOR"])
+    assert.equal(hasRole("DOCTOR_ADMIN", grant), true);
+  assert.equal(
+    hasRole("DOCTOR_ADMIN", "SUPER_ADMIN"),
+    false,
+    "doctor cannot grant accounts",
+  );
+  assert.equal(hasRole("SUPER_ADMIN", "SUPER_ADMIN"), true);
+  assert.equal(
+    hasRole("SUPER_ADMIN", "DOCTOR"),
+    false,
+    "technical account cannot sign clinical decisions",
+  );
+  for (const grant of [
+    "ADMIN",
+    "DOCTOR",
+    "LAB",
+    "REGISTRATION",
+    "COUNSELLOR",
+    "SUPER_ADMIN",
+  ])
+    assert.equal(
+      hasRole("ASSISTANT", grant),
+      false,
+      "assistant cannot mutate: " + grant,
+    );
+  assert.equal(
+    hasRole("ASSISTANT", "ADMIN", "ASSISTANT"),
+    true,
+    "assistant can export analysis",
+  );
+  assert.equal(
+    treatmentAllowed("DOCTOR_ADMIN", true, true, "Clinician approved decision"),
+    true,
+  );
+  assert.equal(
+    treatmentAllowed("SUPER_ADMIN", true, true, "Clinician approved decision"),
+    false,
+  );
+  assert.equal(
+    treatmentAllowed("ASSISTANT", true, true, "Clinician approved decision"),
+    false,
+  );
+  assert.equal(canAccess("unknown", "staff", anyPatient), false);
+  assert.equal(hasRole("unknown", "SUPER_ADMIN"), false);
 });

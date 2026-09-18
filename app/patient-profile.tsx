@@ -1,4 +1,5 @@
 "use client";
+import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Field, Choice, Check, Modal, QRImage, api } from "./care-ui";
@@ -69,7 +70,7 @@ export default function PatientProfile({
       setBusy(false);
     }
   }
-  const can = (...r: string[]) => demo || r.includes(role);
+  const can = (...r: string[]) => demo || hasRole(role, ...r);
   if (!data)
     return (
       <p className={error ? "error" : "muted"}>
@@ -131,7 +132,7 @@ export default function PatientProfile({
             "timeline",
           ]
             .filter((t) => {
-              if (can("ADMIN", "DOCTOR")) return true;
+              if (can("ADMIN", "DOCTOR", "ASSISTANT")) return true;
               if (role === "REGISTRATION")
                 return ["overview", "screening", "consent"].includes(t);
               if (role === "LAB") return ["overview", "testing"].includes(t);
@@ -183,12 +184,16 @@ export default function PatientProfile({
               ))}
             {can("ADMIN") && (
               <div className="form-grid">
-                {["DOCTOR", "COUNSELLOR"].map((r) => (
+                {["DOCTOR_ADMIN"].map((r) => (
                   <Field key={r} label={"Assign " + r.toLowerCase()}>
                     <Choice
                       label="Select staff"
                       value={
-                        p[r === "DOCTOR" ? "doctor_id" : "counsellor_id"] || ""
+                        p[
+                          ["DOCTOR", "DOCTOR_ADMIN"].includes(r)
+                            ? "doctor_id"
+                            : "counsellor_id"
+                        ] || ""
                       }
                       options={users
                         .filter((u) => u.role === r && u.active)
@@ -273,7 +278,7 @@ export default function PatientProfile({
               />
             ) : (
               <p className="notice">
-                Only the assigned doctor can record and verify an examination.
+                Only an authorised doctor can record and verify an examination.
               </p>
             )}
             {data.records
@@ -892,7 +897,11 @@ function ActionForm({
               label="Lab staff"
               value={d.labId}
               options={users
-                .filter((u) => u.role === "LAB" && u.active)
+                .filter(
+                  (u) =>
+                    ["DOCTOR_ADMIN", "SUPER_ADMIN", "LAB"].includes(u.role) &&
+                    u.active,
+                )
                 .map((u) => u.id)}
               onChange={(v) => set("labId", v)}
             />

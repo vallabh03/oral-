@@ -1,3 +1,4 @@
+import { hasRole } from "@/lib/domain";
 import {
   actor,
   db,
@@ -19,12 +20,14 @@ export async function POST(req: Request) {
     if (req.headers.get("origin") !== new URL(req.url).origin)
       throw new HttpError(403, "Request origin rejected.");
     const a = await actor(req);
-    if (!a.demo && !["ADMIN", "LAB"].includes(a.role))
+    if (!a.demo && !hasRole(a.role, "ADMIN", "LAB"))
       throw new HttpError(403, "Report upload requires laboratory access.");
     await rate(a);
     if (Number(req.headers.get("content-length") || 0) > 5_500_000)
       throw new HttpError(413, "Report limit is 5 MB.");
-    const form = await new Response(await boundedBody(req, 5_500_000), {headers: {"Content-Type":req.headers.get("content-type") || ""}}).formData(),
+    const form = await new Response(await boundedBody(req, 5_500_000), {
+        headers: { "Content-Type": req.headers.get("content-type") || "" },
+      }).formData(),
       pid = String(form.get("patientId")),
       sid = String(form.get("sampleId"));
     const p = await patient(a, pid);
@@ -109,7 +112,7 @@ export async function GET(req: Request) {
     if (!r) throw new HttpError(404, "Report unavailable.");
     await patient(a, r.patient_id);
     if (!a.demo) {
-      if (!["ADMIN", "LAB", "DOCTOR", "PATIENT"].includes(a.role))
+      if (!hasRole(a.role, "ADMIN", "LAB", "DOCTOR", "PATIENT", "ASSISTANT"))
         throw new HttpError(403, "Report access denied.");
       if (a.role === "LAB" && r.lab_id !== a.id)
         throw new HttpError(404, "Report unavailable.");

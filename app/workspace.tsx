@@ -1,4 +1,5 @@
 "use client";
+import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
 import { useState, useEffect, useCallback } from "react";
 import {
   Activity,
@@ -60,6 +61,7 @@ const nav = [
   ["Doctor referrals", Stethoscope],
   ["Samples & lab", FlaskConical],
   ["Reports", FileCheck2],
+  ["Analysis & reporting", Download],
   ["Follow-ups", CalendarDays],
   ["Camps", MapPin],
   ["Protocol & settings", Settings2],
@@ -73,7 +75,7 @@ const empty = {
   samples: [],
   audit: [],
   users: [],
-  actor: { name: "Care team", role: "ADMIN", demo: true },
+  actor: { name: "Care team", role: "SUPER_ADMIN", demo: true },
 };
 export default function Workspace() {
   const [view, setView] = useState("Overview"),
@@ -151,7 +153,7 @@ export default function Workspace() {
   }, []);
   const demo = mode === "demo",
     role = data.actor.role,
-    can = (...r: string[]) => demo || r.includes(role);
+    can = (...r: string[]) => demo || hasRole(role, ...r);
   const filtered = data.patients.filter((p: any) => {
     const c = data.camps.find((c: any) => c.id === p.camp_id);
     return (
@@ -203,7 +205,7 @@ export default function Workspace() {
       });
       const j: any = await r.json();
       if (!r.ok) throw new Error(j.error);
-      const blob = new Blob([JSON.stringify(j.records, null, 2)], {
+      const blob = new Blob([JSON.stringify(j, null, 2)], {
         type: "application/json",
       });
       const a = document.createElement("a");
@@ -237,9 +239,18 @@ export default function Workspace() {
             {nav
               .filter(
                 ([t]) =>
-                  can("ADMIN") ||
+                  (t === "Audit log"
+                    ? can("SUPER_ADMIN")
+                    : t === "Analysis & reporting"
+                      ? can("ADMIN", "ASSISTANT")
+                      : can("ADMIN")) ||
                   (role === "DOCTOR" && t === "Protocol & settings") ||
-                  (!["Camps", "Protocol & settings", "Audit log"].includes(t) &&
+                  (![
+                    "Camps",
+                    "Protocol & settings",
+                    "Audit log",
+                    "Analysis & reporting",
+                  ].includes(t) &&
                     ((role !== "LAB" && role !== "PATIENT") ||
                       [
                         "Overview",
@@ -273,7 +284,9 @@ export default function Workspace() {
             <div>
               {demo ? "Demo care team" : data.actor.name}
               <small>
-                {demo ? "Demonstration workspace" : role.toLowerCase()}
+                {demo
+                  ? "Demonstration workspace"
+                  : roleLabels[role] || role.toLowerCase()}
               </small>
             </div>
           </div>
@@ -773,6 +786,51 @@ export default function Workspace() {
                     {entryUrl && <QRImage value={entryUrl} />}
                   </section>
                 </>
+              ) : view === "Analysis & reporting" ? (
+                <section className="panel stack">
+                  <h2>Programme analysis & reporting</h2>
+                  <p className="muted">
+                    Read-only overview of the participants visible in this
+                    workspace. Exports include the full authorised programme
+                    dataset, not only the current list filters.
+                  </p>
+                  <div className="metrics">
+                    {[
+                      ["Participants in view", data.patients.length],
+                      ["Samples in view", data.samples.length],
+                      [
+                        "Classified in view",
+                        data.patients.filter((p: any) => p.category).length,
+                      ],
+                      [
+                        "Linked samples in view",
+                        data.samples.filter(
+                          (s: any) => s.status === "Report linked",
+                        ).length,
+                      ],
+                    ].map(([label, value]) => (
+                      <div className="metric" key={label}>
+                        <p>{label}</p>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <p>
+                    Patient information and samples can be reviewed in
+                    Participants and Samples & lab. Assistants cannot change
+                    clinical records, upload or verify laboratory reports, or
+                    manage accounts.
+                  </p>
+                  <button className="primary" onClick={downloadAnalysis}>
+                    <Download size={16} /> Generate de-identified programme
+                    report
+                  </button>
+                  <p className="fine">
+                    Downloads a JSON report with participant data, sample status
+                    totals and report status totals. Names, phone numbers and
+                    clinical notes are excluded.
+                  </p>
+                </section>
               ) : view === "Protocol & settings" ? (
                 <Settings
                   data={data}
@@ -1115,6 +1173,9 @@ function CampForm({ save }: any) {
   );
 }
 function Settings({ data, mode, reload, exportAnalysis }: any) {
+  const systemAdmin = data.actor.demo || data.actor.role === "SUPER_ADMIN";
+  const clinician = data.actor.demo || hasRole(data.actor.role, "DOCTOR");
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [text, setText] = useState(
       JSON.stringify(data.protocols[0]?.definition || pilot, null, 2),
     ),
@@ -1190,7 +1251,7 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
           <div className="record" key={p.id}>
             <span className="badge">{p.status}</span>
             <h3>{p.version}</h3>
-            {p.status === "Draft" && (
+            {p.status === "Draft" && clinician && (
               <>
                 <Check checked={confirmed} onChange={setConfirmed}>
                   I am an authorized clinician and have reviewed this exact
@@ -1223,20 +1284,41 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
       <section className="panel">
         <div className="panel-heading">
           <h2>Access & programme analysis</h2>
-          <button className="secondary" onClick={() => setUserOpen(true)}>
-            <Plus size={16} /> Staff account
-          </button>
+          {systemAdmin && (
+            <button
+              className="secondary"
+              onClick={() => {
+                setEditingUser(null);
+                setUserOpen(true);
+              }}
+            >
+              <Plus size={16} /> Staff account
+            </button>
+          )}
         </div>
         <p className="muted">
-          Staff roles and patient assignments are enforced by the server.
-          Patient accounts are linked to exactly one participant.
+          Doctor – Admin manages clinical care. Tech Support – Super Admin
+          manages accounts and system administration. Assistant – Data &
+          Reporting has read-only review and report generation.
         </p>
         {data.users.map((u: any) => (
           <div className="record" key={u.id}>
             <h3>{u.name}</h3>
             <p>
-              {u.email} · {u.role} · {u.active ? "Active" : "Disabled"}
+              {u.email} · {roleLabels[u.role] || u.role} ·{" "}
+              {u.active ? "Active" : "Disabled"}
             </p>
+            {systemAdmin && (
+              <button
+                className="secondary"
+                onClick={() => {
+                  setEditingUser(u);
+                  setUserOpen(true);
+                }}
+              >
+                Edit access
+              </button>
+            )}
           </div>
         ))}
         <button className="secondary" onClick={exportAnalysis}>
@@ -1254,6 +1336,8 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
         description="Use the authenticated account ID supplied by your administrator."
       >
         <UserForm
+          key={editingUser?.id || "new"}
+          initial={editingUser}
           save={async (d: any) => {
             await api("user", { data: d }, mode);
             await reload();
@@ -1264,14 +1348,15 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
     </div>
   );
 }
-function UserForm({ save }: any) {
+function UserForm({ save, initial }: any) {
   const [d, setD] = useState({
       id: "",
       name: "",
       email: "",
-      role: "REGISTRATION",
+      role: "ASSISTANT",
       patientId: "",
-      active: true,
+      ...initial,
+      active: initial ? !!initial.active : true,
     }),
     [error, setError] = useState("");
   return (
@@ -1299,6 +1384,7 @@ function UserForm({ save }: any) {
         >
           <input
             required
+            disabled={k === "id" && !!initial}
             type={k === "email" ? "email" : "text"}
             value={(d as any)[k]}
             onChange={(e) => setD({ ...d, [k]: e.target.value })}
@@ -1308,14 +1394,8 @@ function UserForm({ save }: any) {
       <Choice
         label="Role"
         value={d.role}
-        options={[
-          "ADMIN",
-          "REGISTRATION",
-          "COUNSELLOR",
-          "DOCTOR",
-          "LAB",
-          "PATIENT",
-        ]}
+        options={[...accountTypes]}
+        labels={roleLabels}
         onChange={(v) => setD({ ...d, role: v })}
       />
       {d.role === "PATIENT" && (
