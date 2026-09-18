@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Hyderabad Against Oral Cancer | Care workspace",
+  title: "Telangana Against Oral Cancer | DRIVE SAFE",
   description: "Consent-led screening and clinician-led care coordination.",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };

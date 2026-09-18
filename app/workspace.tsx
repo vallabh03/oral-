@@ -224,7 +224,7 @@ export default function Workspace() {
               <Activity />
             </span>
             <span>
-              HYDERABAD<span>AGAINST ORAL CANCER</span>
+              TELANGANA<span>AGAINST ORAL CANCER</span>
             </span>
           </a>
           <div className="program-tag">
@@ -325,7 +325,7 @@ export default function Workspace() {
           <div className="page-heading">
             <div>
               <p className="eyebrow">
-                HYDERABAD AGAINST ORAL CANCER · DRIVE SAFE
+                TELANGANA AGAINST ORAL CANCER · DRIVE SAFE
               </p>
               <h1>{header}</h1>
               <p>
@@ -362,7 +362,7 @@ export default function Workspace() {
               <div className="action-row">
                 <a
                   className="primary"
-                  href="/signin-with-chatgpt?return_to=/"
+                  href="/signin-with-chatgpt?return_to=/workspace"
                   target="_top"
                 >
                   Sign in

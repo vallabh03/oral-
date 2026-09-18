@@ -45,7 +45,7 @@ export default function Register() {
           <Activity />
         </span>
         <span>
-          HYDERABAD<span>AGAINST ORAL CANCER</span>
+          TELANGANA<span>AGAINST ORAL CANCER</span>
         </span>
       </a>
       <p className="eyebrow">DRIVE SAFE · PARTICIPANT ENTRY</p>
@@ -54,7 +54,7 @@ export default function Register() {
           ? "A few questions about your oral health."
           : "Your screening journey starts here."}
       </h1>
-      <p className="muted">For Hyderabad’s auto and taxi drivers.</p>
+      <p className="muted">For Telangana’s auto and taxi drivers.</p>
       <section className="panel">
         {!live && (
           <div className="notice">
