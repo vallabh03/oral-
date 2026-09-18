@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789641459124,
+      "tag": "0000_real_reavers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789642179873,
+      "tag": "0001_warm_wallow",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789642645461,
+      "tag": "0002_security_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789642722646,
+      "tag": "0003_concerned_genesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789643202200,
+      "tag": "0004_chubby_marvel_zombies",
+      "breakpoints": true
+    }
+  ]
+}
