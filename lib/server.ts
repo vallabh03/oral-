@@ -80,8 +80,8 @@ export async function actor(
   if (!u) throw new HttpError(401, "Sign in to access this workspace.");
   const demo =
     !options.forceLive &&
-    req.headers.get("x-care-mode") !== "live" &&
-    new URL(req.url).searchParams.get("mode") !== "live";
+    (req.headers.get("x-care-mode") === "demo" ||
+      new URL(req.url).searchParams.get("mode") === "demo");
   if (demo)
     return {
       id: u.userId,

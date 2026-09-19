@@ -1,4 +1,4 @@
-import sqlite3,pathlib,unittest
+import sqlite3,pathlib,unittest,json
 class Integrity(unittest.TestCase):
  def setUp(self):
   self.db=sqlite3.connect(':memory:');self.db.execute('PRAGMA foreign_keys=ON')
@@ -23,4 +23,8 @@ class Integrity(unittest.TestCase):
   mapped=dict(self.db.execute('SELECT id,role FROM users'))
   self.assertEqual(mapped['ADMIN'],'SUPER_ADMIN');self.assertEqual(mapped['DOCTOR'],'DOCTOR_ADMIN')
   for role in ['PATIENT','LAB','COUNSELLOR','REGISTRATION']:self.assertEqual(mapped[role],role)
+ def test_migration_order_is_monotonic(self):
+  journal=json.loads(pathlib.Path('drizzle/meta/_journal.json').read_text())
+  times=[r['when'] for r in journal['entries']]
+  self.assertTrue(all(a<b for a,b in zip(times,times[1:])))
 if __name__=='__main__':unittest.main()

@@ -154,7 +154,13 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
             {Object.entries(data.summary).map(([k, v]) => (
               <div className="metric" key={k}>
                 <p>{k}</p>
-                <strong>{String(v)}</strong>
+                <strong>
+                  {typeof v === "boolean"
+                    ? v
+                      ? "Enabled"
+                      : "Disabled"
+                    : String(v)}
+                </strong>
               </div>
             ))}
           </div>
@@ -177,7 +183,7 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
                   </thead>
                   <tbody>
                     {rows.map((r: any) => (
-                      <tr key={r.label}>
+                      <tr key={r.id || r.label}>
                         <td>{r.label}</td>
                         {Object.keys(data.summary).map((k) => (
                           <td key={k}>{r[k]}</td>
@@ -211,6 +217,34 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
             onClick={() => download(data, "drive-safe-analysis.json")}
           >
             Export filtered analysis report
+          </button>
+          <button
+            className="secondary"
+            onClick={() => {
+              const columns = Object.keys(data.records[0] || {});
+              const cell = (v: any) =>
+                '"' +
+                String(v ?? "")
+                  .replace(/^[=+@-]/, "'$&")
+                  .replaceAll('"', '""') +
+                '"';
+              const csv = [
+                columns.map(cell).join(","),
+                ...data.records.map((r: any) =>
+                  columns.map((k) => cell(r[k])).join(","),
+                ),
+              ].join("\r\n");
+              const url = URL.createObjectURL(
+                new Blob([csv], { type: "text/csv;charset=utf-8" }),
+              );
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "drive-safe-analysis.csv";
+              link.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }}
+          >
+            Export analytical dataset (CSV)
           </button>
           <button className="secondary" onClick={() => window.print()}>
             Print statistical summary
@@ -260,8 +294,26 @@ export function SystemPanel({ mode }: { mode: string }) {
           <div className="info-grid">
             {Object.entries(data.status).map(([k, v]) => (
               <div key={k}>
-                <small>{k}</small>
-                <strong>{String(v)}</strong>
+                <small>
+                  {(
+                    {
+                      database: "Database",
+                      reportStorage: "Report storage",
+                      authentication: "Authentication",
+                      liveIntake: "Live participant intake",
+                      publicIntake: "Public registration",
+                      auditSigning: "Signed audit trail",
+                      checkedAt: "Last checked",
+                    } as Record<string, string>
+                  )[k] || k}
+                </small>
+                <strong>
+                  {typeof v === "boolean"
+                    ? v
+                      ? "Enabled"
+                      : "Disabled"
+                    : String(v)}
+                </strong>
               </div>
             ))}
           </div>
@@ -334,7 +386,7 @@ export function SystemPanel({ mode }: { mode: string }) {
           <div className="form-grid">
             {["supportEmail", "supportPhone"].map((k) => (
               <label key={k} className="field">
-                {k}
+                {k === "supportEmail" ? "Programme email" : "Programme phone"}
                 <input
                   value={data.settings[k]}
                   onChange={(e) =>

@@ -120,8 +120,19 @@ export async function GET(req: Request) {
       generatedAt: new Date().toISOString(),
       filters: { camp, group, from, to },
       summary: summary(rows),
-      byCamp: cohorts("camp"),
-      byCategory: cohorts("category"),
+      byCamp: [...new Set(rows.map((r) => r.camp_id || "Unrecorded"))].map(
+        (id) => ({
+          id,
+          label:
+            rows.find((r) => (r.camp_id || "Unrecorded") === id)?.camp ||
+            "Unrecorded",
+          ...summary(rows.filter((r) => (r.camp_id || "Unrecorded") === id)),
+        }),
+      ),
+      byCategory: cohorts("category").map((r) => ({
+        ...r,
+        label: r.label === "Unrecorded" ? "Unclassified" : r.label,
+      })),
       byRegistrationDate: cohorts("day"),
       habits: Object.entries(habitCounts).map(([label, count]) => ({
         label,
@@ -146,7 +157,7 @@ export async function GET(req: Request) {
         reported: !!r.reported,
       })),
       privacy:
-        "Pseudonymous programme analysis only. Multi-select habit counts may exceed participant totals. Date trends describe registration cohorts, not incidence or causality.",
+        "Pseudonymous programme analysis only. Screened means clinician-verified assessment; reported means at least one verified, linked laboratory report. Multi-select habit counts may exceed participant totals. Date trends describe registration cohorts, not incidence or causality.",
     });
   } catch (e) {
     return failure(e);

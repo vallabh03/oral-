@@ -58,6 +58,14 @@ export async function GET(req: Request) {
         .bind(pid)
         .all()
     ).results;
+    const sampleHistory = (
+      await db()
+        .prepare(
+          "SELECT sample_id,status,at FROM sample_events WHERE patient_id=? ORDER BY at",
+        )
+        .bind(pid)
+        .all()
+    ).results;
     await log(a, "Patient-specific report generated", pid);
     if (new URL(req.url).searchParams.get("format") === "html") {
       const table = (rows: any[]) =>
@@ -74,7 +82,7 @@ export async function GET(req: Request) {
               )
               .join("")
           : "<p>No records recorded.</p>";
-      const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Patient report ${esc(pid)}</title><style>body{font:15px/1.6 Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#183e35}h1{font-size:25px}article{border-bottom:1px solid #ddd;padding:14px 0;break-inside:avoid}p{overflow-wrap:anywhere}button{padding:12px;margin:15px 0}@media print{button,.instructions{display:none}body{margin:0;padding:0}}</style><h1>Telangana Against Oral Cancer · Patient report</h1><p>Confidential · ${esc(new Date().toISOString())}${a.demo ? " · SYNTHETIC DEMONSTRATION" : ""}</p><p><strong>${esc(p.name)}</strong> · ${esc(pid)} · Age ${esc(p.age)}</p><p class="instructions">Use your browser’s Print command to print or save as PDF. Store only in an authorised location.</p><h2>Clinical history</h2>${table(records)}<h2>Questionnaire history</h2>${table(responses)}<h2>Samples</h2>${table(samples)}<h2>Laboratory reports</h2>${table(reports)}<p>Screening findings are not a confirmed cancer diagnosis. Laboratory files are available through the authorised patient record.</p></html>`;
+      const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Patient report ${esc(pid)}</title><style>body{font:15px/1.6 Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#183e35}h1{font-size:25px}article{border-bottom:1px solid #ddd;padding:14px 0;break-inside:avoid}p{overflow-wrap:anywhere}button{padding:12px;margin:15px 0}@media print{button,.instructions{display:none}body{margin:0;padding:0}}</style><h1>Telangana Against Oral Cancer · Patient report</h1><p>Confidential · ${esc(new Date().toISOString())}${a.demo ? " · SYNTHETIC DEMONSTRATION" : ""}</p><p><strong>${esc(p.name)}</strong> · ${esc(pid)} · Age ${esc(p.age)}</p><p class="instructions">Use your browser’s Print command to print or save as PDF. Store only in an authorised location.</p><h2>Clinical history</h2>${table(records)}<h2>Questionnaire history</h2>${table(responses)}<h2>Samples</h2>${table(samples)}<h2>Sample history</h2>${table(sampleHistory)}<h2>Laboratory reports</h2>${table(reports)}<p>Screening findings are not a confirmed cancer diagnosis. Laboratory files are available through the authorised patient record.</p></html>`;
       return new Response(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
@@ -90,6 +98,7 @@ export async function GET(req: Request) {
       records,
       responses,
       samples,
+      sampleHistory,
       reports,
     });
   } catch (e) {

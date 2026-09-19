@@ -3,8 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawn, execFileSync } from "node:child_process";
 const base = "http://localhost:5173";
-let running=false;try {running=(await fetch(base)).ok;} catch {}
-if(running) throw new Error("Stop the localhost preview before running this isolated access test.");
+let running = false;
+try {
+  running = (await fetch(base)).ok;
+} catch {}
+if (running)
+  throw new Error(
+    "Stop the localhost preview before running this isolated access test.",
+  );
 const original = readFileSync(".env");
 const sql = (query, args = []) =>
   JSON.parse(
@@ -107,7 +113,26 @@ try {
     checks += 3;
     const sessionData = await session.json();
     assert.ok(sessionData.path.includes("/workspace/"));
-    const ownPage=await fetch(base+sessionData.path,{headers,redirect:"manual"});assert.equal(ownPage.status,200,"own role dashboard renders");checks++;
+    const ownPage = await fetch(base + sessionData.path, {
+      headers,
+      redirect: "manual",
+    });
+    assert.equal(ownPage.status, 200, "own role dashboard renders");
+    checks++;
+    if (role === "ASSISTANT") {
+      const csrf = await fetch(base + "/api/session", {
+        method: "POST",
+        headers: { ...headers, Origin: "https://other.invalid" },
+        body: "{}",
+      });
+      assert.equal(csrf.status, 403);
+      checks++;
+      const noSession = await fetch(base + "/api/care", {
+        headers: { ...headers, Cookie: cookie },
+      });
+      assert.equal(noSession.status, 401);
+      checks++;
+    }
     const dash = await get("/api/care");
     assert.equal(dash.actor.role, role);
     checks++;
@@ -137,6 +162,11 @@ try {
     assert.equal(forbiddenPage.headers.get("location"), sessionData.path);
     checks += 2;
     if (role === "ASSISTANT") {
+      const direct = await fetch(base + "/api/admin", {
+        headers: { Cookie: headers.Cookie },
+      });
+      assert.equal(direct.status, 403);
+      checks++;
       await get("/api/admin", 403);
       await get("/api/patient-report?patient=" + pid, 403);
       await get("/api/analysis?group=not-a-group", 400);
@@ -216,6 +246,19 @@ try {
       assert.equal(invalid.status, 400);
       checks++;
       await post("user", { data: user }, 200);
+      sql(
+        "INSERT INTO app_sessions(token_hash,user_id,created_at,last_seen,expires_at,revoked) VALUES (?,?,0,0,0,0)",
+        ["test-session-" + stamp, user.id],
+      );
+      await post("user", { data: { ...user, active: false } }, 200);
+      assert.equal(
+        sql("SELECT revoked FROM app_sessions WHERE token_hash=?", [
+          "test-session-" + stamp,
+        ])[0].revoked,
+        1,
+      );
+      checks++;
+
       await post(
         "user",
         { data: { ...user, id: "local_seedy", role: "ASSISTANT" } },
@@ -237,8 +280,17 @@ try {
   headers.Cookie =
     cookie + "; " + restart.headers.get("set-cookie").split(";")[0];
   checks++;
-  sql("UPDATE app_sessions SET expires_at=0 WHERE user_id='local_seedy'");await get('/api/care',401);
-  const renewed=await fetch(base+'/api/session',{method:'POST',headers:{...headers,Cookie:cookie},body:'{}'});assert.equal(renewed.status,200);headers.Cookie=cookie+'; '+renewed.headers.get('set-cookie').split(';')[0];checks++;
+  sql("UPDATE app_sessions SET expires_at=0 WHERE user_id='local_seedy'");
+  await get("/api/care", 401);
+  const renewed = await fetch(base + "/api/session", {
+    method: "POST",
+    headers: { ...headers, Cookie: cookie },
+    body: "{}",
+  });
+  assert.equal(renewed.status, 200);
+  headers.Cookie =
+    cookie + "; " + renewed.headers.get("set-cookie").split(";")[0];
+  checks++;
   sql("UPDATE users SET active=0 WHERE id='local_seedy'");
   await get("/api/care", 403);
   sql("UPDATE users SET active=1 WHERE id='local_seedy'");

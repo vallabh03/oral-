@@ -409,46 +409,54 @@ export default function Workspace({
           )}
           {!error && (
             <>
-              <div className="filters">
-                <div className="search-box">
-                  <Search size={17} />
-                  <input
-                    aria-label="Search participants"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name, participant ID, mobile or sample ID"
+              {![
+                "Analysis & reporting",
+                "System administration",
+                "Protocol & settings",
+                "Clinical protocol review",
+                "Audit log",
+              ].includes(view) && (
+                <div className="filters">
+                  <div className="search-box">
+                    <Search size={17} />
+                    <input
+                      aria-label="Search participants"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search name, participant ID, mobile or sample ID"
+                    />
+                  </div>
+                  <Choice
+                    label="Camp"
+                    value={camp}
+                    options={[
+                      "All camps",
+                      ...new Set<string>(data.camps.map((c: any) => c.name)),
+                    ]}
+                    onChange={setCamp}
                   />
+                  <Choice
+                    label="Group"
+                    value={group}
+                    options={[
+                      "All groups",
+                      "Group 1",
+                      "Group 2",
+                      "Group 3",
+                      "Group 4",
+                      "Unclassified",
+                    ]}
+                    onChange={setGroup}
+                  />
+                  <button
+                    className="icon-button"
+                    onClick={() => setModal("filters")}
+                    aria-label="More filters"
+                  >
+                    <SlidersHorizontal size={18} />
+                  </button>
                 </div>
-                <Choice
-                  label="Camp"
-                  value={camp}
-                  options={[
-                    "All camps",
-                    ...new Set<string>(data.camps.map((c: any) => c.name)),
-                  ]}
-                  onChange={setCamp}
-                />
-                <Choice
-                  label="Group"
-                  value={group}
-                  options={[
-                    "All groups",
-                    "Group 1",
-                    "Group 2",
-                    "Group 3",
-                    "Group 4",
-                    "Unclassified",
-                  ]}
-                  onChange={setGroup}
-                />
-                <button
-                  className="icon-button"
-                  onClick={() => setModal("filters")}
-                  aria-label="More filters"
-                >
-                  <SlidersHorizontal size={18} />
-                </button>
-              </div>
+              )}
               {loading ? (
                 <div className="panel loading">
                   Loading your care workspace…
