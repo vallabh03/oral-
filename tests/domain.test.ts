@@ -1,3 +1,8 @@
+import {
+  permitted,
+  sectionAllowed,
+  dashboardPath,
+} from "../lib/permissions.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -129,7 +134,11 @@ test("configuration rejects duplicate IDs and forward conditional references", (
 });
 
 test("programme-wide roles see all participants; scoped roles only their own", () => {
-  const anyPatient = { id: "p2", doctor_id: "another-doctor", counsellor_id: "c9" };
+  const anyPatient = {
+    id: "p2",
+    doctor_id: "another-doctor",
+    counsellor_id: "c9",
+  };
   for (const role of programmeRoles)
     assert.equal(canAccess(role, "staff", anyPatient), true);
   for (const role of ["DOCTOR", "COUNSELLOR", "LAB", "PATIENT"])
@@ -137,8 +146,12 @@ test("programme-wide roles see all participants; scoped roles only their own", (
   assert.equal(canAccess("DOCTOR", "another-doctor", anyPatient), true);
   assert.equal(canAccess("COUNSELLOR", "c9", anyPatient), true);
   assert.equal(canAccess("PATIENT", "u", anyPatient, "p2"), true);
-  assert.ok(accountTypes.includes("COUNSELLOR"));
-  for (const grant of ["ADMIN", "DOCTOR", "LAB", "REGISTRATION", "COUNSELLOR"])
+  assert.deepEqual(
+    [...accountTypes],
+    ["DOCTOR_ADMIN", "SUPER_ADMIN", "ASSISTANT"],
+  );
+  assert.equal(hasRole("DOCTOR_ADMIN", "ADMIN"), false);
+  for (const grant of ["DOCTOR", "LAB", "REGISTRATION", "COUNSELLOR"])
     assert.equal(hasRole("DOCTOR_ADMIN", grant), true);
   assert.equal(
     hasRole("DOCTOR_ADMIN", "SUPER_ADMIN"),
@@ -191,6 +204,32 @@ test("classification matrix is configurable but must cover every combination", (
   );
   assert.equal(classify(true, false, true, true, custom), "3");
   assert.equal(pathwayFor("3", custom), "Cessation + 6-month re-screen");
-  const broken = { ...pilot, classification: [...driveSafeMatrix.slice(0, 3), driveSafeMatrix[0]] };
+  const broken = {
+    ...pilot,
+    classification: [...driveSafeMatrix.slice(0, 3), driveSafeMatrix[0]],
+  };
   assert.equal(protocolSchema.safeParse(broken).success, false);
+});
+
+test("explicit permissions exclude doctor system controls and assistant writes", () => {
+  for (const p of [
+    "settings.manage",
+    "users.manage",
+    "audit.read",
+    "backup.export",
+    "qr.manage",
+  ] as const)
+    assert.equal(permitted("DOCTOR_ADMIN", p), false);
+  assert.equal(permitted("DOCTOR_ADMIN", "clinical.write"), true);
+  assert.equal(sectionAllowed("DOCTOR_ADMIN", "Protocol & settings"), false);
+  assert.equal(
+    sectionAllowed("DOCTOR_ADMIN", "Clinical protocol review"),
+    true,
+  );
+  assert.equal(sectionAllowed("ASSISTANT", "System administration"), false);
+  assert.equal(sectionAllowed("ASSISTANT", "Analysis & reporting"), true);
+  assert.equal(permitted("ASSISTANT", "patients.write"), false);
+  assert.equal(permitted("SUPER_ADMIN", "settings.manage"), true);
+  assert.equal(dashboardPath("ASSISTANT"), "/workspace/assistant");
+  assert.equal(permitted("invented", "patients.read"), false);
 });

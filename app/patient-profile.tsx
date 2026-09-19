@@ -1,4 +1,5 @@
 "use client";
+import { permitted } from "@/lib/permissions";
 import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -101,6 +102,50 @@ export default function PatientProfile({
         </div>
         {p.category && <span className="badge">Group {p.category}</span>}
       </div>
+      {(demo || permitted(role, "reports.patient")) && (
+        <div className="action-row">
+          <a
+            className="secondary"
+            href={
+              "/api/patient-report?patient=" +
+              encodeURIComponent(id) +
+              "&format=html&mode=" +
+              mode
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Generate / print patient report
+          </a>
+          <button
+            className="secondary"
+            onClick={async () => {
+              try {
+                const r = await fetch(
+                  "/api/patient-report?patient=" + encodeURIComponent(id),
+                  { headers: { "x-care-mode": mode } },
+                );
+                const j: any = await r.json();
+                if (!r.ok) throw Error(j.error);
+                const url = URL.createObjectURL(
+                  new Blob([JSON.stringify(j, null, 2)], {
+                    type: "application/json",
+                  }),
+                );
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = id + "-report.json";
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Download patient report
+          </button>
+        </div>
+      )}
       <div className="info-grid">
         <div>
           <small>Mobile</small>
@@ -185,8 +230,16 @@ export default function PatientProfile({
             {can("ADMIN") && (
               <div className="form-grid">
                 {[
-                  { slot: "doctor_id", label: "Assigned doctor", roles: ["DOCTOR", "DOCTOR_ADMIN"] },
-                  { slot: "counsellor_id", label: "Assigned counsellor", roles: ["COUNSELLOR"] },
+                  {
+                    slot: "doctor_id",
+                    label: "Assigned doctor",
+                    roles: ["DOCTOR", "DOCTOR_ADMIN"],
+                  },
+                  {
+                    slot: "counsellor_id",
+                    label: "Assigned counsellor",
+                    roles: ["COUNSELLOR"],
+                  },
                 ].map(({ slot, label, roles: allowed }) => {
                   const staff = users.filter(
                     (u) => allowed.includes(u.role) && u.active,
@@ -198,7 +251,10 @@ export default function PatientProfile({
                         value={p[slot] || ""}
                         options={staff.map((u) => u.id)}
                         labels={Object.fromEntries(
-                          staff.map((u) => [u.id, u.name + " · " + (roleLabels[u.role] || u.role)]),
+                          staff.map((u) => [
+                            u.id,
+                            u.name + " · " + (roleLabels[u.role] || u.role),
+                          ]),
                         )}
                         onChange={(v) =>
                           save("assign", {
@@ -219,7 +275,7 @@ export default function PatientProfile({
                 })}
               </div>
             )}
-            {can("ADMIN", "REGISTRATION", "DOCTOR", "PATIENT") && (
+            {(demo || permitted(role, "qr.manage")) && (
               <button
                 className="secondary"
                 onClick={async () => {
@@ -294,6 +350,17 @@ export default function PatientProfile({
                   <h3>{r.status}</h3>
                   <p>{r.data.impression}</p>
                   <p>{r.data.notes}</p>
+                  {can("DOCTOR") && r.status === "Recorded" && (
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setEditRecord(r);
+                        setAction("assessment");
+                      }}
+                    >
+                      Update observation
+                    </button>
+                  )}
                   <small>{new Date(r.at).toLocaleString()}</small>
                 </div>
               ))}
@@ -309,6 +376,7 @@ export default function PatientProfile({
                   "Doctor referral",
                   ["ADMIN", "REGISTRATION", "DOCTOR"],
                 ],
+                ["assessment", "Medical observation", ["DOCTOR"]],
                 ["treatment", "Treatment decision", ["DOCTOR"]],
                 ["followup", "Follow-up", ["ADMIN", "DOCTOR", "COUNSELLOR"]],
               ].map(
@@ -387,11 +455,16 @@ export default function PatientProfile({
                   {s.location} · {new Date(s.collected_at).toLocaleString()}
                 </small>
                 {s.history?.length > 0 && (
-                  <ol className="sample-history" aria-label={"Status history for " + s.id}>
+                  <ol
+                    className="sample-history"
+                    aria-label={"Status history for " + s.id}
+                  >
                     {s.history.map((h: any) => (
                       <li key={h.status + h.at}>
                         <span>{h.status}</span>
-                        <time dateTime={h.at}>{new Date(h.at).toLocaleString()}</time>
+                        <time dateTime={h.at}>
+                          {new Date(h.at).toLocaleString()}
+                        </time>
                       </li>
                     ))}
                   </ol>
@@ -821,6 +894,7 @@ function ActionForm({
       "Treatment discussion",
       "Follow-up",
     ],
+    assessment: ["Recorded"],
     treatment: ["Discussed", "Approved", "In progress", "Completed"],
     followup: ["Pending", "Scheduled", "Completed", "Missed"],
   };

@@ -202,3 +202,24 @@ export const sampleEvents = sqliteTable(
   },
   (t) => [index("sample_events_sample").on(t.sampleId, t.at)],
 );
+
+export const appSessions = sqliteTable("app_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastSeen: integer("last_seen").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  revoked: integer("revoked").notNull().default(0),
+});
+export const appSettings = sqliteTable("app_settings", {
+  id: text("id").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedBy: text("updated_by").notNull(),
+});
+
+export const appErrors = sqliteTable("app_errors", {
+  id: text("id").primaryKey(),
+  at: text("at").notNull(),
+  code: text("code").notNull(),
+});

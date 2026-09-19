@@ -1599,6 +1599,126 @@ footer {
   }
 }
 
-.sample-history { list-style: none; margin: 10px 0 4px; padding: 0 0 0 14px; border-left: 2px solid var(--border); display: grid; gap: 4px; font-size: 13px; }
-.sample-history li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; }
-.sample-history time { color: var(--muted-foreground); }
+.sample-history {
+  list-style: none;
+  margin: 10px 0 4px;
+  padding: 0 0 0 14px;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.sample-history li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+.sample-history time {
+  color: var(--muted-foreground);
+}
+.report-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.report-table th,
+.report-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid #e6ebe7;
+  white-space: nowrap;
+}
+.report-table th {
+  background: #edf3ef;
+  text-transform: capitalize;
+}
+.habit-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 40px;
+  gap: 14px;
+  align-items: center;
+  font-size: 13px;
+}
+.habit-row meter {
+  width: 100%;
+}
+.role-badge {
+  white-space: normal;
+  max-width: 240px;
+}
+.protocol-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 18px;
+  background: #f2f6f2;
+}
+.field select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: white;
+  max-width: 100%;
+}
+@media (max-width: 650px) {
+  .role-badge {
+    max-width: 125px;
+    font-size: 10px;
+  }
+  .topbar {
+    height: auto;
+    min-height: 76px;
+    padding-block: 12px;
+    flex-wrap: wrap;
+  }
+  .habit-row {
+    grid-template-columns: 1fr 70px 24px;
+  }
+  .report-table {
+    font-size: 12px;
+  }
+}
+@media print {
+  .care-sidebar,
+  .topbar,
+  .page-heading,
+  .notice,
+  .filters,
+  .workspace button,
+  .workspace footer,
+  .workspace .sidebar {
+    display: none !important;
+  }
+  .workspace,
+  .main-content {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+  .panel {
+    border: 0;
+    box-shadow: none;
+  }
+  .report-table-wrap {
+    overflow: visible;
+  }
+  .report-table {
+    font-size: 10px;
+  }
+  .report-table th,
+  .report-table td {
+    padding: 6px;
+    white-space: normal;
+  }
+  .metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

@@ -3,6 +3,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/workspace/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, private" }],
+      },
+      {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },

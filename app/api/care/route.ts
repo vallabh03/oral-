@@ -1,3 +1,4 @@
+import { actionPermissions } from "@/lib/permissions";
 import { z } from "zod";
 import {
   actor,
@@ -7,6 +8,7 @@ import {
   now,
   hash,
   requireRole,
+  requirePermission,
   patient,
   auditStatement,
   log,
@@ -39,7 +41,9 @@ export const dynamic = "force-dynamic";
 // labelled so they can never be mistaken for live consent.
 function consentVersion(a: { demo: boolean }) {
   const v = runtime().CONSENT_VERSION?.trim();
-  return a.demo ? "DEMO-" + (v || "DRIVE-SAFE-1.0-provisional") : v || "DRIVE-SAFE-1.0-provisional";
+  return a.demo
+    ? "DEMO-" + (v || "DRIVE-SAFE-1.0-provisional")
+    : v || "DRIVE-SAFE-1.0-provisional";
 }
 export async function GET(req: Request) {
   try {
@@ -96,7 +100,9 @@ export async function GET(req: Request) {
       // Patients see their pathway only as guidance from the care team, never
       // the internal group number or classification label.
       const hidden = ["qr_hash", "tenant"].concat(
-        a.role === "PATIENT" ? ["category", "pathway", "doctor_id", "counsellor_id"] : [],
+        a.role === "PATIENT"
+          ? ["category", "pathway", "doctor_id", "counsellor_id"]
+          : [],
       );
       return response({
         patient: labs
@@ -240,6 +246,8 @@ export async function POST(req: Request) {
     if (raw.length > 100000) throw new HttpError(413, "Request too large.");
     const b = JSON.parse(raw);
     const at = now();
+    if (actionPermissions[b.action])
+      await requirePermission(a, actionPermissions[b.action]);
     if (b.action === "sessionStart" || b.action === "sessionEnd") {
       await log(
         a,
@@ -254,6 +262,8 @@ export async function POST(req: Request) {
       return response({ ok: true });
     }
     if (b.action === "register") {
+      if (!a.demo && runtime().LIVE_INTAKE_ENABLED !== "true")
+        throw new HttpError(503, "Live participant intake is not open.");
       requireRole(a, "ADMIN", "REGISTRATION");
       const d = registration.parse(b.data);
       if (a.demo && !d.name.toLowerCase().startsWith("demo "))
@@ -322,7 +332,7 @@ export async function POST(req: Request) {
       return response({ id: pid });
     }
     if (b.action === "camp") {
-      requireRole(a, "ADMIN");
+      await requirePermission(a, "settings.manage");
       const d = z
         .object({
           name: z.string().min(3).max(120),
@@ -341,7 +351,7 @@ export async function POST(req: Request) {
       return response({ ok: true });
     }
     if (b.action === "protocol") {
-      requireRole(a, "ADMIN");
+      await requirePermission(a, "settings.manage");
       const p = protocolSchema.parse(b.data);
       await db().batch([
         db()
@@ -409,7 +419,7 @@ export async function POST(req: Request) {
         );
       // A patient account is bound to exactly one existing live participant;
       // staff accounts are never bound to a participant.
-      const linked = d.role === "PATIENT" ? d.patientId?.trim() || "" : null;
+      const linked = null;
       if (
         linked !== null &&
         !(await db()
@@ -417,14 +427,27 @@ export async function POST(req: Request) {
           .bind(linked)
           .first())
       )
-        throw new HttpError(400, "Enter an existing participant ID for a patient account.");
+        throw new HttpError(
+          400,
+          "Enter an existing participant ID for a patient account.",
+        );
       await db().batch([
         db()
           .prepare(
             "INSERT INTO users (id,email,name,role,active,patient_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,role=excluded.role,active=excluded.active,patient_id=excluded.patient_id",
           )
           .bind(d.id, d.email, d.name, d.role, d.active ? 1 : 0, linked),
-        await auditStatement(a, "User permissions updated"),
+        db()
+          .prepare("UPDATE app_sessions SET revoked=1 WHERE user_id=?")
+          .bind(d.id),
+        await auditStatement(
+          a,
+          "User permissions updated: " +
+            d.id +
+            " → " +
+            d.role +
+            (d.active ? " active" : " disabled"),
+        ),
       ]);
       return response({ ok: true });
     }
@@ -770,7 +793,7 @@ export async function POST(req: Request) {
       return response({ ok: true });
     }
     if (b.action === "assign") {
-      requireRole(a, "ADMIN");
+      await requirePermission(a, "settings.manage");
       const d = z
         .object({
           role: z.enum(["DOCTOR_ADMIN", "DOCTOR", "COUNSELLOR"]),

@@ -5,15 +5,8 @@ export const programmeRoles = [
   "SUPER_ADMIN",
   "ASSISTANT",
 ] as const;
-// Assignment-scoped accounts only see the participants assigned to them.
-export const accountTypes = [
-  ...programmeRoles,
-  "DOCTOR",
-  "COUNSELLOR",
-  "LAB",
-  "REGISTRATION",
-  "PATIENT",
-] as const;
+// New account creation offers the three programme roles. Legacy scoped roles remain readable below.
+export const accountTypes = [...programmeRoles] as const;
 export const roleLabels: Record<string, string> = {
   DOCTOR_ADMIN: "Doctor – Admin",
   SUPER_ADMIN: "Tech Support – Super Admin",
@@ -26,7 +19,7 @@ export const roleLabels: Record<string, string> = {
 };
 export function hasRole(role: string, ...allowed: string[]) {
   const grants: Record<string, string[]> = {
-    DOCTOR_ADMIN: ["ADMIN", "DOCTOR", "REGISTRATION", "LAB", "COUNSELLOR"],
+    DOCTOR_ADMIN: ["DOCTOR", "REGISTRATION", "LAB", "COUNSELLOR"],
     SUPER_ADMIN: ["ADMIN", "REGISTRATION", "LAB", "COUNSELLOR"],
   };
   return (
@@ -34,7 +27,15 @@ export function hasRole(role: string, ...allowed: string[]) {
     (grants[role] || []).some((r) => allowed.includes(r))
   );
 }
-export const roles = [...accountTypes, "ADMIN"] as const;
+export const roles = [
+  ...accountTypes,
+  "ADMIN",
+  "DOCTOR",
+  "COUNSELLOR",
+  "LAB",
+  "REGISTRATION",
+  "PATIENT",
+] as const;
 export const sampleStates = [
   "Collected",
   "Sent to lab",
@@ -93,9 +94,24 @@ export const driveSafeMatrix: {
   pathway: string;
 }[] = [
   { habit: false, lesion: false, group: "1", pathway: "Education" },
-  { habit: false, lesion: true, group: "2", pathway: "Clinical lesion pathway" },
-  { habit: true, lesion: false, group: "3", pathway: "Cessation + planned follow-up" },
-  { habit: true, lesion: true, group: "4", pathway: "Clinical lesion pathway + cessation" },
+  {
+    habit: false,
+    lesion: true,
+    group: "2",
+    pathway: "Clinical lesion pathway",
+  },
+  {
+    habit: true,
+    lesion: false,
+    group: "3",
+    pathway: "Cessation + planned follow-up",
+  },
+  {
+    habit: true,
+    lesion: true,
+    group: "4",
+    pathway: "Clinical lesion pathway + cessation",
+  },
 ];
 export type ClassificationMatrix = typeof driveSafeMatrix;
 export const protocolSchema = z
@@ -147,11 +163,14 @@ export const protocolSchema = z
       .default([]),
   })
   .superRefine((p, ctx) => {
-    const combos = new Set(p.classification.map((c) => `${c.habit}/${c.lesion}`));
+    const combos = new Set(
+      p.classification.map((c) => `${c.habit}/${c.lesion}`),
+    );
     if (combos.size !== 4)
       ctx.addIssue({
         code: "custom",
-        message: "Classification must map each habit × lesion combination exactly once",
+        message:
+          "Classification must map each habit × lesion combination exactly once",
       });
     const ids = new Set<string>();
     for (const q of p.questions) {

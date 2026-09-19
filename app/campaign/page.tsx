@@ -9,7 +9,7 @@ import {
   Stethoscope,
   UserCheck,
 } from "lucide-react";
-import { runtime } from "@/lib/server";
+import { runtime, db } from "@/lib/server";
 import "./landing.css";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +53,22 @@ const steps = [
 ];
 
 const afterRegistration = [
-  ["You receive a participant ID", "A random reference number is created for you. It does not contain your name or phone number."],
-  ["Your responses are recorded", "The screening team uses them, together with the examination, to guide your next step."],
-  ["A clinician decides the next step", "Any referral, testing or treatment is decided by qualified medical professionals — never by the software alone."],
-  ["We may contact you to follow up", "Only if follow-up is needed, and only by authorised programme staff."],
+  [
+    "You receive a participant ID",
+    "A random reference number is created for you. It does not contain your name or phone number.",
+  ],
+  [
+    "Your responses are recorded",
+    "The screening team uses them, together with the examination, to guide your next step.",
+  ],
+  [
+    "A clinician decides the next step",
+    "Any referral, testing or treatment is decided by qualified medical professionals — never by the software alone.",
+  ],
+  [
+    "We may contact you to follow up",
+    "Only if follow-up is needed, and only by authorised programme staff.",
+  ],
 ];
 
 const programmes = [
@@ -69,28 +81,56 @@ const programmes = [
 function Mark() {
   return (
     <svg viewBox="0 0 40 40" aria-hidden="true" className="tl-mark">
-      <rect x="1" y="1" width="38" height="38" rx="10" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M11 24c3-5 6-7 9-7s6 2 9 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <rect
+        x="1"
+        y="1"
+        width="38"
+        height="38"
+        rx="10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M11 24c3-5 6-7 9-7s6 2 9 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
       <circle cx="20" cy="12.5" r="2.4" fill="var(--tl-accent)" />
     </svg>
   );
 }
 
-export default function Campaign() {
+export default async function Campaign() {
   const env = runtime();
-  const contactEmail = env.CONTACT_EMAIL?.trim();
-  const contactPhone = env.CONTACT_PHONE?.trim();
+  const programme = await db()
+    .prepare("SELECT value FROM app_settings WHERE id='programme'")
+    .first<{ value: string }>();
+  const contactSettings = programme ? JSON.parse(programme.value) : {};
+  const contactEmail =
+    contactSettings.supportEmail || env.CONTACT_EMAIL?.trim();
+  const contactPhone =
+    contactSettings.supportPhone || env.CONTACT_PHONE?.trim();
   const liveIntake = env.PUBLIC_INTAKE_ENABLED === "true";
 
   return (
     <div className="tl">
-      <a className="tl-skip" href="#main">Skip to content</a>
+      <a className="tl-skip" href="#main">
+        Skip to content
+      </a>
       <header className="tl-header">
         <div className="tl-wrap tl-header-row">
-          <a className="tl-brand" href="/" aria-label="Telangana Against Oral Cancer — home">
+          <a
+            className="tl-brand"
+            href="/"
+            aria-label="Telangana Against Oral Cancer — home"
+          >
             <Mark />
             <span>
-              Telangana<br />
+              Telangana
+              <br />
               <small>Against Oral Cancer</small>
             </span>
           </a>
@@ -110,8 +150,10 @@ export default function Campaign() {
         <section className="tl-hero tl-wrap" aria-labelledby="hero-title">
           <p className="tl-eyebrow">Prevent · Detect early · Act early</p>
           <h1 id="hero-title">
-            Early Awareness.<br />
-            Early Screening.<br />
+            Early Awareness.
+            <br />
+            Early Screening.
+            <br />
             <span>Better Care.</span>
           </h1>
           <p className="tl-lead">
@@ -128,22 +170,39 @@ export default function Campaign() {
           </div>
           {!liveIntake && (
             <p className="tl-note" role="note">
-              Registration currently opens in pilot mode with fictional data only.
-              Live registration will be available at programme screening events.
+              Registration currently opens in pilot mode with fictional data
+              only. Live registration will be available at programme screening
+              events.
             </p>
           )}
           <ul className="tl-assurances" aria-label="Programme principles">
-            <li><ShieldCheck size={18} aria-hidden="true" /> Voluntary and consent-based</li>
-            <li><Stethoscope size={18} aria-hidden="true" /> Examination by clinicians</li>
-            <li><LockKeyhole size={18} aria-hidden="true" /> Records restricted to authorised staff</li>
+            <li>
+              <ShieldCheck size={18} aria-hidden="true" /> Voluntary and
+              consent-based
+            </li>
+            <li>
+              <Stethoscope size={18} aria-hidden="true" /> Examination by
+              clinicians
+            </li>
+            <li>
+              <LockKeyhole size={18} aria-hidden="true" /> Records restricted to
+              authorised staff
+            </li>
           </ul>
         </section>
 
-        <section id="about" className="tl-section tl-alt" aria-labelledby="about-title">
+        <section
+          id="about"
+          className="tl-section tl-alt"
+          aria-labelledby="about-title"
+        >
           <div className="tl-wrap tl-split">
             <div>
               <p className="tl-eyebrow">About the campaign</p>
-              <h2 id="about-title">A state-wide initiative for prevention, early recognition and timely care.</h2>
+              <h2 id="about-title">
+                A state-wide initiative for prevention, early recognition and
+                timely care.
+              </h2>
             </div>
             <div className="tl-prose">
               <p>
@@ -164,10 +223,16 @@ export default function Campaign() {
           </div>
         </section>
 
-        <section id="learn" className="tl-section" aria-labelledby="learn-title">
+        <section
+          id="learn"
+          className="tl-section"
+          aria-labelledby="learn-title"
+        >
           <div className="tl-wrap">
             <p className="tl-eyebrow">Why screening matters</p>
-            <h2 id="learn-title">Some mouth changes are worth having checked.</h2>
+            <h2 id="learn-title">
+              Some mouth changes are worth having checked.
+            </h2>
             <div className="tl-split tl-split-top">
               <div className="tl-prose">
                 <p>
@@ -178,15 +243,18 @@ export default function Campaign() {
                 </p>
                 <p>
                   A screening examination helps identify changes that need a
-                  closer look by a specialist. <strong>Screening is not a
-                  diagnosis.</strong> It does not confirm or rule out cancer and
-                  does not replace a complete medical evaluation.
+                  closer look by a specialist.{" "}
+                  <strong>Screening is not a diagnosis.</strong> It does not
+                  confirm or rule out cancer and does not replace a complete
+                  medical evaluation.
                 </p>
               </div>
               <div className="tl-card">
                 <h3>See a doctor if any of these last more than two weeks</h3>
                 <ul className="tl-checklist">
-                  {warningSigns.map((sign) => <li key={sign}>{sign}</li>)}
+                  {warningSigns.map((sign) => (
+                    <li key={sign}>{sign}</li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -197,7 +265,9 @@ export default function Campaign() {
           <div className="tl-wrap tl-split">
             <div>
               <p className="tl-eyebrow">Who can participate</p>
-              <h2 id="who-title">Adults attending a programme screening event.</h2>
+              <h2 id="who-title">
+                Adults attending a programme screening event.
+              </h2>
             </div>
             <div>
               <div className="tl-prose">
@@ -220,14 +290,20 @@ export default function Campaign() {
           </div>
         </section>
 
-        <section id="process" className="tl-section" aria-labelledby="process-title">
+        <section
+          id="process"
+          className="tl-section"
+          aria-labelledby="process-title"
+        >
           <div className="tl-wrap">
             <p className="tl-eyebrow">How the screening works</p>
             <h2 id="process-title">One visit, four steps.</h2>
             <ol className="tl-steps">
               {steps.map(({ icon: Icon, title, text }, i) => (
                 <li key={title}>
-                  <span className="tl-step-num">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="tl-step-num">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
                   <Icon size={22} aria-hidden="true" />
                   <h3>{title}</h3>
                   <p>{text}</p>
@@ -257,14 +333,21 @@ export default function Campaign() {
         <section className="tl-section tl-cta" aria-labelledby="cta-title">
           <div className="tl-wrap">
             <h2 id="cta-title">Ready to take the first step?</h2>
-            <p>Registration takes about a minute. The questionnaire takes about two.</p>
+            <p>
+              Registration takes about a minute. The questionnaire takes about
+              two.
+            </p>
             <a className="tl-btn tl-btn-light" href="/register">
               Register for screening <ArrowRight size={18} aria-hidden="true" />
             </a>
           </div>
         </section>
 
-        <section id="contact" className="tl-section" aria-labelledby="contact-title">
+        <section
+          id="contact"
+          className="tl-section"
+          aria-labelledby="contact-title"
+        >
           <div className="tl-wrap tl-split">
             <div>
               <p className="tl-eyebrow">Contact</p>
@@ -273,8 +356,22 @@ export default function Campaign() {
             <div className="tl-prose">
               {contactEmail || contactPhone ? (
                 <ul className="tl-contact">
-                  {contactPhone && <li><span>Phone</span><a href={`tel:${contactPhone.replace(/\s/g, "")}`}>{contactPhone}</a></li>}
-                  {contactEmail && <li><span>Email</span><a href={`mailto:${contactEmail}`}><Mail size={15} aria-hidden="true" /> {contactEmail}</a></li>}
+                  {contactPhone && (
+                    <li>
+                      <span>Phone</span>
+                      <a href={`tel:${contactPhone.replace(/\s/g, "")}`}>
+                        {contactPhone}
+                      </a>
+                    </li>
+                  )}
+                  {contactEmail && (
+                    <li>
+                      <span>Email</span>
+                      <a href={`mailto:${contactEmail}`}>
+                        <Mail size={15} aria-hidden="true" /> {contactEmail}
+                      </a>
+                    </li>
+                  )}
                 </ul>
               ) : (
                 <p>
@@ -294,9 +391,15 @@ export default function Campaign() {
 
       <footer className="tl-footer">
         <div className="tl-wrap tl-footer-row">
-          <span>© {new Date().getFullYear()} Telangana Against Oral Cancer</span>
-          <span>Screening supports, and does not replace, medical evaluation.</span>
-          <a href="/workspace">Staff sign-in <ArrowUpRight size={14} aria-hidden="true" /></a>
+          <span>
+            © {new Date().getFullYear()} Telangana Against Oral Cancer
+          </span>
+          <span>
+            Screening supports, and does not replace, medical evaluation.
+          </span>
+          <a href="/workspace">
+            Staff sign-in <ArrowUpRight size={14} aria-hidden="true" />
+          </a>
         </div>
       </footer>
     </div>

@@ -1,3 +1,4 @@
+import { permitted, type Permission } from "./permissions";
 import { pilot, groupPaths } from "./domain";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
@@ -8,6 +9,7 @@ export function runtime() {
     BUCKET: R2Bucket;
     ADMIN_EMAIL?: string;
     LIVE_INTAKE_ENABLED?: string;
+    STAFF_ACCESS_ENABLED?: string;
     AUDIT_KEY?: string;
     PUBLIC_INTAKE_ENABLED?: string;
     PRIVACY_NOTICE?: string;
@@ -70,10 +72,16 @@ export type Actor = {
   demo: boolean;
   patientId?: string;
 };
-export async function actor(req: Request): Promise<Actor> {
+export async function actor(
+  req: Request,
+  options: { skipSession?: boolean; forceLive?: boolean } = {},
+): Promise<Actor> {
   const u = await getChatGPTUser();
   if (!u) throw new HttpError(401, "Sign in to access this workspace.");
-  const demo = req.headers.get("x-care-mode") !== "live";
+  const demo =
+    !options.forceLive &&
+    req.headers.get("x-care-mode") !== "live" &&
+    new URL(req.url).searchParams.get("mode") !== "live";
   if (demo)
     return {
       id: u.userId,
@@ -82,10 +90,14 @@ export async function actor(req: Request): Promise<Actor> {
       tenant: "demo:" + u.userId,
       demo: true,
     };
-  if (runtime().LIVE_INTAKE_ENABLED !== "true" || !runtime().AUDIT_KEY)
+  if (
+    (runtime().STAFF_ACCESS_ENABLED !== "true" &&
+      runtime().LIVE_INTAKE_ENABLED !== "true") ||
+    !runtime().AUDIT_KEY
+  )
     throw new HttpError(
       503,
-      "Live intake is locked. Administrator setup and operational approval are required.",
+      "Staff access is locked. Administrator setup and operational approval are required.",
     );
   let row = await db()
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
@@ -112,6 +124,7 @@ export async function actor(req: Request): Promise<Actor> {
       403,
       "An administrator must grant access to this account.",
     );
+  if (!options.skipSession) await validateSession(req, u.userId);
   return {
     id: u.userId,
     name: row.name,
@@ -211,13 +224,19 @@ export function response(data: unknown, status = 200) {
     },
   });
 }
-export function failure(e: unknown) {
+export async function failure(e: unknown) {
   if (e instanceof HttpError) return response({ error: e.message }, e.status);
   if (e instanceof Error && e.name === "ZodError")
     return response(
       { error: "Please check the supplied fields and required values." },
       400,
     );
+  try {
+    await db()
+      .prepare("INSERT INTO app_errors(id,at,code) VALUES (?,?,?)")
+      .bind(id("ERR"), now(), "internal_error")
+      .run();
+  } catch {}
   return response(
     {
       error:
@@ -368,5 +387,69 @@ export function sampleEvent(
     .prepare(
       "INSERT INTO sample_events (id,sample_id,patient_id,status,at,actor) VALUES (?,?,?,?,?,?)",
     )
-    .bind("SEV-" + crypto.randomUUID(), sampleId, patientId, status, new Date().toISOString(), a.id);
+    .bind(
+      "SEV-" + crypto.randomUUID(),
+      sampleId,
+      patientId,
+      status,
+      new Date().toISOString(),
+      a.id,
+    );
+}
+
+export async function requirePermission(a: Actor, p: Permission) {
+  if (!a.demo && !permitted(a.role, p)) {
+    await log(a, "Access denied: " + p);
+    throw new HttpError(403, "Your account cannot perform this action.");
+  }
+}
+export async function securityPolicy() {
+  const row = await db()
+    .prepare("SELECT value FROM app_settings WHERE id='security'")
+    .first<any>();
+  return row ? JSON.parse(row.value) : { idleMinutes: 15, absoluteHours: 8 };
+}
+export function sessionToken(req: Request) {
+  const cookies = req.headers.get("cookie") || "";
+  return (
+    cookies
+      .split(";")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("__Host-care_session="))
+      ?.split("=")[1] ||
+    cookies
+      .split(";")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("care_session="))
+      ?.split("=")[1] ||
+    ""
+  );
+}
+export async function validateSession(req: Request, userId: string) {
+  const token = sessionToken(req);
+  if (!token)
+    throw new HttpError(401, "Open your secure workspace to start a session.");
+  const key = await hash(token),
+    time = Date.now();
+  const row = await db()
+    .prepare("SELECT * FROM app_sessions WHERE token_hash=? AND user_id=?")
+    .bind(key, userId)
+    .first<any>();
+  const policy = await securityPolicy();
+  if (
+    !row ||
+    row.revoked ||
+    row.expires_at <= time ||
+    row.last_seen + policy.idleMinutes * 60000 <= time ||
+    row.created_at + policy.absoluteHours * 3600000 <= time
+  )
+    throw new HttpError(401, "Your session has expired. Sign in again.");
+  const result = await db()
+    .prepare(
+      "UPDATE app_sessions SET last_seen=? WHERE token_hash=? AND revoked=0 AND expires_at>? AND last_seen>?",
+    )
+    .bind(time, key, time, time - policy.idleMinutes * 60000)
+    .run();
+  if (!result.meta.changes)
+    throw new HttpError(401, "Your session has expired.");
 }

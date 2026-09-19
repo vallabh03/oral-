@@ -1,4 +1,6 @@
 "use client";
+import { permitted, sectionAllowed } from "@/lib/permissions";
+import { AnalyticsPanel, SystemPanel, SessionGuard } from "./role-panels";
 import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -66,6 +68,8 @@ const nav = [
   ["Camps", MapPin],
   ["Protocol & settings", Settings2],
   ["Audit log", ShieldCheck],
+  ["System administration", Settings2],
+  ["Clinical protocol review", Stethoscope],
 ] as const;
 const empty = {
   patients: [],
@@ -77,10 +81,22 @@ const empty = {
   users: [],
   actor: { name: "Care team", role: "SUPER_ADMIN", demo: true },
 };
-export default function Workspace() {
-  const [view, setView] = useState("Overview"),
+export default function Workspace({
+  initialMode = "demo",
+  initialRole = "SUPER_ADMIN",
+}: {
+  initialMode?: string;
+  initialRole?: string;
+}) {
+  const [view, setView] = useState(
+      initialMode === "live" && initialRole === "ASSISTANT"
+        ? "Analysis & reporting"
+        : initialMode === "live" && initialRole === "SUPER_ADMIN"
+          ? "System administration"
+          : "Overview",
+    ),
     [data, setData] = useState<any>(empty),
-    [mode, setMode] = useState("demo"),
+    [mode] = useState(initialMode),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [search, setSearch] = useState(""),
@@ -99,6 +115,8 @@ export default function Workspace() {
       setError("");
     } catch (e) {
       setError((e as Error).message);
+      setData(empty);
+      setSelected("");
     } finally {
       setLoading(false);
     }
@@ -133,14 +151,25 @@ export default function Workspace() {
           inputSchema: {
             type: "object",
             properties: {
-              section: { type: "string", enum: nav.map((n) => n[0]) },
+              section: {
+                type: "string",
+                enum: nav
+                  .filter(
+                    (n) => mode === "demo" || sectionAllowed(initialRole, n[0]),
+                  )
+                  .map((n) => n[0]),
+              },
             },
             required: ["section"],
             additionalProperties: false,
           },
           annotations: { readOnlyHint: true },
           execute: (v: any) => {
-            if (!v || !nav.some((n) => n[0] === v.section))
+            if (
+              !v ||
+              !nav.some((n) => n[0] === v.section) ||
+              (mode !== "demo" && !sectionAllowed(initialRole, v.section))
+            )
               throw new Error("Unknown section");
             setView(v.section);
             return { section: v.section };
@@ -150,9 +179,9 @@ export default function Workspace() {
       ),
     ).catch(() => {});
     return () => life.abort();
-  }, []);
+  }, [mode, data.actor.role]);
   const demo = mode === "demo",
-    role = data.actor.role,
+    role = mode === "live" ? initialRole : data.actor.role,
     can = (...r: string[]) => demo || hasRole(role, ...r);
   const filtered = data.patients.filter((p: any) => {
     const c = data.camps.find((c: any) => c.id === p.camp_id);
@@ -188,7 +217,14 @@ export default function Workspace() {
     (g) => filtered.filter((p: any) => p.category === g).length,
   );
   const screened = filtered.filter((p: any) => p.category).length;
-  const header = view === "Overview" ? "Care starts with connection." : view;
+  const header =
+    view === "Overview"
+      ? demo
+        ? "Care starts with connection."
+        : initialRole === "DOCTOR_ADMIN"
+          ? "Doctor dashboard"
+          : "Care dashboard"
+      : view;
   const protocol =
     data.protocols.find((p: any) => p.status === "Approved") ||
     (demo ? data.protocols[0] : null);
@@ -219,6 +255,7 @@ export default function Workspace() {
   }
   return (
     <SidebarProvider>
+      <SessionGuard mode={mode} />
       <Sidebar className="care-sidebar">
         <SidebarHeader>
           <a className="brand" href="/campaign">
@@ -237,29 +274,7 @@ export default function Workspace() {
         <SidebarContent>
           <SidebarMenu>
             {nav
-              .filter(
-                ([t]) =>
-                  (t === "Audit log"
-                    ? can("SUPER_ADMIN")
-                    : t === "Analysis & reporting"
-                      ? can("ADMIN", "ASSISTANT")
-                      : can("ADMIN")) ||
-                  (role === "DOCTOR" && t === "Protocol & settings") ||
-                  (![
-                    "Camps",
-                    "Protocol & settings",
-                    "Audit log",
-                    "Analysis & reporting",
-                  ].includes(t) &&
-                    ((role !== "LAB" && role !== "PATIENT") ||
-                      [
-                        "Overview",
-                        "Participants",
-                        "Samples & lab",
-                        "Reports",
-                        "Follow-ups",
-                      ].includes(t))),
-              )
+              .filter(([t]) => demo || sectionAllowed(role, t))
               .map(([title, Icon]) => (
                 <SidebarMenuItem key={title}>
                   <SidebarMenuButton
@@ -295,6 +310,12 @@ export default function Workspace() {
             onClick={async () => {
               try {
                 await api("sessionEnd", {}, mode);
+                if (mode === "live")
+                  await fetch("/api/session", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: "{}",
+                  });
               } finally {
                 window.location.assign(
                   "/signout-with-chatgpt?return_to=/campaign",
@@ -315,6 +336,9 @@ export default function Workspace() {
             </span>
           </div>
           <div className="action-row">
+            <span className="badge role-badge">
+              {demo ? "Synthetic demonstration" : roleLabels[role] || role}
+            </span>
             <button
               className="icon-button"
               title="Scan participant QR"
@@ -328,8 +352,9 @@ export default function Workspace() {
               value={demo ? "Demonstration" : "Live workspace"}
               options={["Demonstration", "Live workspace"]}
               onChange={(v) => {
-                setMode(v === "Demonstration" ? "demo" : "live");
-                setSelected("");
+                window.location.assign(
+                  v === "Demonstration" ? "/workspace/demo" : "/workspace",
+                );
               }}
             />
           </div>
@@ -373,11 +398,7 @@ export default function Workspace() {
               <h2>Workspace unavailable</h2>
               <p>{error}</p>
               <div className="action-row">
-                <a
-                  className="primary"
-                  href="/signin-with-chatgpt?return_to=/workspace"
-                  target="_top"
-                >
+                <a className="primary" href="/workspace" target="_top">
                   Sign in
                 </a>
                 <button className="secondary" onClick={reload}>
@@ -787,49 +808,25 @@ export default function Workspace() {
                   </section>
                 </>
               ) : view === "Analysis & reporting" ? (
+                <AnalyticsPanel mode={mode} />
+              ) : view === "System administration" ? (
+                <SystemPanel mode={mode} />
+              ) : view === "Clinical protocol review" ? (
                 <section className="panel stack">
-                  <h2>Programme analysis & reporting</h2>
-                  <p className="muted">
-                    Read-only overview of the participants visible in this
-                    workspace. Exports include the full authorised programme
-                    dataset, not only the current list filters.
-                  </p>
-                  <div className="metrics">
-                    {[
-                      ["Participants in view", data.patients.length],
-                      ["Samples in view", data.samples.length],
-                      [
-                        "Classified in view",
-                        data.patients.filter((p: any) => p.category).length,
-                      ],
-                      [
-                        "Linked samples in view",
-                        data.samples.filter(
-                          (s: any) => s.status === "Report linked",
-                        ).length,
-                      ],
-                    ].map(([label, value]) => (
-                      <div className="metric" key={label}>
-                        <p>{label}</p>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
+                  <h2>Clinical protocol review</h2>
                   <p>
-                    Patient information and samples can be reviewed in
-                    Participants and Samples & lab. Assistants cannot change
-                    clinical records, upload or verify laboratory reports, or
-                    manage accounts.
+                    Review the complete questionnaire before recording clinical
+                    approval. Technical settings and user permissions are
+                    managed separately.
                   </p>
-                  <button className="primary" onClick={downloadAnalysis}>
-                    <Download size={16} /> Generate de-identified programme
-                    report
-                  </button>
-                  <p className="fine">
-                    Downloads a JSON report with participant data, sample status
-                    totals and report status totals. Names, phone numbers and
-                    clinical notes are excluded.
-                  </p>
+                  {data.protocols.map((p: any) => (
+                    <ClinicalReview
+                      key={p.id}
+                      protocol={p}
+                      mode={mode}
+                      reload={reload}
+                    />
+                  ))}
                 </section>
               ) : view === "Protocol & settings" ? (
                 <Settings
@@ -1413,5 +1410,49 @@ function UserForm({ save, initial }: any) {
       {error && <p className="error">{error}</p>}
       <button className="primary">Save access settings</button>
     </form>
+  );
+}
+
+function ClinicalReview({ protocol, mode, reload }: any) {
+  const [confirmed, setConfirmed] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <article className="record">
+      <h3>
+        {protocol.version} · {protocol.status}
+      </h3>
+      <details>
+        <summary>Read complete protocol</summary>
+        <pre className="protocol-preview">
+          {JSON.stringify(protocol.definition, null, 2)}
+        </pre>
+      </details>
+      {protocol.status === "Draft" && (
+        <>
+          <Check checked={confirmed} onChange={setConfirmed}>
+            I am an authorised clinician and have reviewed this exact protocol.
+          </Check>
+          <button
+            className="secondary"
+            disabled={!confirmed}
+            onClick={async () => {
+              try {
+                await api(
+                  "approveProtocol",
+                  { id: protocol.id, confirm: true },
+                  mode,
+                );
+                await reload();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Record clinical approval
+          </button>
+        </>
+      )}
+      {error && <p className="error">{error}</p>}
+    </article>
   );
 }

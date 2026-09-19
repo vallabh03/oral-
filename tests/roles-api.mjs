@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawn, execFileSync } from "node:child_process";
 const base = "http://localhost:5173";
+let running=false;try {running=(await fetch(base)).ok;} catch {}
+if(running) throw new Error("Stop the localhost preview before running this isolated access test.");
 const original = readFileSync(".env");
 const sql = (query, args = []) =>
   JSON.parse(
@@ -21,6 +23,16 @@ r=c.execute(sys.argv[1],json.loads(sys.argv[2])); rows=[dict(x) for x in r.fetch
       { encoding: "utf8" },
     ),
   );
+execFileSync("python", [
+  "-c",
+  `import sqlite3,pathlib
+root=pathlib.Path('.wrangler/state/v3/d1/miniflare-D1DatabaseObject');files=[p for p in root.glob('*.sqlite') if p.name!='metadata.sqlite'];assert len(files)==1
+c=sqlite3.connect(files[0]);tables={r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+for table,name in [('sample_events','0006_sample_events.sql'),('app_sessions','0007_true_mandrill.sql'),('app_errors','0008_bumpy_sunset_bain.sql')]:
+ if table not in tables:c.executescript(pathlib.Path('drizzle',name).read_text(encoding='utf8'))
+c.commit()`,
+]);
+const oldPolicy = sql("SELECT * FROM app_settings WHERE id='security'")[0];
 const old = sql("SELECT * FROM users WHERE id='local_seedy'")[0];
 const stamp = Date.now(),
   pid = "ROLE-QA-" + stamp;
@@ -35,7 +47,7 @@ try {
       .replace(/^AUDIT_KEY=.*$/m, "AUDIT_KEY=local-role-integration-test-only"),
   );
   server = spawn(process.execPath, ["scripts/run-framework.mjs", "dev"], {
-    stdio: "ignore",
+    stdio: "inherit",
     windowsHide: true,
   });
   for (let i = 0; i < 50; i++) {
@@ -82,6 +94,20 @@ try {
       "INSERT INTO users(id,email,name,role,active) VALUES ('local_seedy','seedy@sites.test','Synthetic Role QA',?,1) ON CONFLICT(id) DO UPDATE SET role=excluded.role,active=1",
       [role],
     );
+    const session = await fetch(base + "/api/session", {
+      method: "POST",
+      headers: { ...headers, Cookie: cookie },
+      body: "{}",
+    });
+    assert.equal(session.status, 200, await session.clone().text());
+    const sc = session.headers.get("set-cookie");
+    assert.match(sc, /HttpOnly/);
+    assert.match(sc, /SameSite=Strict/);
+    headers.Cookie = cookie + "; " + sc.split(";")[0];
+    checks += 3;
+    const sessionData = await session.json();
+    assert.ok(sessionData.path.includes("/workspace/"));
+    const ownPage=await fetch(base+sessionData.path,{headers,redirect:"manual"});assert.equal(ownPage.status,200,"own role dashboard renders");checks++;
     const dash = await get("/api/care");
     assert.equal(dash.actor.role, role);
     checks++;
@@ -98,7 +124,30 @@ try {
       patientId: null,
       active: true,
     };
+    const forbiddenPath =
+      role === "SUPER_ADMIN" ? "/workspace/doctor" : "/workspace/super-admin";
+    const forbiddenPage = await fetch(base + forbiddenPath, {
+      headers,
+      redirect: "manual",
+    });
+    assert.ok(
+      [303, 307, 308].includes(forbiddenPage.status),
+      "protected role page redirects",
+    );
+    assert.equal(forbiddenPage.headers.get("location"), sessionData.path);
+    checks += 2;
     if (role === "ASSISTANT") {
+      await get("/api/admin", 403);
+      await get("/api/patient-report?patient=" + pid, 403);
+      await get("/api/analysis?group=not-a-group", 400);
+      await post("record", {
+        data: {
+          kind: "assessment",
+          notes: "Unauthorized observation",
+          status: "Recorded",
+        },
+      });
+
       for (const action of [
         "register",
         "camp",
@@ -126,12 +175,46 @@ try {
       assert.equal(dash.audit.length, 0);
       checks += 2;
     } else if (role === "DOCTOR_ADMIN") {
+      await get("/api/admin", 403);
+      await get("/api/admin?export=backup", 403);
+      for (const action of ["camp", "protocol", "assign", "qr"])
+        await post(action, { data: {} });
+      await get("/api/patient-report?patient=" + pid);
+      const printable = await fetch(
+        base + "/api/patient-report?patient=" + pid + "&format=html",
+        { headers },
+      );
+      assert.equal(printable.status, 200);
+      assert.match(await printable.text(), /Confidential/);
+      checks++;
       await post("user", { data: user });
       await post("examination", { data: {} }, 400);
       await post("approveProtocol", { confirm: false }, 400);
       assert.equal(dash.audit.length, 0);
       checks++;
     } else {
+      await get("/api/admin");
+      await get("/api/admin?export=backup");
+      const policy = await fetch(base + "/api/admin", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "security",
+          data: { idleMinutes: 5, absoluteHours: 8 },
+        }),
+      });
+      assert.equal(policy.status, 200);
+      checks++;
+      const invalid = await fetch(base + "/api/admin", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "security",
+          data: { idleMinutes: 0, absoluteHours: 8 },
+        }),
+      });
+      assert.equal(invalid.status, 400);
+      checks++;
       await post("user", { data: user }, 200);
       await post(
         "user",
@@ -143,16 +226,54 @@ try {
       await post("approveProtocol", { confirm: false });
     }
   }
+  sql("UPDATE app_sessions SET last_seen=0 WHERE user_id='local_seedy'");
+  await get("/api/care", 401);
+  const restart = await fetch(base + "/api/session", {
+    method: "POST",
+    headers: { ...headers, Cookie: cookie },
+    body: "{}",
+  });
+  assert.equal(restart.status, 200);
+  headers.Cookie =
+    cookie + "; " + restart.headers.get("set-cookie").split(";")[0];
+  checks++;
+  sql("UPDATE app_sessions SET expires_at=0 WHERE user_id='local_seedy'");await get('/api/care',401);
+  const renewed=await fetch(base+'/api/session',{method:'POST',headers:{...headers,Cookie:cookie},body:'{}'});assert.equal(renewed.status,200);headers.Cookie=cookie+'; '+renewed.headers.get('set-cookie').split(';')[0];checks++;
+  sql("UPDATE users SET active=0 WHERE id='local_seedy'");
+  await get("/api/care", 403);
+  sql("UPDATE users SET active=1 WHERE id='local_seedy'");
+  const end = await fetch(base + "/api/session", {
+    method: "DELETE",
+    headers,
+    body: "{}",
+  });
+  assert.equal(end.status, 200);
+  checks++;
+  await get("/api/care", 401);
   console.log(
     checks +
       " live-mode API access assertions passed against local synthetic data.",
   );
 } finally {
+  if (server?.pid) {
+    try {
+      execFileSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
+        stdio: "ignore",
+      });
+    } catch {}
+  }
   writeFileSync(".env", original);
-  if (server?.pid)
-    execFileSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
-      stdio: "ignore",
-    });
+  if (oldPolicy)
+    sql(
+      "INSERT INTO app_settings(id,value,updated_at,updated_by) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at,updated_by=excluded.updated_by",
+      [
+        oldPolicy.id,
+        oldPolicy.value,
+        oldPolicy.updated_at,
+        oldPolicy.updated_by,
+      ],
+    );
+  else sql("DELETE FROM app_settings WHERE id='security'");
   if (old)
     sql(
       "UPDATE users SET email=?,name=?,role=?,active=?,patient_id=? WHERE id=?",
