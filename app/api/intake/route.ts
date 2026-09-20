@@ -111,7 +111,7 @@ export async function POST(req: Request) {
       await db().batch([
         db()
           .prepare(
-            "INSERT INTO patients (id,tenant,name,phone,age,camp_id,created_at,demo,driver_type,working_area,recruitment,contact_intended) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO patients (id,tenant,name,phone,age,camp_id,created_at,demo,driver_type,working_area,recruitment,contact_intended,preferred_language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           )
           .bind(
             pid,
@@ -126,6 +126,7 @@ export async function POST(req: Request) {
             d.workingArea,
             d.recruitment,
             d.contactIntended ? 1 : 0,
+            d.preferredLanguage,
           ),
         ...["registration", "screening"].map((t) =>
           db()

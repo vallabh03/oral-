@@ -1,3 +1,4 @@
+import { isLocale } from "./i18n/languages.ts";
 import { z } from "zod";
 // Programme-wide accounts can see every participant in their workspace.
 export const programmeRoles = [
@@ -47,6 +48,7 @@ export const sampleStates = [
 ];
 export const registration = z
   .object({
+    preferredLanguage: z.string().refine(isLocale, "Choose a supported language.").default("en"),
     name: z.string().trim().min(2).max(120),
     phone: z.string().regex(/^(\+?[0-9]{10,15})?$/),
     age: z.number().int().min(0).max(120),

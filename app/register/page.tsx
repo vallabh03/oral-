@@ -1,9 +1,11 @@
 "use client";
+import { T, useT, LanguageSelector } from "@/app/language";
 import { useState, useEffect } from "react";
 import { Activity, ArrowLeft, ShieldCheck } from "lucide-react";
 import { api } from "../care-ui";
 import { Registration, Questionnaire } from "../intake";
 export default function Register() {
+  const t = useT();
   const [data, setData] = useState<any>(null),
     [id, setId] = useState(""),
     [token, setToken] = useState(""),
@@ -39,48 +41,42 @@ export default function Register() {
     return j;
   }
   return (
-    <main className="intake-page">
+    <main className="intake-page"><LanguageSelector />
       <a className="brand" href="/campaign">
         <span className="brand-mark">
           <Activity />
         </span>
-        <span>
-          TELANGANA<span>AGAINST ORAL CANCER</span>
+        <span><T text={"TELANGANA"} /><span><T text={"AGAINST ORAL CANCER"} /></span>
         </span>
       </a>
-      <p className="eyebrow">DRIVE SAFE · PARTICIPANT ENTRY</p>
+      <p className="eyebrow"><T text={"DRIVE SAFE · PARTICIPANT ENTRY"} /></p>
       <h1>
-        {id
+        <T>{id
           ? "A few questions about your oral health."
-          : "Your screening journey starts here."}
+          : "Your screening journey starts here."}</T>
       </h1>
-      <p className="muted">For Telangana’s auto and taxi drivers.</p>
+      <p className="muted"><T text={"For Telangana’s auto and taxi drivers."} /></p>
       <section className="panel">
         {!live && (
           <div className="notice">
             <ShieldCheck size={18} />
-            <span>
-              Pilot evaluation only. Live participant intake is not yet open.
-            </span>
+            <span><T text={"Pilot evaluation only. Live participant intake is not yet open."} /></span>
           </div>
         )}
         {error ? (
           <div className="stack">
-            <p className="error">{error}</p>
+            <p className="error"><T text={error} /></p>
             <a
               className="primary"
               target="_top"
               href="/signin-with-chatgpt?return_to=/register"
-            >
-              Sign in to evaluate the demo
-            </a>
+            ><T text={"Sign in to evaluate the demo"} /></a>
           </div>
         ) : !data ? (
-          <p>Preparing registration…</p>
+          <p><T text={"Preparing registration…"} /></p>
         ) : id ? (
           <div className="stack">
-            <p className="notice">
-              Registration saved · Your ID:{" "}
+            <p className="notice"><T text={"Registration saved · Your ID:"} />{" "}
               <span className="patient-id">{id}</span>
             </p>
             <Questionnaire
@@ -111,8 +107,7 @@ export default function Register() {
         )}
       </section>
       <a className="text-button" href="/campaign">
-        <ArrowLeft size={15} /> Back to the programme
-      </a>
+        <ArrowLeft size={15} /><T text={" Back to the programme"} /></a>
     </main>
   );
 }

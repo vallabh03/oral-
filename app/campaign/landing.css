@@ -125,3 +125,32 @@
   .tl-staff { padding: 8px 10px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .tl * { transition: none !important; } }
+
+/* Campaign additions retain the existing programme palette. */
+.tl-contact-strip{background:var(--tl-ink);color:#fff;font-size:14px;padding:10px 0}
+.tl-contact-strip .tl-wrap{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
+.tl-contact-strip a:last-child{margin-inline-start:auto}
+.tl-header-row{flex-wrap:wrap;padding-block:12px}
+.tl-header-row .language-selector{order:4;margin-inline-start:auto}
+.tl-support-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;margin-top:36px;align-items:start}
+.tl-support-cards{display:grid;gap:18px}
+.tl-support-card{display:flex;gap:20px;background:var(--tl-surface);border:1px solid var(--tl-line);border-inline-start:3px solid var(--tl-accent);border-radius:var(--tl-radius);padding:28px}
+.tl-support-card>svg{flex-shrink:0;color:var(--tl-accent);margin-top:3px}
+.tl-support-card p{margin-block:12px 18px;color:var(--tl-ink-2)}
+.tl-support-card a{display:inline-flex;gap:6px;align-items:center;font-weight:600;color:var(--tl-accent)}
+.tl-camp-panel{background:var(--tl-surface);padding:32px;border:1px solid var(--tl-line);border-radius:var(--tl-radius)}
+.tl-camp-panel ul{list-style:none;padding:0}
+.tl-camp-panel li{display:flex;gap:16px;padding-block:18px;border-bottom:1px solid var(--tl-line)}
+.tl-camp-panel time{color:var(--tl-accent);font-weight:650}
+.tl-camp-empty{display:grid;gap:18px;padding-block:28px;color:var(--tl-ink-2)}
+.tl-camp-panel .tl-btn{padding-block:14px;text-align:center;width:100%}
+.tl-footer-columns{display:grid;grid-template-columns:1.3fr .8fr 1fr 1fr;gap:32px;padding-block:44px}
+.tl-footer-columns h3{font-size:18px;margin-block:14px 22px}
+.tl-footer-columns p{margin-block:12px;overflow-wrap:anywhere}
+.tl-footer-columns nav a{display:block;margin-block:12px}
+.tl-footer-columns small{display:block;margin-top:4px;color:var(--tl-muted)}
+@media(max-width:900px){.tl-support-grid{grid-template-columns:1fr}.tl-footer-columns{grid-template-columns:1fr 1fr}.tl-nav{gap:14px}}
+@media(max-width:550px){.tl-footer-columns{grid-template-columns:1fr}.tl-header-row .language-selector{width:100%;order:5}.tl-contact-strip a:last-child{margin-inline-start:0}.tl-support-card,.tl-camp-panel{padding:22px}.tl-brand small{font-size:12px}}
+/* A clipped skip link avoids off-screen horizontal overflow in RTL layouts. */
+.tl-skip:not(:focus){left:auto;right:auto;inset-inline-start:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0}
+.tl-skip:focus{left:auto;right:auto;inset-inline-start:12px;width:auto;height:auto;clip-path:none}

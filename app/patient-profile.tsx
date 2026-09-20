@@ -1,4 +1,6 @@
 "use client";
+import { T, useT, LanguageSelector, useLanguage } from "@/app/language";
+import { isLocale, type Locale } from "@/lib/i18n/languages";
 import { permitted } from "@/lib/permissions";
 import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
 import { useState, useEffect } from "react";
@@ -37,6 +39,9 @@ export default function PatientProfile({
   demo: boolean;
   changed: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLanguage();
+  const [reportLocale, setReportLocale] = useState<Locale | null>(null);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -100,23 +105,23 @@ export default function PatientProfile({
             {p.driver_type || "DRIVE SAFE participant"}
           </p>
         </div>
-        {p.category && <span className="badge">Group {p.category}</span>}
+        {p.category && <span className="badge"><T text={"Group "} />{p.category}</span>}
       </div>
       {(demo || permitted(role, "reports.patient")) && (
         <div className="action-row">
+          <LanguageSelector value={reportLocale ?? locale} onChange={setReportLocale} />
+          <button className="secondary" onClick={() => setReportLocale(isLocale(p.preferred_language) ? p.preferred_language : "en")}><T>Use patient’s language</T></button>
           <a
             className="secondary"
             href={
               "/api/patient-report?patient=" +
               encodeURIComponent(id) +
               "&format=html&mode=" +
-              mode
+              mode + "&lang=" + (reportLocale ?? locale)
             }
             target="_blank"
             rel="noopener noreferrer"
-          >
-            Generate / print patient report
-          </a>
+          ><T text={"Generate / print patient report"} /></a>
           <button
             className="secondary"
             onClick={async () => {
@@ -141,28 +146,26 @@ export default function PatientProfile({
                 setError((e as Error).message);
               }
             }}
-          >
-            Download patient report
-          </button>
+          ><T text={"Download patient report"} /></button>
         </div>
       )}
       <div className="info-grid">
         <div>
-          <small>Mobile</small>
+          <small><T text={"Mobile"} /></small>
           <strong>{p.phone || "Not recorded"}</strong>
         </div>
         <div>
-          <small>Working area</small>
+          <small><T text={"Working area"} /></small>
           <strong>{p.working_area || "Not recorded"}</strong>
         </div>
         <div>
-          <small>Current pathway</small>
+          <small><T text={"Current pathway"} /></small>
           <strong>{p.pathway || "Laboratory access"}</strong>
         </div>
       </div>
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       <Tabs defaultValue="overview">
@@ -199,19 +202,16 @@ export default function PatientProfile({
                   ? "Group " + p.category + " · " + groupPaths[p.category]
                   : p.pathway}
               </h3>
-              <p>
-                Screening supports care coordination. It is not a confirmed
-                cancer diagnosis.
-              </p>
+              <p><T text={"Screening supports care coordination. It is not a confirmed cancer diagnosis."} clinical /></p>
             </section>
-            <h3>Next steps & appointments</h3>
+            <h3><T text={"Next steps & appointments"} /></h3>
             {data.records
               .filter((r: any) =>
                 ["referral", "followup", "counselling"].includes(r.kind),
               )
               .map((r: any) => (
                 <div className="record" key={r.id}>
-                  <span className="badge">{r.status}</span>
+                  <span className="badge"><T>{r.status}</T></span>
                   <h3>
                     {r.kind === "followup"
                       ? "Follow-up"
@@ -266,9 +266,9 @@ export default function PatientProfile({
                         }
                       />
                       <small>
-                        {staff.length
+                        <T>{staff.length
                           ? "Choose an authorised staff account."
-                          : "Add matching staff accounts in live administration."}
+                          : "Add matching staff accounts in live administration."}</T>
                       </small>
                     </Field>
                   );
@@ -285,17 +285,12 @@ export default function PatientProfile({
                   } catch {}
                 }}
               >
-                <ScanLine size={16} /> Generate / replace patient QR
-              </button>
+                <ScanLine size={16} /><T text={" Generate / replace patient QR"} /></button>
             )}
             {token && (
               <div className="qr-card">
                 <QRImage value={token} />
-                <p className="fine">
-                  This code contains only a random token. It does not grant
-                  access to the record. Replacing it invalidates the previous
-                  QR.
-                </p>
+                <p className="fine"><T text={"This code contains only a random token. It does not grant access to the record. Replacing it invalidates the previous QR."} /></p>
               </div>
             )}
           </div>
@@ -304,7 +299,7 @@ export default function PatientProfile({
           <div className="stack">
             {data.answers.length > 0 && (
               <section>
-                <h3>Recorded responses</h3>
+                <h3><T text={"Recorded responses"} /></h3>
                 {data.answers.map((a: any, i: number) => (
                   <div className="answer" key={i}>
                     <strong>{a.question_text}</strong>
@@ -325,9 +320,7 @@ export default function PatientProfile({
                   }
                 />
               ) : (
-                <p className="notice">
-                  No clinically approved questionnaire is available.
-                </p>
+                <p className="notice"><T text={"No clinically approved questionnaire is available."} /></p>
               ))}
           </div>
         </TabsContent>
@@ -339,15 +332,13 @@ export default function PatientProfile({
                 save={(d) => save("examination", { data: d })}
               />
             ) : (
-              <p className="notice">
-                Only an authorised doctor can record and verify an examination.
-              </p>
+              <p className="notice"><T text={"Only an authorised doctor can record and verify an examination."} /></p>
             )}
             {data.records
               .filter((r: any) => r.kind === "assessment")
               .map((r: any) => (
                 <div className="record" key={r.id}>
-                  <h3>{r.status}</h3>
+                  <h3><T>{r.status}</T></h3>
                   <p>{r.data.impression}</p>
                   <p>{r.data.notes}</p>
                   {can("DOCTOR") && r.status === "Recorded" && (
@@ -357,9 +348,7 @@ export default function PatientProfile({
                         setEditRecord(r);
                         setAction("assessment");
                       }}
-                    >
-                      Update observation
-                    </button>
+                    ><T text={"Update observation"} /></button>
                   )}
                   <small>{new Date(r.at).toLocaleString()}</small>
                 </div>
@@ -391,7 +380,7 @@ export default function PatientProfile({
                       }}
                     >
                       <Plus size={15} />
-                      {label}
+                      <T>{label}</T>
                     </button>
                   ),
               )}
@@ -404,7 +393,7 @@ export default function PatientProfile({
               )
               .map((r: any) => (
                 <div className="record" key={r.id}>
-                  <span className="badge">{r.status}</span>
+                  <span className="badge"><T>{r.status}</T></span>
                   <h3>{r.kind}</h3>
                   <p>{r.data.notes}</p>
                   {Object.entries(r.data)
@@ -422,9 +411,7 @@ export default function PatientProfile({
                         setEditRecord(r);
                         setAction(r.kind);
                       }}
-                    >
-                      Update this workflow
-                    </button>
+                    ><T text={"Update this workflow"} /></button>
                   )}
                 </div>
               ))}
@@ -440,16 +427,15 @@ export default function PatientProfile({
                   setAction("sample");
                 }}
               >
-                <Plus size={16} /> Record sample collection
-              </button>
+                <Plus size={16} /><T text={" Record sample collection"} /></button>
             )}
             {data.samples.length === 0 && (
-              <p className="muted">No samples have been collected.</p>
+              <p className="muted"><T text={"No samples have been collected."} /></p>
             )}
             {data.samples.map((s: any) => (
               <div className="record" key={s.id}>
-                <span className="badge">{s.status}</span>
-                <h3>{s.type}</h3>
+                <span className="badge"><T>{s.status}</T></span>
+                <h3><T>{s.type}</T></h3>
                 <p className="patient-id">{s.id}</p>
                 <small>
                   {s.location} · {new Date(s.collected_at).toLocaleString()}
@@ -481,8 +467,7 @@ export default function PatientProfile({
                         revision: s.revision,
                       }).catch(() => {})
                     }
-                  >
-                    Mark {sampleStates[sampleStates.indexOf(s.status) + 1]}{" "}
+                  ><T text={"Mark "} />{sampleStates[sampleStates.indexOf(s.status) + 1]}{" "}
                     <ArrowRight size={15} />
                   </button>
                 )}
@@ -499,17 +484,15 @@ export default function PatientProfile({
                 )}
               </div>
             ))}
-            <h3>Laboratory reports</h3>
+            <h3><T text={"Laboratory reports"} /></h3>
             {data.reports.length === 0 && (
-              <p className="muted">
-                Verified reports will appear here when available.
-              </p>
+              <p className="muted"><T text={"Verified reports will appear here when available."} /></p>
             )}
             {data.reports.map((r: any) => {
               const s = data.samples.find((s: any) => s.id === r.sample_id);
               return (
                 <div className="record" key={r.id}>
-                  <span className="badge">{r.status}</span>
+                  <span className="badge"><T>{r.status}</T></span>
                   <h3>
                     <FileText size={16} /> {r.filename}
                   </h3>
@@ -543,9 +526,7 @@ export default function PatientProfile({
                           setError((e as Error).message);
                         }
                       }}
-                    >
-                      Open verified report
-                    </button>
+                    ><T text={"Open verified report"} /></button>
                   )}
                 </div>
               );
@@ -562,15 +543,14 @@ export default function PatientProfile({
                   setAction("consent");
                 }}
               >
-                <Plus size={16} /> Record consent / withdrawal
-              </button>
+                <Plus size={16} /><T text={" Record consent / withdrawal"} /></button>
             )}
             {data.consents.map((c: any) => (
               <div className="record" key={c.id}>
                 <span className="badge">{c.status}</span>
                 <h3>{c.type}</h3>
                 <p>
-                  {c.method} · version {c.version}
+                  {c.method}<T text={" · version "} />{c.version}
                 </p>
                 <small>
                   {new Date(c.at).toLocaleString()} · {c.actor}
@@ -587,7 +567,7 @@ export default function PatientProfile({
                 <section>
                   <h3>{e.action}</h3>
                   <p>{new Date(e.at).toLocaleString()}</p>
-                  <small>Actor: {e.actor}</small>
+                  <small><T text={"Actor: "} />{e.actor}</small>
                 </section>
               </div>
             ))}
@@ -638,6 +618,7 @@ function Examination({
   save: (d: any) => Promise<any>;
   busy: boolean;
 }) {
+  const t = useT();
   const [d, setD] = useState<any>({
       completed: true,
       habit: null,
@@ -680,11 +661,8 @@ function Examination({
         }
       }}
     >
-      <h3>Clinician-only oral examination</h3>
-      <p className="notice">
-        The clinician determines lesion presence and urgency. Symptoms alone do
-        not assign a group.
-      </p>
+      <h3><T text={"Clinician-only oral examination"} /></h3>
+      <p className="notice"><T text={"The clinician determines lesion presence and urgency. Symptoms alone do not assign a group."} clinical /></p>
       <Choice
         label="Examination completed"
         value={d.completed ? "Completed" : "Unable or refused"}
@@ -729,7 +707,7 @@ function Examination({
             </Field>
           </div>
           <fieldset className="question">
-            <legend>Oral findings</legend>
+            <legend><T text={"Oral findings"} /></legend>
             <div className="check-grid">
               {findings.map((v) => (
                 <Check
@@ -757,7 +735,7 @@ function Examination({
             </div>
           </fieldset>
           <fieldset className="question">
-            <legend>Site</legend>
+            <legend><T text={"Site"} /></legend>
             <div className="check-grid">
               {sites.map((v) => (
                 <Check
@@ -814,9 +792,7 @@ function Examination({
           <Check
             checked={d.followupRequired}
             onChange={(v) => set("followupRequired", v)}
-          >
-            Follow-up required
-          </Check>
+          ><T text={"Follow-up required"} /></Check>
           {d.followupRequired && (
             <Field label="Clinician-selected follow-up date (optional)">
               <input
@@ -824,7 +800,7 @@ function Examination({
                 value={d.followupDate}
                 onChange={(e) => set("followupDate", e.target.value)}
               />
-              <small>No interval is automatically prescribed.</small>
+              <small><T text={"No interval is automatically prescribed."} /></small>
             </Field>
           )}
         </>
@@ -843,13 +819,10 @@ function Examination({
           onChange={(e) => set("notes", e.target.value)}
         />
       </Field>
-      <Check checked={d.verified} onChange={(v) => set("verified", v)}>
-        I am the examining clinician and verify these findings and the resulting
-        management group.
-      </Check>
+      <Check checked={d.verified} onChange={(v) => set("verified", v)}><T text={"I am the examining clinician and verify these findings and the resulting management group."} /></Check>
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       {success && (
@@ -857,9 +830,7 @@ function Examination({
           {success}
         </p>
       )}
-      <button className="primary" disabled={busy || !d.verified}>
-        Verify examination & record pathway
-      </button>
+      <button className="primary" disabled={busy || !d.verified}><T text={"Verify examination & record pathway"} /></button>
     </form>
   );
 }
@@ -878,6 +849,7 @@ function ActionForm({
   users: any[];
   doctor: boolean;
 }) {
+  const t = useT();
   const statuses: Record<string, string[]> = {
     counselling: [
       "Pending",
@@ -996,9 +968,7 @@ function ActionForm({
               onChange={(v) => set("labId", v)}
             />
           </Field>
-          <p className="fine">
-            Requires a doctor assessment and separate testing consent.
-          </p>
+          <p className="fine"><T text={"Requires a doctor assessment and separate testing consent."} clinical /></p>
         </>
       ) : kind === "consent" ? (
         <>
@@ -1020,10 +990,7 @@ function ActionForm({
             options={["Written", "Verbal witnessed", "Patient checkbox"]}
             onChange={(v) => set("method", v)}
           />
-          <Check checked={d.confirmed} onChange={(v) => set("confirmed", v)}>
-            I confirm that the participant gave or withdrew this specific
-            consent after an explanation.
-          </Check>
+          <Check checked={d.confirmed} onChange={(v) => set("confirmed", v)}><T text={"I confirm that the participant gave or withdrew this specific consent after an explanation."} clinical /></Check>
         </>
       ) : (
         <>
@@ -1036,10 +1003,7 @@ function ActionForm({
             />
           </Field>
           {kind === "treatment" && (
-            <p className="notice">
-              Approval requires a doctor assessment, a clinical decision below,
-              and separate treatment consent.
-            </p>
+            <p className="notice"><T text={"Approval requires a doctor assessment, a clinical decision below, and separate treatment consent."} clinical /></p>
           )}
           {kind === "followup" && (
             <>
@@ -1105,9 +1069,7 @@ function ActionForm({
             <Check
               checked={d.supportOffered}
               onChange={(v) => set("supportOffered", v)}
-            >
-              Cessation support offered / referred
-            </Check>
+            ><T text={"Cessation support offered / referred"} /></Check>
           )}
           {kind === "referral" && (
             <Choice
@@ -1134,19 +1096,18 @@ function ActionForm({
       )}
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       <button
         className="primary"
         disabled={busy || (kind === "consent" && !d.confirmed)}
-      >
-        Save record
-      </button>
+      ><T text={"Save record"} /></button>
     </form>
   );
 }
 function ReportUpload({ sample, patient, mode, done }: any) {
+  const t = useT();
   const [file, setFile] = useState<File | null>(null),
     [confirmed, setConfirmed] = useState(false),
     [error, setError] = useState(""),
@@ -1195,18 +1156,14 @@ function ReportUpload({ sample, patient, mode, done }: any) {
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
       </Field>
-      <Check checked={confirmed} onChange={setConfirmed}>
-        I matched the patient name, participant ID, sample ID and sample type to
-        this report.
-      </Check>
-      {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={!confirmed || !file || busy}>
-        Upload for verification
-      </button>
+      <Check checked={confirmed} onChange={setConfirmed}><T text={"I matched the patient name, participant ID, sample ID and sample type to this report."} /></Check>
+      {error && <p className="error"><T text={error} /></p>}
+      <button className="primary" disabled={!confirmed || !file || busy}><T text={"Upload for verification"} /></button>
     </form>
   );
 }
 function ReportVerification({ report, sample, patient, save, mode }: any) {
+  const t = useT();
   const [confirm, setConfirm] = useState(false);
   return (
     <div className="stack report-box">
@@ -1225,9 +1182,7 @@ function ReportVerification({ report, sample, patient, save, mode }: any) {
           a.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }}
-      >
-        Download report for verification
-      </button>
+      ><T text={"Download report for verification"} /></button>
       <p>
         {patient.name}
         <br />
@@ -1239,9 +1194,7 @@ function ReportVerification({ report, sample, patient, save, mode }: any) {
         <br />
         {sample?.type}
       </p>
-      <Check checked={confirm} onChange={setConfirm}>
-        I confirm these patient and sample details match the report.
-      </Check>
+      <Check checked={confirm} onChange={setConfirm}><T text={"I confirm these patient and sample details match the report."} /></Check>
       <button
         className="secondary"
         disabled={!confirm}
@@ -1255,9 +1208,9 @@ function ReportVerification({ report, sample, patient, save, mode }: any) {
           }).catch(() => {})
         }
       >
-        {report.status === "Uploaded"
+        <T>{report.status === "Uploaded"
           ? "Verify report"
-          : "Link verified report to participant"}
+          : "Link verified report to participant"}</T>
       </button>
     </div>
   );

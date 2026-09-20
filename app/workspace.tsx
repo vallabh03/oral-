@@ -1,4 +1,6 @@
 "use client";
+import { T, useT, LanguageSelector, useLanguage } from "@/app/language";
+import { localeInfo } from "@/lib/i18n/languages";
 import { permitted, sectionAllowed } from "@/lib/permissions";
 import { AnalyticsPanel, SystemPanel, SessionGuard } from "./role-panels";
 import { hasRole, roleLabels, accountTypes } from "@/lib/domain";
@@ -88,6 +90,8 @@ export default function Workspace({
   initialMode?: string;
   initialRole?: string;
 }) {
+  const t = useT();
+  const { locale } = useLanguage();
   const [view, setView] = useState(
       initialMode === "live" && initialRole === "ASSISTANT"
         ? "Analysis & reporting"
@@ -256,20 +260,18 @@ export default function Workspace({
   return (
     <SidebarProvider>
       <SessionGuard mode={mode} />
-      <Sidebar className="care-sidebar">
+      <Sidebar side={localeInfo(locale).dir === "rtl" ? "right" : "left"} className="care-sidebar">
         <SidebarHeader>
           <a className="brand" href="/campaign">
             <span className="brand-mark">
               <Activity />
             </span>
-            <span>
-              TELANGANA<span>AGAINST ORAL CANCER</span>
+            <span><T text={"TELANGANA"} /><span><T text={"AGAINST ORAL CANCER"} /></span>
             </span>
           </a>
-          <div className="program-tag">
-            DRIVE SAFE <span>PILOT</span>
+          <div className="program-tag"><T text={"DRIVE SAFE "} /><span><T text={"PILOT"} /></span>
           </div>
-          <div className="workspace-label">CARE COORDINATION</div>
+          <div className="workspace-label"><T text={"CARE COORDINATION"} /></div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -282,15 +284,14 @@ export default function Workspace({
                     onClick={() => setView(title)}
                   >
                     <Icon />
-                    <span>{title}</span>
+                    <span><T text={title} /></span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          <a className="campaign-link" href="/campaign">
-            Visit campaign page <ArrowUpRight size={16} />
+          <a className="campaign-link" href="/campaign"><T text={"Visit campaign page "} /><ArrowUpRight size={16} />
           </a>
           <div className="staff">
             <span className="avatar">
@@ -322,27 +323,25 @@ export default function Workspace({
                 );
               }
             }}
-          >
-            Sign out
-          </button>
+          ><T text={"Sign out"} /></button>
         </SidebarFooter>
       </Sidebar>
       <div className="workspace">
         <header className="topbar">
+<LanguageSelector />
           <div className="flex items-center gap-3">
             <SidebarTrigger />
-            <span>
-              DRIVE SAFE <span className="slash">/</span> {view}
+            <span><T text={"DRIVE SAFE "} /><span className="slash">/</span> <T>{view}</T>
             </span>
           </div>
           <div className="action-row">
             <span className="badge role-badge">
-              {demo ? "Synthetic demonstration" : roleLabels[role] || role}
+              <T>{demo ? "Synthetic demonstration" : roleLabels[role] || role}</T>
             </span>
             <button
               className="icon-button"
-              title="Scan participant QR"
-              aria-label="Scan participant QR"
+              title={t("Scan participant QR")}
+              aria-label={t("Scan participant QR")}
               onClick={() => setModal("scan")}
             >
               <ScanLine size={20} />
@@ -362,14 +361,12 @@ export default function Workspace({
         <main className="main-content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">
-                TELANGANA AGAINST ORAL CANCER · DRIVE SAFE
-              </p>
-              <h1>{header}</h1>
+              <p className="eyebrow"><T text={"TELANGANA AGAINST ORAL CANCER · DRIVE SAFE"} /></p>
+              <h1><T text={header} /></h1>
               <p>
-                {view === "Overview"
+                <T>{view === "Overview"
                   ? "A clear view of your screening program and every next step."
-                  : "Connected records. Clear responsibilities. Continuous care."}
+                  : "Connected records. Clear responsibilities. Continuous care."}</T>
               </p>
             </div>
             {can("ADMIN", "REGISTRATION") && (
@@ -381,29 +378,24 @@ export default function Workspace({
                   setModal("register");
                 }}
               >
-                <Plus size={18} /> Register participant
-              </button>
+                <Plus size={18} /><T text={" Register participant"} /></button>
             )}
           </div>
           <div className="notice">
             <ShieldCheck size={18} />
             <span>
-              {demo
+              <T>{demo
                 ? "Demonstration · Synthetic records only. Provisional pilot workflow; live intake is locked until governance review."
-                : "Authorized workspace · Access is limited to your role and assigned participants."}
+                : "Authorized workspace · Access is limited to your role and assigned participants."}</T>
             </span>
           </div>
           {error && (
             <section className="error-panel" role="alert">
-              <h2>Workspace unavailable</h2>
-              <p>{error}</p>
+              <h2><T text={"Workspace unavailable"} /></h2>
+              <p><T text={error} /></p>
               <div className="action-row">
-                <a className="primary" href="/workspace" target="_top">
-                  Sign in
-                </a>
-                <button className="secondary" onClick={reload}>
-                  Try again
-                </button>
+                <a className="primary" href="/workspace" target="_top"><T text={"Sign in"} /></a>
+                <button className="secondary" onClick={reload}><T text={"Try again"} /></button>
               </div>
             </section>
           )}
@@ -420,10 +412,10 @@ export default function Workspace({
                   <div className="search-box">
                     <Search size={17} />
                     <input
-                      aria-label="Search participants"
+                      aria-label={t("Search participants")}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search name, participant ID, mobile or sample ID"
+                      placeholder={t("Search name, participant ID, mobile or sample ID")}
                     />
                   </div>
                   <Choice
@@ -451,20 +443,18 @@ export default function Workspace({
                   <button
                     className="icon-button"
                     onClick={() => setModal("filters")}
-                    aria-label="More filters"
+                    aria-label={t("More filters")}
                   >
                     <SlidersHorizontal size={18} />
                   </button>
                 </div>
               )}
               {loading ? (
-                <div className="panel loading">
-                  Loading your care workspace…
-                </div>
+                <div className="panel loading"><T text={"Loading your care workspace…"} /></div>
               ) : view === "Overview" ? (
                 <>
                   <div className="section-line">
-                    <h2>Campaign overview</h2>
+                    <h2><T text={"Campaign overview"} /></h2>
                     <span>
                       {camp} ·{" "}
                       {new Date().toLocaleDateString("en-IN", {
@@ -502,23 +492,21 @@ export default function Workspace({
                     ].map(([label, value, note, Icon]: any) => (
                       <article className="metric" key={label}>
                         <div>
-                          {label}
+                          <T>{label}</T>
                           <Icon size={18} />
                         </div>
                         <strong>{value}</strong>
-                        <small>{note}</small>
+                        <small><T>{note}</T></small>
                       </article>
                     ))}
                   </div>
                   <div className="overview-grid">
                     <section className="panel">
                       <div className="panel-heading">
-                        <h2>Every screening. A next step.</h2>
-                        <span className="badge">4-group framework</span>
+                        <h2><T text={"Every screening. A next step."} /></h2>
+                        <span className="badge"><T text={"4-group framework"} /></span>
                       </div>
-                      <p className="muted">
-                        Habit status + clinician-determined lesion status.
-                      </p>
+                      <p className="muted"><T text={"Habit status + clinician-determined lesion status."} /></p>
                       <div className="pathways">
                         {[
                           [
@@ -548,52 +536,36 @@ export default function Workspace({
                           >
                             <span className="path-number">0{i + 1}</span>
                             <div>
-                              <h3>{label}</h3>
-                              <small>{detail}</small>
+                              <h3><T>{label}</T></h3>
+                              <small><T>{detail}</T></small>
                             </div>
                             <strong>{counts[i]}</strong>
                           </button>
                         ))}
                       </div>
-                      <div className="panel-foot">
-                        Groups guide management. They are not a cancer
-                        diagnosis.
-                        <ShieldCheck size={16} />
+                      <div className="panel-foot"><T text={"Groups guide management. They are not a cancer diagnosis."} /><ShieldCheck size={16} />
                       </div>
                     </section>
                     <section className="priority-card">
-                      <div className="eyebrow">KEEP CARE MOVING</div>
-                      <h2>
-                        A little follow-up.
-                        <br />A meaningful next step.
-                      </h2>
-                      <p>
-                        Bring the right people to the right care, at the right
-                        time.
-                      </p>
-                      <button onClick={() => setView("Follow-ups")}>
-                        Review follow-ups <ArrowRight size={18} />
+                      <div className="eyebrow"><T text={"KEEP CARE MOVING"} /></div>
+                      <h2><T text={"A little follow-up."} /><br /><T text={"A meaningful next step."} /></h2>
+                      <p><T text={"Bring the right people to the right care, at the right time."} /></p>
+                      <button onClick={() => setView("Follow-ups")}><T text={"Review follow-ups "} /><ArrowRight size={18} />
                       </button>
                       <div className="priority-stat">
                         <strong>
                           {followups.length.toString().padStart(2, "0")}
                         </strong>
-                        <span>
-                          participants awaiting
-                          <br />
-                          their next conversation
-                        </span>
+                        <span><T text={"participants awaiting"} /><br /><T text={"their next conversation"} /></span>
                       </div>
-                      <p className="priority-bottom">
-                        Follow-up dates are selected by the clinical team.
-                      </p>
+                      <p className="priority-bottom"><T text={"Follow-up dates are selected by the clinical team."} /></p>
                     </section>
                   </div>
                   <ParticipantTable
                     patients={filtered.slice(0, 5)}
                     camps={data.camps}
                     open={open}
-                    title="Recent participants"
+                    title={t("Recent participants")}
                     more={() => setView("Participants")}
                   />
                   <div className="secondary-metrics">
@@ -628,7 +600,7 @@ export default function Workspace({
                     ].map(([label, n]) => (
                       <div key={label}>
                         <strong>{n}</strong>
-                        <span>{label}</span>
+                        <span><T>{label}</T></span>
                       </div>
                     ))}
                   </div>
@@ -662,7 +634,7 @@ export default function Workspace({
                           ? "Referral queue"
                           : "Continuing the care journey"}
                     </h2>
-                    <span className="badge">Assigned care</span>
+                    <span className="badge"><T text={"Assigned care"} /></span>
                   </div>
                   {records(
                     view === "Cessation support"
@@ -707,7 +679,7 @@ export default function Workspace({
                               "Pending care assignment"}
                           </p>
                         </div>
-                        <span className="badge">{r.status}</span>
+                        <span className="badge"><T>{r.status}</T></span>
                         <ArrowRight size={16} />
                       </button>
                     ))
@@ -717,16 +689,13 @@ export default function Workspace({
                 <section className="panel">
                   <div className="panel-heading">
                     <h2>
-                      {view === "Reports"
+                      <T>{view === "Reports"
                         ? "Laboratory report tracking"
-                        : "Sample lifecycle"}
+                        : "Sample lifecycle"}</T>
                     </h2>
-                    <span className="badge">Verified linking required</span>
+                    <span className="badge"><T text={"Verified linking required"} /></span>
                   </div>
-                  <p className="muted">
-                    Collected → Sent to lab → Received → Processing → Report
-                    generated → Verified → Linked
-                  </p>
+                  <p className="muted"><T text={"Collected → Sent to lab → Received → Processing → Report generated → Verified → Linked"} /></p>
                   {data.samples.filter((s: any) => ids.has(s.patient_id))
                     .length === 0 ? (
                     <Empty text="No samples match these filters. Open a participant record to collect a sample." />
@@ -749,9 +718,9 @@ export default function Workspace({
                               }
                             </h3>
                             <p className="patient-id">{s.id}</p>
-                            <small>{s.type}</small>
+                            <small><T>{s.type}</T></small>
                           </div>
-                          <span className="badge">{s.status}</span>
+                          <span className="badge"><T>{s.status}</T></span>
                           <ArrowRight size={16} />
                         </button>
                       ))
@@ -760,13 +729,12 @@ export default function Workspace({
               ) : view === "Camps" ? (
                 <>
                   <div className="section-line">
-                    <h2>Screening events</h2>
+                    <h2><T text={"Screening events"} /></h2>
                     <button
                       className="secondary"
                       onClick={() => setModal("camp")}
                     >
-                      <Plus size={16} /> Add camp
-                    </button>
+                      <Plus size={16} /><T text={" Add camp"} /></button>
                   </div>
                   <div className="camp-grid">
                     {data.camps.map((c: any) => (
@@ -781,17 +749,14 @@ export default function Workspace({
                               data.patients.filter(
                                 (p: any) => p.camp_id === c.id,
                               ).length
-                            }{" "}
-                            participants
-                          </span>
+                            }{" "}<T text={"participants"} /></span>
                           <button
                             className="text-button"
                             onClick={() => {
                               setCamp(c.name);
                               setView("Participants");
                             }}
-                          >
-                            View participants <ArrowRight size={15} />
+                          ><T text={"View participants "} /><ArrowRight size={15} />
                           </button>
                         </div>
                       </section>
@@ -799,17 +764,10 @@ export default function Workspace({
                   </div>
                   <section className="panel public-qr">
                     <div>
-                      <h2>One programme. One entry point.</h2>
-                      <p>
-                        Registration, consent and the brief participant
-                        questionnaire.
-                      </p>
-                      <p className="muted">
-                        Clinician fields and prior submissions are never
-                        accessible from this QR.
-                      </p>
-                      <a className="text-button" href="/register">
-                        Open participant entry <ArrowUpRight size={16} />
+                      <h2><T text={"One programme. One entry point."} /></h2>
+                      <p><T text={"Registration, consent and the brief participant questionnaire."} /></p>
+                      <p className="muted"><T text={"Clinician fields and prior submissions are never accessible from this QR."} /></p>
+                      <a className="text-button" href="/register"><T text={"Open participant entry "} /><ArrowUpRight size={16} />
                       </a>
                     </div>
                     {entryUrl && <QRImage value={entryUrl} />}
@@ -821,12 +779,8 @@ export default function Workspace({
                 <SystemPanel mode={mode} />
               ) : view === "Clinical protocol review" ? (
                 <section className="panel stack">
-                  <h2>Clinical protocol review</h2>
-                  <p>
-                    Review the complete questionnaire before recording clinical
-                    approval. Technical settings and user permissions are
-                    managed separately.
-                  </p>
+                  <h2><T text={"Clinical protocol review"} /></h2>
+                  <p><T text={"Review the complete questionnaire before recording clinical approval. Technical settings and user permissions are managed separately."} /></p>
                   {data.protocols.map((p: any) => (
                     <ClinicalReview
                       key={p.id}
@@ -846,12 +800,10 @@ export default function Workspace({
               ) : view === "Audit log" ? (
                 <section className="panel">
                   <div className="panel-heading">
-                    <h2>Accountability, at every step.</h2>
-                    <span className="badge">Append-only events</span>
+                    <h2><T text={"Accountability, at every step."} /></h2>
+                    <span className="badge"><T text={"Append-only events"} /></span>
                   </div>
-                  <p className="muted">
-                    Authorized administrator view · Most recent 200 events
-                  </p>
+                  <p className="muted"><T text={"Authorized administrator view · Most recent 200 events"} /></p>
                   <div className="timeline">
                     {data.audit.map((e: any) => (
                       <div key={e.id}>
@@ -860,7 +812,7 @@ export default function Workspace({
                           <h3>{e.action}</h3>
                           <p>{new Date(e.at).toLocaleString()}</p>
                           <small className="patient-id">
-                            {e.patient_id || "Programme event"} · Actor{" "}
+                            {e.patient_id || "Programme event"}<T text={" · Actor"} />{" "}
                             {e.actor}
                           </small>
                         </section>
@@ -872,21 +824,17 @@ export default function Workspace({
             </>
           )}
         </main>
-        <footer>
-          Consent-led screening. Clinician-led care.
-          <span>DRIVE SAFE · HAOC</span>
+        <footer><T text={"Consent-led screening. Clinician-led care."} /><span><T text={"DRIVE SAFE · HAOC"} /></span>
         </footer>
       </div>
       <Sheet open={!!selected} onOpenChange={(v) => !v && setSelected("")}>
         <SheetContent className="patient-sheet">
           <SheetHeader>
-            <SheetTitle>Participant record</SheetTitle>
+            <SheetTitle><T text={"Participant record"} /></SheetTitle>
             <SheetDescription>
-              {demo
+              <T>{demo
                 ? "Synthetic demonstration record"
-                : "Authorized care record"}{" "}
-              · DRIVE SAFE
-            </SheetDescription>
+                : "Authorized care record"}</T>{" "}<T text={"· DRIVE SAFE"} /></SheetDescription>
           </SheetHeader>
           <div className="sheet-body">
             {selected && (
@@ -928,8 +876,7 @@ export default function Workspace({
         {modal === "register" ? (
           newId ? (
             <div className="stack">
-              <p className="notice">
-                Registration saved. Your permanent ID:{" "}
+              <p className="notice"><T text={"Registration saved. Your permanent ID:"} />{" "}
                 <span className="patient-id">{newId}</span>
               </p>
               {protocol ? (
@@ -945,7 +892,7 @@ export default function Workspace({
                   }}
                 />
               ) : (
-                <p>No approved questionnaire is available.</p>
+                <p><T text={"No approved questionnaire is available."} /></p>
               )}
               <button
                 className="secondary"
@@ -953,9 +900,7 @@ export default function Workspace({
                   setModal("");
                   open(newId);
                 }}
-              >
-                Open participant record
-              </button>
+              ><T text={"Open participant record"} /></button>
             </div>
           ) : (
             <Registration
@@ -1015,9 +960,7 @@ export default function Workspace({
                 onChange={setStatus}
               />
             </Field>
-            <button className="primary" onClick={() => setModal("")}>
-              Apply filters
-            </button>
+            <button className="primary" onClick={() => setModal("")}><T text={"Apply filters"} /></button>
             <button
               className="secondary"
               onClick={() => {
@@ -1030,8 +973,7 @@ export default function Workspace({
                 setModal("");
               }}
             >
-              <RotateCcw size={16} /> Clear all filters
-            </button>
+              <RotateCcw size={16} /><T text={" Clear all filters"} /></button>
           </div>
         ) : null}
       </Modal>
@@ -1039,6 +981,7 @@ export default function Workspace({
   );
 }
 function Empty({ text }: { text: string }) {
+  const t = useT();
   return (
     <div className="empty-state">
       <ClipboardList size={28} />
@@ -1047,13 +990,13 @@ function Empty({ text }: { text: string }) {
   );
 }
 function ParticipantTable({ patients, camps, open, title, more }: any) {
+  const t = useT();
   return (
     <section className="panel participant-panel">
       <div className="panel-heading">
-        <h2>{title}</h2>
+        <h2><T>{title}</T></h2>
         {more && (
-          <button className="text-button" onClick={more}>
-            View all participants <ArrowRight size={16} />
+          <button className="text-button" onClick={more}><T text={"View all participants "} /><ArrowRight size={16} />
           </button>
         )}
       </div>
@@ -1065,12 +1008,12 @@ function ParticipantTable({ patients, camps, open, title, more }: any) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Participant</TableHead>
-                  <TableHead>Screening camp</TableHead>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Care pathway</TableHead>
+                  <TableHead><T text={"Participant"} /></TableHead>
+                  <TableHead><T text={"Screening camp"} /></TableHead>
+                  <TableHead><T text={"Group"} /></TableHead>
+                  <TableHead><T text={"Care pathway"} /></TableHead>
                   <TableHead>
-                    <span className="sr-only">Open record</span>
+                    <span className="sr-only"><T text={"Open record"} /></span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -1143,6 +1086,7 @@ function ParticipantTable({ patients, camps, open, title, more }: any) {
   );
 }
 function CampForm({ save }: any) {
+  const t = useT();
   const [d, setD] = useState({ name: "", location: "", date: "" }),
     [error, setError] = useState("");
   return (
@@ -1172,12 +1116,13 @@ function CampForm({ save }: any) {
           />
         </Field>
       ))}
-      {error && <p className="error">{error}</p>}
-      <button className="primary">Create camp</button>
+      {error && <p className="error"><T text={error} /></p>}
+      <button className="primary"><T text={"Create camp"} /></button>
     </form>
   );
 }
 function Settings({ data, mode, reload, exportAnalysis }: any) {
+  const t = useT();
   const systemAdmin = data.actor.demo || data.actor.role === "SUPER_ADMIN";
   const clinician = data.actor.demo || hasRole(data.actor.role, "DOCTOR");
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -1202,10 +1147,8 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
   return (
     <div className="stack">
       <section className="panel">
-        <h2>DRIVE SAFE · Agreed workflow draft</h2>
-        <p className="muted">
-          Version 1.0 · Clinical examination determines the four-group pathway.
-        </p>
+        <h2><T text={"DRIVE SAFE · Agreed workflow draft"} /></h2>
+        <p className="muted"><T text={"Version 1.0 · Clinical examination determines the four-group pathway."} /></p>
         <div className="governance-grid">
           {[
             "Final privacy notice & consent",
@@ -1216,22 +1159,15 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
             <div key={t}>
               <ShieldCheck size={18} />
               <span>{t}</span>
-              <span className="badge">Review required</span>
+              <span className="badge"><T text={"Review required"} /></span>
             </div>
           ))}
         </div>
-        <p className="notice">
-          Live intake is disabled by default. The pilot draft is available for
-          evaluation using synthetic data.
-        </p>
+        <p className="notice"><T text={"Live intake is disabled by default. The pilot draft is available for evaluation using synthetic data."} /></p>
       </section>
       <section className="panel stack">
-        <h2>Versioned questionnaire</h2>
-        <p className="muted">
-          Edit the supplied question configuration. Saving creates an immutable
-          draft; a doctor must approve it separately. Participant answers never
-          automatically assign a clinical group.
-        </p>
+        <h2><T text={"Versioned questionnaire"} /></h2>
+        <p className="muted"><T text={"Edit the supplied question configuration. Saving creates an immutable draft; a doctor must approve it separately. Participant answers never automatically assign a clinical group."} /></p>
         <Field label="Questionnaire configuration (JSON)">
           <textarea
             className="code-editor"
@@ -1249,35 +1185,28 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
               setError("The questionnaire must be valid JSON.");
             }
           }}
-        >
-          Save new draft
-        </button>
+        ><T text={"Save new draft"} /></button>
         {data.protocols.map((p: any) => (
           <div className="record" key={p.id}>
             <span className="badge">{p.status}</span>
             <h3>{p.version}</h3>
             {p.status === "Draft" && clinician && (
               <>
-                <Check checked={confirmed} onChange={setConfirmed}>
-                  I am an authorized clinician and have reviewed this exact
-                  questionnaire.
-                </Check>
+                <Check checked={confirmed} onChange={setConfirmed}><T text={"I am an authorized clinician and have reviewed this exact questionnaire."} /></Check>
                 <button
                   className="secondary"
                   disabled={!confirmed}
                   onClick={() =>
                     run("approveProtocol", { id: p.id, confirm: true })
                   }
-                >
-                  Record clinical approval
-                </button>
+                ><T text={"Record clinical approval"} /></button>
               </>
             )}
           </div>
         ))}
         {error && (
           <p className="error" role="alert">
-            {error}
+            <T>{error}</T>
           </p>
         )}
         {success && (
@@ -1288,7 +1217,7 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
       </section>
       <section className="panel">
         <div className="panel-heading">
-          <h2>Access & programme analysis</h2>
+          <h2><T text={"Access & programme analysis"} /></h2>
           {systemAdmin && (
             <button
               className="secondary"
@@ -1297,21 +1226,16 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
                 setUserOpen(true);
               }}
             >
-              <Plus size={16} /> Staff account
-            </button>
+              <Plus size={16} /><T text={" Staff account"} /></button>
           )}
         </div>
-        <p className="muted">
-          Doctor – Admin manages clinical care. Tech Support – Super Admin
-          manages accounts and system administration. Assistant – Data &
-          Reporting has read-only review and report generation.
-        </p>
+        <p className="muted"><T text={"Doctor – Admin manages clinical care. Tech Support – Super Admin manages accounts and system administration. Assistant – Data & Reporting has read-only review and report generation."} /></p>
         {data.users.map((u: any) => (
           <div className="record" key={u.id}>
             <h3>{u.name}</h3>
             <p>
-              {u.email} · {roleLabels[u.role] || u.role} ·{" "}
-              {u.active ? "Active" : "Disabled"}
+              {u.email} · <T>{roleLabels[u.role] || u.role}</T> ·{" "}
+              <T>{u.active ? "Active" : "Disabled"}</T>
             </p>
             {systemAdmin && (
               <button
@@ -1320,24 +1244,18 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
                   setEditingUser(u);
                   setUserOpen(true);
                 }}
-              >
-                Edit access
-              </button>
+              ><T text={"Edit access"} /></button>
             )}
           </div>
         ))}
         <button className="secondary" onClick={exportAnalysis}>
-          <Download size={16} /> Export de-identified programme data
-        </button>
-        <p className="fine">
-          Names, mobile numbers, free-text notes, working areas and staff
-          identifiers are excluded. Treat longitudinal IDs as pseudonymous data.
-        </p>
+          <Download size={16} /><T text={" Export de-identified programme data"} /></button>
+        <p className="fine"><T text={"Names, mobile numbers, free-text notes, working areas and staff identifiers are excluded. Treat longitudinal IDs as pseudonymous data."} /></p>
       </section>
       <Modal
         open={userOpen}
         close={() => setUserOpen(false)}
-        title="Manage an authorized account"
+        title={t("Manage an authorized account")}
         description="Use the authenticated account ID supplied by your administrator."
       >
         <UserForm
@@ -1354,6 +1272,7 @@ function Settings({ data, mode, reload, exportAnalysis }: any) {
   );
 }
 function UserForm({ save, initial }: any) {
+  const t = useT();
   const [d, setD] = useState({
       id: "",
       name: "",
@@ -1400,7 +1319,7 @@ function UserForm({ save, initial }: any) {
         label="Role"
         value={d.role}
         options={[...accountTypes]}
-        labels={roleLabels}
+        labels={roleLabels} translateLabels
         onChange={(v) => setD({ ...d, role: v })}
       />
       {d.role === "PATIENT" && (
@@ -1412,16 +1331,15 @@ function UserForm({ save, initial }: any) {
           />
         </Field>
       )}
-      <Check checked={d.active} onChange={(v) => setD({ ...d, active: v })}>
-        Account active
-      </Check>
-      {error && <p className="error">{error}</p>}
-      <button className="primary">Save access settings</button>
+      <Check checked={d.active} onChange={(v) => setD({ ...d, active: v })}><T text={"Account active"} /></Check>
+      {error && <p className="error"><T text={error} /></p>}
+      <button className="primary"><T text={"Save access settings"} /></button>
     </form>
   );
 }
 
 function ClinicalReview({ protocol, mode, reload }: any) {
+  const t = useT();
   const [confirmed, setConfirmed] = useState(false),
     [error, setError] = useState("");
   return (
@@ -1430,16 +1348,14 @@ function ClinicalReview({ protocol, mode, reload }: any) {
         {protocol.version} · {protocol.status}
       </h3>
       <details>
-        <summary>Read complete protocol</summary>
+        <summary><T text={"Read complete protocol"} /></summary>
         <pre className="protocol-preview">
           {JSON.stringify(protocol.definition, null, 2)}
         </pre>
       </details>
       {protocol.status === "Draft" && (
         <>
-          <Check checked={confirmed} onChange={setConfirmed}>
-            I am an authorised clinician and have reviewed this exact protocol.
-          </Check>
+          <Check checked={confirmed} onChange={setConfirmed}><T text={"I am an authorised clinician and have reviewed this exact protocol."} /></Check>
           <button
             className="secondary"
             disabled={!confirmed}
@@ -1455,12 +1371,10 @@ function ClinicalReview({ protocol, mode, reload }: any) {
                 setError((e as Error).message);
               }
             }}
-          >
-            Record clinical approval
-          </button>
+          ><T text={"Record clinical approval"} /></button>
         </>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error"><T text={error} /></p>}
     </article>
   );
 }

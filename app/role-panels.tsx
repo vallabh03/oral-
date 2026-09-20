@@ -1,4 +1,5 @@
 "use client";
+import { T, useT } from "@/app/language";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/lib/domain";
 async function request(url: string, mode: string, body?: unknown) {
@@ -22,6 +23,7 @@ function download(data: unknown, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function SessionGuard({ mode }: { mode: string }) {
+  const t = useT();
   useEffect(() => {
     if (mode !== "live") return;
     let disposed = false,
@@ -73,6 +75,7 @@ export function SessionGuard({ mode }: { mode: string }) {
   return null;
 }
 export function AnalyticsPanel({ mode }: { mode: string }) {
+  const t = useT();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [camp, setCamp] = useState(""),
@@ -97,16 +100,11 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
   }, [mode]);
   return (
     <section className="panel stack">
-      <h2>Analysis & reporting</h2>
-      <p>
-        Count distinct participants across the full authorised dataset. Apply
-        registration-date and category filters, then generate a report.
-      </p>
+      <h2><T text={"Analysis & reporting"} /></h2>
+      <p><T text={"Count distinct participants across the full authorised dataset. Apply registration-date and category filters, then generate a report."} /></p>
       <div className="form-grid">
-        <label className="field">
-          Camp
-          <select value={camp} onChange={(e) => setCamp(e.target.value)}>
-            <option value="">All camps</option>
+        <label className="field"><T text={"Camp"} /><select value={camp} onChange={(e) => setCamp(e.target.value)}>
+            <option value="">{t("All camps")}</option>
             {camps.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -114,38 +112,30 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
             ))}
           </select>
         </label>
-        <label className="field">
-          Category
-          <select value={group} onChange={(e) => setGroup(e.target.value)}>
-            <option value="">All categories</option>
+        <label className="field"><T text={"Category"} /><select value={group} onChange={(e) => setGroup(e.target.value)}>
+            <option value="">{t("All categories")}</option>
             {["1", "2", "3", "4", "Unclassified"].map((g) => (
               <option key={g}>{g}</option>
             ))}
           </select>
         </label>
-        <label className="field">
-          Registered from
-          <input
+        <label className="field"><T text={"Registered from"} /><input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
         </label>
-        <label className="field">
-          Registered through
-          <input
+        <label className="field"><T text={"Registered through"} /><input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
           />
         </label>
       </div>
-      <button className="secondary" onClick={load}>
-        Apply report filters
-      </button>
+      <button className="secondary" onClick={load}><T text={"Apply report filters"} /></button>
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       {data && (
@@ -153,7 +143,7 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
           <div className="metrics">
             {Object.entries(data.summary).map(([k, v]) => (
               <div className="metric" key={k}>
-                <p>{k}</p>
+                <p><T text={k} /></p>
                 <strong>
                   {typeof v === "boolean"
                     ? v
@@ -170,14 +160,14 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
             ["Registration cohorts over time", data.byRegistrationDate],
           ].map(([title, rows]: any) => (
             <div key={title}>
-              <h3>{title}</h3>
+              <h3><T>{title}</T></h3>
               <div className="report-table-wrap">
                 <table className="report-table">
                   <thead>
                     <tr>
-                      <th>Cohort</th>
+                      <th><T text={"Cohort"} /></th>
                       {Object.keys(data.summary).map((k) => (
-                        <th key={k}>{k}</th>
+                        <th key={k}><T text={k} /></th>
                       ))}
                     </tr>
                   </thead>
@@ -195,7 +185,7 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
               </div>
             </div>
           ))}
-          <h3>Reported habits</h3>
+          <h3><T text={"Reported habits"} /></h3>
           {data.habits.length ? (
             data.habits.map((r: any) => (
               <div key={r.label} className="habit-row">
@@ -209,15 +199,13 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
               </div>
             ))
           ) : (
-            <p>No habit responses in this cohort.</p>
+            <p><T text={"No habit responses in this cohort."} /></p>
           )}
           <p className="fine">{data.privacy}</p>
           <button
             className="primary"
             onClick={() => download(data, "drive-safe-analysis.json")}
-          >
-            Export filtered analysis report
-          </button>
+          ><T text={"Export filtered analysis report"} /></button>
           <button
             className="secondary"
             onClick={() => {
@@ -243,14 +231,9 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
               link.click();
               setTimeout(() => URL.revokeObjectURL(url), 1000);
             }}
-          >
-            Export analytical dataset (CSV)
-          </button>
-          <button className="secondary" onClick={() => window.print()}>
-            Print statistical summary
-          </button>
-          <p className="fine">
-            Generated {new Date(data.generatedAt).toLocaleString()}
+          ><T text={"Export analytical dataset (CSV)"} /></button>
+          <button className="secondary" onClick={() => window.print()}><T text={"Print statistical summary"} /></button>
+          <p className="fine"><T text={"Generated "} />{new Date(data.generatedAt).toLocaleString()}
           </p>
         </>
       )}
@@ -258,6 +241,7 @@ export function AnalyticsPanel({ mode }: { mode: string }) {
   );
 }
 export function SystemPanel({ mode }: { mode: string }) {
+  const t = useT();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -282,10 +266,10 @@ export function SystemPanel({ mode }: { mode: string }) {
   }
   return (
     <section className="panel stack">
-      <h2>System administration</h2>
+      <h2><T text={"System administration"} /></h2>
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       {message && <p role="status">{message}</p>}
@@ -317,7 +301,7 @@ export function SystemPanel({ mode }: { mode: string }) {
               </div>
             ))}
           </div>
-          <h3>Recent system errors</h3>
+          <h3><T text={"Recent system errors"} /></h3>
           {data.errors?.length ? (
             data.errors.map((e: any, i: number) => (
               <p key={i}>
@@ -325,17 +309,12 @@ export function SystemPanel({ mode }: { mode: string }) {
               </p>
             ))
           ) : (
-            <p>No recorded internal errors.</p>
+            <p><T text={"No recorded internal errors."} /></p>
           )}
-          <p className="fine">
-            Error records contain timestamps and categories only. Detailed
-            hosting logs remain restricted to the hosting administrator.
-          </p>
-          <h3>Session security</h3>
+          <p className="fine"><T text={"Error records contain timestamps and categories only. Detailed hosting logs remain restricted to the hosting administrator."} /></p>
+          <h3><T text={"Session security"} /></h3>
           <div className="form-grid">
-            <label className="field">
-              Idle timeout (5–60 minutes)
-              <input
+            <label className="field"><T text={"Idle timeout (5–60 minutes)"} /><input
                 type="number"
                 min="5"
                 max="60"
@@ -351,9 +330,7 @@ export function SystemPanel({ mode }: { mode: string }) {
                 }
               />
             </label>
-            <label className="field">
-              Maximum session (1–12 hours)
-              <input
+            <label className="field"><T text={"Maximum session (1–12 hours)"} /><input
                 type="number"
                 min="1"
                 max="12"
@@ -374,19 +351,13 @@ export function SystemPanel({ mode }: { mode: string }) {
             className="secondary"
             disabled={mode === "demo"}
             onClick={() => save("security", { data: data.policy })}
-          >
-            Save session policy
-          </button>
-          <p className="fine">
-            Password changes, MFA and identity-provider security are managed by
-            the identity provider. No passwords or authentication secrets are
-            stored in this application.
-          </p>
-          <h3>Programme contact settings</h3>
+          ><T text={"Save session policy"} /></button>
+          <p className="fine"><T text={"Password changes, MFA and identity-provider security are managed by the identity provider. No passwords or authentication secrets are stored in this application."} /></p>
+          <h3><T text={"Programme contact settings"} /></h3>
           <div className="form-grid">
             {["supportEmail", "supportPhone"].map((k) => (
               <label key={k} className="field">
-                {k === "supportEmail" ? "Programme email" : "Programme phone"}
+                <T>{k === "supportEmail" ? "Programme email" : "Programme phone"}</T>
                 <input
                   value={data.settings[k]}
                   onChange={(e) =>
@@ -403,42 +374,32 @@ export function SystemPanel({ mode }: { mode: string }) {
             className="secondary"
             disabled={mode === "demo"}
             onClick={() => save("programme", { data: data.settings })}
-          >
-            Save contact settings
-          </button>
-          <h3>Active sessions</h3>
+          ><T text={"Save contact settings"} /></button>
+          <h3><T text={"Active sessions"} /></h3>
           {data.sessions.length ? (
             data.sessions.map((s: any, i: number) => (
               <div className="record" key={i}>
                 <p>
-                  {s.user_id} · Last activity{" "}
+                  {s.user_id}<T text={" · Last activity"} />{" "}
                   {new Date(s.last_seen).toLocaleString()}
                 </p>
                 <button
                   className="secondary"
                   onClick={() => save("revokeSessions", { userId: s.user_id })}
-                >
-                  Revoke this user's sessions
-                </button>
+                ><T text={"Revoke this user's sessions"} /></button>
               </div>
             ))
           ) : (
-            <p>No active sessions to show.</p>
+            <p><T text={"No active sessions to show."} /></p>
           )}
-          <h3>Authorised logical backup export</h3>
-          <p>
-            Contains identifiable patient records. Private PDF files and session
-            secrets are excluded. This is not a complete disaster-recovery
-            backup.
-          </p>
+          <h3><T text={"Authorised logical backup export"} /></h3>
+          <p><T text={"Contains identifiable patient records. Private PDF files and session secrets are excluded. This is not a complete disaster-recovery backup."} /></p>
           <label className="check-label">
             <input
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
-            />{" "}
-            I will store the export in an authorised encrypted location.
-          </label>
+            />{" "}<T text={"I will store the export in an authorised encrypted location."} /></label>
           <button
             className="secondary"
             disabled={!confirmed || mode === "demo"}
@@ -452,9 +413,7 @@ export function SystemPanel({ mode }: { mode: string }) {
                 setError((e as Error).message);
               }
             }}
-          >
-            Export authorised system data
-          </button>
+          ><T text={"Export authorised system data"} /></button>
         </>
       )}
     </section>

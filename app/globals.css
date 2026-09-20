@@ -1722,3 +1722,37 @@ footer {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Language controls preserve the site's typography hierarchy and colours. */
+.language-selector{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font:inherit;font-size:14px;max-width:100%;min-width:0}
+.language-selector>span{display:flex;align-items:center;gap:7px}
+.language-selector select{font:inherit;color:inherit;background:var(--background,#fff);border:1px solid #c8c8c0;border-radius:8px;padding:9px 12px;min-height:42px;max-width:100%;min-width:120px}
+.language-registration{display:flex;padding:16px;border:1px solid #d4d6d0;border-radius:12px;justify-content:space-between}
+[data-i18n-fallback]{font:inherit!important;color:inherit!important;letter-spacing:inherit!important;text-transform:inherit!important}
+html:not([lang=en]) body{line-height:1.7}
+html:not([lang=en]) h1,html:not([lang=en]) h2,html:not([lang=en]) h3{line-height:1.4;letter-spacing:normal}
+html:not([lang=en]) button,html:not([lang=en]) label,html:not([lang=en]) a,html:not([lang=en]) p{overflow-wrap:anywhere;letter-spacing:normal}
+html[dir=rtl] .workspace,html[dir=rtl] .tl,html[dir=rtl] .intake-page{text-align:start}
+html[dir=rtl] th,html[dir=rtl] td{text-align:start}
+html[dir=rtl] input[type=tel],html[dir=rtl] input[type=email],.patient-id{direction:ltr;unicode-bidi:isolate}
+.topbar{height:auto;min-height:68px;flex-wrap:wrap;gap:12px;padding-block:12px}
+.topbar .action-row{flex-wrap:wrap}
+@media(max-width:600px){.topbar .language-selector{width:100%;justify-content:space-between}.topbar .action-row{width:100%;justify-content:space-between}.language-selector select{flex:1;max-width:220px}}
+@media print{.language-selector{display:none}}
+/* Script-aware local font stacks, without changing font sizes or hierarchy. */
+html:lang(te) body,html:lang(te) .tl{font-family:"Noto Sans Telugu",system-ui,sans-serif}
+html:lang(hi) body,html:lang(mr) body,html:lang(kok) body,html:lang(ne) body,html:lang(sa) body,html:lang(mai) body,html:lang(brx) body,html:lang(doi) body,html:lang(hi) .tl,html:lang(mr) .tl,html:lang(kok) .tl,html:lang(ne) .tl,html:lang(sa) .tl,html:lang(mai) .tl,html:lang(brx) .tl,html:lang(doi) .tl{font-family:"Noto Sans Devanagari",system-ui,sans-serif}
+html:lang(ta) body,html:lang(ta) .tl{font-family:"Noto Sans Tamil",system-ui,sans-serif}
+html:lang(kn) body,html:lang(kn) .tl{font-family:"Noto Sans Kannada",system-ui,sans-serif}
+html:lang(ml) body,html:lang(ml) .tl{font-family:"Noto Sans Malayalam",system-ui,sans-serif}
+html:lang(bn) body,html:lang(as) body,html:lang(mni) body,html:lang(bn) .tl,html:lang(as) .tl,html:lang(mni) .tl{font-family:"Noto Sans Bengali",system-ui,sans-serif}
+html:lang(gu) body,html:lang(gu) .tl{font-family:"Noto Sans Gujarati",system-ui,sans-serif}
+html:lang(pa) body,html:lang(pa) .tl{font-family:"Noto Sans Gurmukhi",system-ui,sans-serif}
+html:lang(or) body,html:lang(or) .tl{font-family:"Noto Sans Oriya",system-ui,sans-serif}
+html:lang(ur) body,html:lang(ks) body,html:lang(sd) body,html:lang(ur) .tl,html:lang(ks) .tl,html:lang(sd) .tl{font-family:"Noto Sans Arabic",system-ui,sans-serif}
+html:lang(sat) body,html:lang(sat) .tl{font-family:"Noto Sans Ol Chiki",system-ui,sans-serif}
+.language-selector option{font-family:system-ui,"Noto Sans Telugu","Noto Sans Devanagari","Noto Sans Tamil","Noto Sans Kannada","Noto Sans Malayalam","Noto Sans Bengali","Noto Sans Gujarati","Noto Sans Gurmukhi","Noto Sans Oriya","Noto Sans Arabic","Noto Sans Ol Chiki",sans-serif}
+.language-coverage{display:block;flex-basis:100%;font-size:12px;line-height:1.5;color:#626760}
+html[dir=rtl] .topbar .action-row{margin-inline-start:auto;margin-left:0}
+html[dir=rtl] .tl-nav,html[dir=rtl] .tl-staff{margin-left:0;margin-inline-start:auto}
+@media(max-width:600px){.tl-header-row .language-selector{display:grid;grid-template-columns:1fr 1fr}.language-coverage{grid-column:1/-1}.tl-hero h1{font-size:clamp(32px,8.4vw,84px);max-width:100%}}

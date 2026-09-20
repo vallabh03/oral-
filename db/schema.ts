@@ -20,12 +20,17 @@ export const users = sqliteTable("users", {
   active: integer("active").notNull().default(1),
   patientId: text("patient_id"),
 });
+export const languagePreferences = sqliteTable("language_preferences", {
+  userId: text("user_id").primaryKey(),
+  locale: text("locale").notNull(),
+});
 export const patients = sqliteTable(
   "patients",
   {
     id: text("id").primaryKey(),
     tenant: text("tenant").notNull(),
     name: text("name").notNull(),
+    preferredLanguage: text("preferred_language").notNull().default("en"),
     phone: text("phone").notNull(),
     driverType: text("driver_type"),
     workingArea: text("working_area"),

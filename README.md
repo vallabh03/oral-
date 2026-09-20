@@ -92,3 +92,11 @@ Logical backup exports contain identifiable database records and require Super A
 Validation: `node --experimental-strip-types --test tests/domain.test.ts`, `python tests/integrity.py`, existing `node tests/api.mjs`, and `node tests/roles-api.mjs`. The latter stops/starts a localhost preview, temporarily configures local-only access, applies new migrations only to the local test database, exercises live-mode roles with synthetic records and restores local configuration. Stop any existing localhost preview before running it.
 
 Direct API requests default to the secure live-access path. Synthetic demonstration must be explicitly selected and is isolated by authenticated user; it does not expose live sessions, configuration, backups or patient data.
+
+## Language and landing update
+
+The shared language system supports all 23 requested locale choices, native-script selectors, device/account preferences, participant language capture, protected report language selection, local Noto fonts and RTL layout. Canonical patient/answer data and existing access restrictions are unchanged. The landing page adds a configured contact strip, support enquiries, upcoming camps and an expanded footer.
+
+Translation coverage is intentionally transparent: English is complete; Telugu/Hindi have expanded UI copy and other locales have core interface vocabulary. Missing interface strings and all unreviewed clinical/consent translations fall back to English. This is not a claim of complete or medically reviewed translation into all 23 languages. See `TRANSLATIONS.md` for review workflow, coverage, preferences, scripts, fonts and activation limitations.
+
+Validation: `npx --no-install tsx --test tests/i18n.test.ts tests/domain.test.ts`, `node tests/language-api.mjs` against the local preview, `python tests/integrity.py`, `node tests/api.mjs`, TypeScript and the production build. The local language API test uses only synthetic records and restores the prior account preference.

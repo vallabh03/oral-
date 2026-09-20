@@ -1,4 +1,5 @@
 "use client";
+import { T, useT } from "@/app/language";
 import { useState, useEffect, useRef } from "react";
 import {
   Select,
@@ -24,22 +25,27 @@ export function Choice({
   options,
   label,
   labels,
+  clinical = false,
+  translateLabels = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
   label: string;
   labels?: Record<string, string>;
+  clinical?: boolean;
+  translateLabels?: boolean;
 }) {
+  const t = useT();
   return (
     <Select value={value || undefined} onValueChange={onChange}>
-      <SelectTrigger aria-label={label} className="choice">
-        <SelectValue placeholder={label} />
+      <SelectTrigger aria-label={t(label, clinical)} className="choice">
+        <SelectValue placeholder={t(label, clinical)} />
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
           <SelectItem key={o} value={o}>
-            {labels?.[o] || o}
+            {labels && !translateLabels ? labels[o] || o : t(labels?.[o] || o, clinical)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -55,6 +61,7 @@ export function Check({
   onChange: (v: boolean) => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <label className="check-label">
       <Checkbox
@@ -72,9 +79,10 @@ export function Field({
   label: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <label className="field">
-      <span>{label}</span>
+      <span><T text={label} /></span>
       {children}
     </label>
   );
@@ -92,12 +100,13 @@ export function Modal({
   description: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={(v) => !v && close()}>
       <DialogContent className="care-dialog">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle><T text={title} /></DialogTitle>
+          <DialogDescription><T text={description} /></DialogDescription>
         </DialogHeader>
         {children}
       </DialogContent>
@@ -115,6 +124,7 @@ export async function api(action?: string, data?: any, mode = "demo") {
   return j;
 }
 export function QRImage({ value }: { value: string }) {
+  const t = useT();
   const [src, setSrc] = useState("");
   useEffect(() => {
     let active = true;
@@ -133,13 +143,14 @@ export function QRImage({ value }: { value: string }) {
       src={src}
       width="220"
       height="220"
-      alt="QR code containing only the secure retrieval token"
+      alt={t("QR code containing only the secure retrieval token")}
     />
   ) : (
-    <p>Preparing QR…</p>
+    <p><T text={"Preparing QR…"} /></p>
   );
 }
 export function Scanner({ found }: { found: (v: string) => Promise<void> }) {
+  const t = useT();
   const video = useRef<HTMLVideoElement>(null),
     stream = useRef<MediaStream | null>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,25 +241,21 @@ export function Scanner({ found }: { found: (v: string) => Promise<void> }) {
         <input
           value={manual}
           onChange={(e) => setManual(e.target.value)}
-          placeholder="HAOC-DS-…"
+          placeholder={t("HAOC-DS-…")}
         />
       </Field>
       <button
         className="primary"
         disabled={!manual.trim()}
         onClick={() => submit(manual.trim())}
-      >
-        Find authorized record
-      </button>
+      ><T text={"Find authorized record"} /></button>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
       <p className="fine">
-        <ShieldCheck size={15} /> A QR code identifies a record. Staff
-        authorization is still required.
-      </p>
+        <ShieldCheck size={15} /><T text={" A QR code identifies a record. Staff authorization is still required."} /></p>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { T, useT, LanguageSelector, ClinicalLanguageNotice, useLanguage, useLocalizedValidation } from "@/app/language";
 import { useState } from "react";
 import { Field, Choice, Check } from "./care-ui";
 import { pilotConsent, visible, type Protocol } from "@/lib/domain";
@@ -16,6 +17,9 @@ export function Registration({
   privacyNotice?: string;
   consentVersion?: string;
 }) {
+  const t = useT();
+  const validation = useLocalizedValidation();
+  const { locale } = useLanguage();
   const [d, setD] = useState({
     name: "",
     phone: "",
@@ -32,14 +36,14 @@ export function Registration({
     [busy, setBusy] = useState(false);
   const set = (k: string, v: any) => setD({ ...d, [k]: v });
   return (
-    <form
+    <form {...validation}
       className="stack"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
         setError("");
         try {
-          await save({ ...d, age: Number(d.age) });
+          await save({ ...d, age: Number(d.age), preferredLanguage: locale });
         } catch (e) {
           setError((e as Error).message);
         } finally {
@@ -47,14 +51,12 @@ export function Registration({
         }
       }}
     >
-      <div className="step-label">
-        <span className="current">1 · Registration & consent</span>
-        <span>2 · Brief questionnaire</span>
+      <LanguageSelector registration /><ClinicalLanguageNotice /><div className="step-label">
+        <span className="current"><T text={"1 · Registration & consent"} /></span>
+        <span><T text={"2 · Brief questionnaire"} /></span>
       </div>
       {demo && (
-        <p className="notice">
-          Evaluation mode. Use made-up details and a name starting with “Demo ”.
-        </p>
+        <p className="notice"><T text={"Evaluation mode. Use made-up details and a name starting with “Demo ”."} /></p>
       )}
       <div className="form-grid">
         <Field label="Name *">
@@ -104,7 +106,7 @@ export function Registration({
             maxLength={160}
             value={d.workingArea}
             onChange={(e) => set("workingArea", e.target.value)}
-            placeholder="Area or stand"
+            placeholder={t("Area or stand")}
           />
         </Field>
         <Field label="How did you hear about DRIVE SAFE? *">
@@ -126,9 +128,7 @@ export function Registration({
       <Check
         checked={d.contactIntended}
         onChange={(v) => set("contactIntended", v)}
-      >
-        Follow-up or contact is intended
-      </Check>
+      ><T text={"Follow-up or contact is intended"} /></Check>
       <Field
         label={
           d.contactIntended ? "Mobile number *" : "Mobile number (optional)"
@@ -144,19 +144,13 @@ export function Registration({
           onChange={(e) => set("phone", e.target.value)}
           placeholder={demo ? "0000000007" : "Mobile number"}
         />
-        <small>Required only when follow-up/contact is intended.</small>
+        <small><T text={"Required only when follow-up/contact is intended."} /></small>
       </Field>
       <section className="consent-box">
-        <h3>Participation & screening consent</h3>
-        <p>{pilotConsent}</p>
-        {privacyNotice && <p>{privacyNotice}</p>}
-        <p>
-          We record identity/contact information, screening answers and
-          clinician findings to coordinate screening, referrals and follow-up.
-          Authorized programme staff can access information needed for their
-          role. Test information is recorded only when separately consented. Ask
-          the camp coordinator for assistance, corrections or privacy questions.
-        </p>
+        <h3><T text={"Participation & screening consent"} /></h3>
+        <p><T text={pilotConsent} clinical /></p>
+        {privacyNotice && <p><T text={privacyNotice} clinical /></p>}
+        <p><T text={"We record identity/contact information, screening answers and clinician findings to coordinate screening, referrals and follow-up. Authorized programme staff can access information needed for their role. Test information is recorded only when separately consented. Ask the camp coordinator for assistance, corrections or privacy questions."} clinical /></p>
         <p className="fine">
           {demo
             ? "Provisional wording · DRIVE SAFE v1.0 · Must be reviewed before live deployment."
@@ -165,20 +159,15 @@ export function Registration({
         <Check
           checked={d.registrationConsent}
           onChange={(v) => set("registrationConsent", v)}
-        >
-          I voluntarily agree to participate and to the collection of this
-          registration information.
-        </Check>
+        ><T text={"I voluntarily agree to participate and to the collection of this registration information."} /></Check>
         <Check
           checked={d.screeningConsent}
           onChange={(v) => set("screeningConsent", v)}
-        >
-          I understand and consent to the screening process described above.
-        </Check>
+        ><T text={"I understand and consent to the screening process described above."} clinical /></Check>
       </section>
       {error && (
         <p role="alert" className="error">
-          {error}
+          <T text={error} />
         </p>
       )}
       <button
@@ -188,13 +177,11 @@ export function Registration({
           busy || !d.registrationConsent || !d.screeningConsent || !d.campId
         }
       >
-        {busy ? "Saving registration…" : "Continue to questionnaire"}
+        <T>{busy ? "Saving registration…" : "Continue to questionnaire"}</T>
         <ArrowRight size={17} />
       </button>
       <p className="fine">
-        <ShieldCheck size={14} /> No Aadhaar, home address or lesion photographs
-        are collected.
-      </p>
+        <ShieldCheck size={14} /><T text={" No Aadhaar, home address or lesion photographs are collected."} clinical /></p>
     </form>
   );
 }
@@ -205,6 +192,8 @@ export function Questionnaire({
   protocol: Protocol;
   submit: (answers: any) => Promise<any>;
 }) {
+  const t = useT();
+  const validation = useLocalizedValidation();
   const [answers, setAnswers] = useState<Record<string, any>>({}),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -213,19 +202,13 @@ export function Questionnaire({
     return (
       <div className="success-state">
         <CheckCircle2 size={44} />
-        <h2>Your screening responses have been recorded.</h2>
-        <p>
-          Our medical team will guide you through your oral examination and the
-          appropriate next step.
-        </p>
-        <p className="muted">
-          A clinical group will be recorded only after examination and clinician
-          verification.
-        </p>
+        <h2><T text={"Your screening responses have been recorded."} /></h2>
+        <p><T text={"Our medical team will guide you through your oral examination and the appropriate next step."} /></p>
+        <p className="muted"><T text={"A clinical group will be recorded only after examination and clinician verification."} /></p>
       </div>
     );
   return (
-    <form
+    <form {...validation}
       className="stack"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -241,14 +224,14 @@ export function Questionnaire({
         }
       }}
     >
-      <p className="muted">About 2 minutes · {protocol.version}</p>
+      <ClinicalLanguageNotice /><p className="muted"><T text={"About 2 minutes · "} />{protocol.version}</p>
       {protocol.questions
         .filter((q) => visible(q, answers))
         .map((q, i) => (
           <fieldset className="question" key={q.id}>
             <legend>
-              {i + 1}. {q.text}
-              {q.required ? " *" : ""}
+              {i + 1}. <T text={q.text} clinical />
+              <T>{q.required ? " *" : ""}</T>
             </legend>
             {q.type === "multiple" ? (
               <div className="check-grid">
@@ -266,13 +249,13 @@ export function Questionnaire({
                       setAnswers({ ...answers, [q.id]: v });
                     }}
                   >
-                    {o}
+                    <T text={o} clinical />
                   </Check>
                 ))}
               </div>
             ) : ["single", "frequency", "yesno"].includes(q.type) ? (
               <Choice
-                label={q.text}
+                clinical label={q.text}
                 value={
                   typeof answers[q.id] === "boolean"
                     ? answers[q.id]
@@ -307,16 +290,16 @@ export function Questionnaire({
                 }
               />
             )}
-            {q.unit && <small>{q.unit}</small>}
+            {q.unit && <small><T text={q.unit} clinical /></small>}
           </fieldset>
         ))}
       {error && (
         <p className="error" role="alert">
-          {error}
+          <T text={error} />
         </p>
       )}
       <button className="primary" disabled={busy}>
-        {busy ? "Recording responses…" : "Record screening responses"}
+        <T>{busy ? "Recording responses…" : "Record screening responses"}</T>
       </button>
     </form>
   );
