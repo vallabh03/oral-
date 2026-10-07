@@ -9,7 +9,8 @@ export async function screeningPdf(patient: any, examination: any) {
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const ink = rgb(0.09, 0.25, 0.22);
   const muted = rgb(0.37, 0.46, 0.43);
-  const ascii = (value: unknown) => String(value ?? "").replace(/[^\x20-\x7e]/g, "?");
+  const ascii = (value: unknown) => String(value ?? "")
+    .replace(/[—–]/g, " - ").replace(/[‘’]/g, "'").replace(/[^\x20-\x7e]/g, "?");
   const line = (label: string, value: unknown, y: number) => {
     page.drawText(label, { x: 48, y, size: 10, font: bold, color: ink });
     const text = ascii(value).slice(0, 85);

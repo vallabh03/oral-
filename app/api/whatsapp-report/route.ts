@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actor, auditStatement, db, failure, HttpError, originCheck, patient, rate, response, runtime } from "@/lib/server";
+import { actor, auditStatement, boundedBody, db, failure, HttpError, originCheck, patient, rate, response, runtime } from "@/lib/server";
 import { screeningPdf } from "@/lib/report-pdf";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +63,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     originCheck(req);
-    const payload = z.object({ patientId: z.string().min(1).max(80), confirm: z.literal(true) }).parse(await req.json());
+    const payload = z.object({ patientId: z.string().min(1).max(80), confirm: z.literal(true) })
+      .parse(JSON.parse(new TextDecoder().decode(await boundedBody(req, 1024))));
     const { a, p, exam, consented } = await checkedPatient(req, payload.patientId);
     if (a.demo) throw new HttpError(403, "WhatsApp sending is unavailable in demonstration mode.");
     if (!setupReady()) throw new HttpError(503, "WhatsApp Business delivery is not configured.");
