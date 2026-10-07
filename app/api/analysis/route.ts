@@ -52,9 +52,7 @@ export async function GET(req: Request) {
         .prepare(
           `SELECT p.id,p.age,p.driver_type,p.recruitment,p.category,p.pathway,p.camp_id,substr(p.created_at,1,10) day,c.name camp,
  EXISTS(SELECT 1 FROM responses q WHERE q.patient_id=p.id) questionnaire,
- EXISTS(SELECT 1 FROM records r WHERE r.patient_id=p.id AND r.kind='assessment' AND r.status='Clinician verified') screened,
- EXISTS(SELECT 1 FROM samples s WHERE s.patient_id=p.id) sampled,
- EXISTS(SELECT 1 FROM reports r WHERE r.patient_id=p.id AND r.status='Linked') reported
+ EXISTS(SELECT 1 FROM records r WHERE r.patient_id=p.id AND r.kind='assessment' AND r.status='Clinician verified') screened
  FROM patients p LEFT JOIN camps c ON c.id=p.camp_id WHERE ${where}`,
         )
         .bind(...args)
@@ -65,8 +63,6 @@ export async function GET(req: Request) {
       questionnaires: rs.filter((r) => r.questionnaire).length,
       screened: rs.filter((r) => r.screened).length,
       categorized: rs.filter((r) => r.category).length,
-      sampled: rs.filter((r) => r.sampled).length,
-      reported: rs.filter((r) => r.reported).length,
     });
     const cohorts = (key: string) =>
       [...new Set(rows.map((r) => String(r[key] || "Unrecorded")))]
@@ -77,18 +73,6 @@ export async function GET(req: Request) {
             rows.filter((r) => String(r[key] || "Unrecorded") === value),
           ),
         }));
-    const samples = await db()
-      .prepare(
-        `SELECT s.status,COUNT(*) count FROM samples s JOIN patients p ON p.id=s.patient_id WHERE ${where} GROUP BY s.status`,
-      )
-      .bind(...args)
-      .all();
-    const reports = await db()
-      .prepare(
-        `SELECT r.status,COUNT(*) count FROM reports r JOIN patients p ON p.id=r.patient_id WHERE ${where} GROUP BY r.status`,
-      )
-      .bind(...args)
-      .all();
     const habits = await db()
       .prepare(
         `SELECT q.answer,COUNT(DISTINCT p.id) count FROM responses q JOIN patients p ON p.id=q.patient_id WHERE ${where} AND q.question_id='habits' AND q.at=(SELECT MAX(q2.at) FROM responses q2 WHERE q2.patient_id=p.id AND q2.question_id='habits') GROUP BY q.answer`,
@@ -138,8 +122,6 @@ export async function GET(req: Request) {
         label,
         count,
       })),
-      sampleStatusTotals: samples.results,
-      reportStatusTotals: reports.results,
       records: rows.map((r) => ({
         participantId: r.id,
         ageBand:
@@ -153,11 +135,9 @@ export async function GET(req: Request) {
         camp: r.camp,
         registrationDate: r.day,
         screened: !!r.screened,
-        sampled: !!r.sampled,
-        reported: !!r.reported,
       })),
       privacy:
-        "Pseudonymous programme analysis only. Screened means clinician-verified assessment; reported means at least one verified, linked laboratory report. Multi-select habit counts may exceed participant totals. Date trends describe registration cohorts, not incidence or causality.",
+        "Pseudonymous programme analysis only. Screened means clinician-verified assessment. Multi-select habit counts may exceed participant totals. Date trends describe registration cohorts, not incidence or causality.",
     });
   } catch (e) {
     return failure(e);

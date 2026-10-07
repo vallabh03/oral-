@@ -192,9 +192,6 @@ export default function Workspace({
         p.name,
         p.id,
         p.phone,
-        ...data.samples
-          .filter((s: any) => s.patient_id === p.id)
-          .map((s: any) => s.id),
       ].some((x) =>
         String(x || "")
           .toLowerCase()
@@ -413,7 +410,7 @@ export default function Workspace({
                       aria-label={t("Search participants")}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder={t("Search name, participant ID, mobile or sample ID")}
+                      placeholder={t("Search name, participant ID or mobile")}
                     />
                   </div>
                   <Choice

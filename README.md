@@ -99,7 +99,7 @@ The shared language system supports all 23 requested locale choices, native-scri
 
 ## WhatsApp screening PDFs and retired workflows
 
-Doctor-referral, sample collection and laboratory tracking screens have been retired. Their existing records and uploaded files remain in protected storage; no migration deletes them. APIs reject new referral workflow entries, sample changes and laboratory uploads. Clinician assessment, cessation support, follow-up and patient screening reports remain available. The doctor dashboard Reports section now lists participants with clinician-verified classifications.
+Doctor-referral, sample collection and laboratory tracking screens and related analytics totals have been retired. Their existing records and uploaded files remain in protected storage; no migration deletes them. APIs reject new referral workflow entries, sample changes and laboratory uploads. Clinician assessment, cessation support, follow-up and patient screening reports remain available. The doctor dashboard Reports section now lists participants with clinician-verified classifications.
 
 Registration has a separate, optional checkbox for WhatsApp PDF delivery. The latest `whatsapp_report` consent record controls sending, so a later withdrawal blocks it. A Doctor Admin can preview the exact clinician-verified English screening PDF before sending. The PDF intentionally excludes free-text notes, raw questionnaire responses and historical laboratory data. Standard PDF fonts cannot represent every Indian script, so a non-Latin name is omitted in favor of the programme participant ID; the existing protected HTML report remains the multilingual viewing option. Do not describe the PDF as fully translated.
 
