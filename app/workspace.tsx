@@ -62,8 +62,6 @@ const nav = [
   ["Participants", Users],
   ["Screening", ClipboardList],
   ["Cessation support", HeartHandshake],
-  ["Doctor referrals", Stethoscope],
-  ["Samples & lab", FlaskConical],
   ["Reports", FileCheck2],
   ["Analysis & reporting", Download],
   ["Follow-ups", CalendarDays],
@@ -478,12 +476,6 @@ export default function Workspace({
                         ClipboardList,
                       ],
                       [
-                        "Doctor referrals",
-                        records("referral").length,
-                        "Coordinated clinical care",
-                        Stethoscope,
-                      ],
-                      [
                         "Follow-ups pending",
                         followups.length,
                         "Continue the care journey",
@@ -584,19 +576,7 @@ export default function Workspace({
                           (r: any) => r.status !== "Completed",
                         ).length,
                       ],
-                      [
-                        "Samples collected",
-                        data.samples.filter((s: any) => ids.has(s.patient_id))
-                          .length,
-                      ],
-                      [
-                        "Reports ready",
-                        data.samples.filter(
-                          (s: any) =>
-                            ids.has(s.patient_id) &&
-                            s.status === "Report linked",
-                        ).length,
-                      ],
+                      ["Reports ready", filtered.filter((p: any) => p.category).length],
                     ].map(([label, n]) => (
                       <div key={label}>
                         <strong>{n}</strong>
@@ -622,7 +602,6 @@ export default function Workspace({
                 />
               ) : [
                   "Cessation support",
-                  "Doctor referrals",
                   "Follow-ups",
                 ].includes(view) ? (
                 <section className="panel">
@@ -630,8 +609,6 @@ export default function Workspace({
                     <h2>
                       {view === "Cessation support"
                         ? "Cessation intervention queue"
-                        : view === "Doctor referrals"
-                          ? "Referral queue"
                           : "Continuing the care journey"}
                     </h2>
                     <span className="badge"><T text={"Assigned care"} /></span>
@@ -639,8 +616,6 @@ export default function Workspace({
                   {records(
                     view === "Cessation support"
                       ? "counselling"
-                      : view === "Doctor referrals"
-                        ? "referral"
                         : "followup",
                   ).length === 0 ? (
                     <Empty text="No records match these filters." />
@@ -648,8 +623,6 @@ export default function Workspace({
                     records(
                       view === "Cessation support"
                         ? "counselling"
-                        : view === "Doctor referrals"
-                          ? "referral"
                           : "followup",
                     ).map((r: any) => (
                       <button
@@ -685,42 +658,28 @@ export default function Workspace({
                     ))
                   )}
                 </section>
-              ) : ["Samples & lab", "Reports"].includes(view) ? (
+              ) : view === "Reports" ? (
                 <section className="panel">
                   <div className="panel-heading">
-                    <h2>
-                      <T>{view === "Reports"
-                        ? "Laboratory report tracking"
-                        : "Sample lifecycle"}</T>
-                    </h2>
-                    <span className="badge"><T text={"Verified linking required"} /></span>
+                    <h2><T text={"Patient screening reports"} /></h2>
+                    <span className="badge"><T text={"Clinician verified"} /></span>
                   </div>
-                  <p className="muted"><T text={"Collected → Sent to lab → Received → Processing → Report generated → Verified → Linked"} /></p>
-                  {data.samples.filter((s: any) => ids.has(s.patient_id))
-                    .length === 0 ? (
-                    <Empty text="No samples match these filters. Open a participant record to collect a sample." />
+                  <p className="muted"><T text={"Open a participant to review, print or send a clinician-verified screening report."} /></p>
+                  {filtered.filter((p: any) => p.category).length === 0 ? (
+                    <Empty text="No verified screening reports match these filters." />
                   ) : (
-                    data.samples
-                      .filter((s: any) => ids.has(s.patient_id))
-                      .map((s: any) => (
+                    filtered.filter((p: any) => p.category).map((p: any) => (
                         <button
                           className="queue-row"
-                          key={s.id}
-                          onClick={() => open(s.patient_id)}
+                          key={p.id}
+                          onClick={() => open(p.id)}
                         >
-                          <FlaskConical size={22} />
+                          <FileCheck2 size={22} />
                           <div>
-                            <h3>
-                              {
-                                data.patients.find(
-                                  (p: any) => p.id === s.patient_id,
-                                )?.name
-                              }
-                            </h3>
-                            <p className="patient-id">{s.id}</p>
-                            <small><T>{s.type}</T></small>
+                            <h3>{p.name}</h3>
+                            <p className="patient-id">{p.id}</p>
                           </div>
-                          <span className="badge"><T>{s.status}</T></span>
+                          <span className="badge"><T text={"Group "} />{p.category}</span>
                           <ArrowRight size={16} />
                         </button>
                       ))

@@ -7,13 +7,7 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Field, Choice, Check, Modal, QRImage, api } from "./care-ui";
 import { Questionnaire } from "./intake";
-import {
-  findings,
-  impressions,
-  sites,
-  groupPaths,
-  sampleStates,
-} from "@/lib/domain";
+import { findings, impressions, sites, groupPaths } from "@/lib/domain";
 import {
   ShieldCheck,
   Plus,
@@ -42,6 +36,9 @@ export default function PatientProfile({
   const t = useT();
   const { locale } = useLanguage();
   const [reportLocale, setReportLocale] = useState<Locale | null>(null);
+  const [whatsapp, setWhatsapp] = useState<any>(null);
+  const [whatsappConfirmed, setWhatsappConfirmed] = useState(false);
+  const [whatsappNotice, setWhatsappNotice] = useState("");
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -60,6 +57,12 @@ export default function PatientProfile({
     setData(null);
     refresh().catch((e) => setError(e.message));
   }, [id, mode]);
+  useEffect(() => {
+    if (!data?.patient?.category || !(demo || permitted(role, "clinical.write"))) return;
+    fetch(`/api/whatsapp-report?patient=${encodeURIComponent(id)}&mode=${mode}`)
+      .then(async (r) => { const j: any = await r.json(); if (!r.ok) throw Error(j.error); setWhatsapp(j); })
+      .catch((e) => setWhatsapp({ error: e.message }));
+  }, [id, mode, demo, role, data?.patient?.category, data?.consents?.length]);
   async function save(action: string, body: any) {
     setError("");
     setBusy(true);
@@ -149,6 +152,27 @@ export default function PatientProfile({
           ><T text={"Download patient report"} /></button>
         </div>
       )}
+      {(demo || role === "DOCTOR_ADMIN") && p.category && (
+        <section className="consent-box stack">
+          <h3><T text={"Send screening PDF via WhatsApp"} /></h3>
+          <p className="muted"><T text={"Preview the clinician-verified report before sending it to the participant’s recorded mobile number."} /></p>
+          <a className="secondary" href={`/api/whatsapp-report?patient=${encodeURIComponent(id)}&mode=${mode}&format=pdf`} target="_blank" rel="noopener noreferrer"><T text={"Preview screening PDF"} /></a>
+          <p className="fine">{whatsapp?.mobileEnding ? `Destination: WhatsApp number ending ${whatsapp.mobileEnding}. ` : ""}{!whatsapp?.consented ? "Specific WhatsApp report consent is required. Record it in the Consent tab." : !whatsapp?.configured ? "WhatsApp Business delivery is awaiting account and approved-template setup." : "Ready for a Doctor Admin to submit."}</p>
+          <Check checked={whatsappConfirmed} onChange={setWhatsappConfirmed}><T text={"I reviewed this PDF and confirmed the participant, mobile number and WhatsApp report consent."} /></Check>
+          <button className="primary" disabled={busy || demo || !whatsappConfirmed || !whatsapp?.consented || !whatsapp?.configured} onClick={async () => {
+            setBusy(true); setWhatsappNotice("");
+            try {
+              const r = await fetch("/api/whatsapp-report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ patientId: id, confirm: true }) });
+              const j: any = await r.json();
+              if (!r.ok) throw Error(j.error);
+              setWhatsappNotice(`Submitted to WhatsApp for number ending ${j.mobileEnding}. Delivery is not yet confirmed.`);
+              setWhatsappConfirmed(false);
+            } catch (e) { setWhatsappNotice((e as Error).message); }
+            finally { setBusy(false); }
+          }}><T text={"Send PDF via WhatsApp"} /></button>
+          {whatsappNotice && <p role="status" className="notice">{whatsappNotice}</p>}
+        </section>
+      )}
       <div className="info-grid">
         <div>
           <small><T text={"Mobile"} /></small>
@@ -175,7 +199,6 @@ export default function PatientProfile({
             "screening",
             "examination",
             "care",
-            "testing",
             "consent",
             "timeline",
           ]
@@ -183,10 +206,10 @@ export default function PatientProfile({
               if (can("ADMIN", "DOCTOR", "ASSISTANT")) return true;
               if (role === "REGISTRATION")
                 return ["overview", "screening", "consent"].includes(t);
-              if (role === "LAB") return ["overview", "testing"].includes(t);
+              if (role === "LAB") return ["overview"].includes(t);
               if (role === "COUNSELLOR")
                 return ["overview", "screening", "care"].includes(t);
-              return ["overview", "testing", "care"].includes(t);
+              return ["overview", "care"].includes(t);
             })
             .map((t) => (
               <TabsTrigger value={t} key={t}>
@@ -207,7 +230,7 @@ export default function PatientProfile({
             <h3><T text={"Next steps & appointments"} /></h3>
             {data.records
               .filter((r: any) =>
-                ["referral", "followup", "counselling"].includes(r.kind),
+                ["followup", "counselling"].includes(r.kind),
               )
               .map((r: any) => (
                 <div className="record" key={r.id}>
@@ -215,9 +238,7 @@ export default function PatientProfile({
                   <h3>
                     {r.kind === "followup"
                       ? "Follow-up"
-                      : r.kind === "counselling"
-                        ? "Cessation support"
-                        : "Doctor referral"}
+                      : "Cessation support"}
                   </h3>
                   <p>
                     {r.data.date ||
@@ -360,11 +381,6 @@ export default function PatientProfile({
             <div className="action-row">
               {[
                 ["counselling", "Cessation support", ["COUNSELLOR"]],
-                [
-                  "referral",
-                  "Doctor referral",
-                  ["ADMIN", "REGISTRATION", "DOCTOR"],
-                ],
                 ["assessment", "Medical observation", ["DOCTOR"]],
                 ["treatment", "Treatment decision", ["DOCTOR"]],
                 ["followup", "Follow-up", ["ADMIN", "DOCTOR", "COUNSELLOR"]],
@@ -388,7 +404,7 @@ export default function PatientProfile({
             {data.records
               .filter(
                 (r: any) =>
-                  !["assessment", "screening"].includes(r.kind) &&
+                  !["assessment", "screening", "referral"].includes(r.kind) &&
                   !r.kind.startsWith("history:"),
               )
               .map((r: any) => (
@@ -415,122 +431,6 @@ export default function PatientProfile({
                   )}
                 </div>
               ))}
-          </div>
-        </TabsContent>
-        <TabsContent value="testing">
-          <div className="stack">
-            {can("ADMIN", "DOCTOR", "LAB") && (
-              <button
-                className="secondary"
-                onClick={() => {
-                  setEditRecord(null);
-                  setAction("sample");
-                }}
-              >
-                <Plus size={16} /><T text={" Record sample collection"} /></button>
-            )}
-            {data.samples.length === 0 && (
-              <p className="muted"><T text={"No samples have been collected."} /></p>
-            )}
-            {data.samples.map((s: any) => (
-              <div className="record" key={s.id}>
-                <span className="badge"><T>{s.status}</T></span>
-                <h3><T>{s.type}</T></h3>
-                <p className="patient-id">{s.id}</p>
-                <small>
-                  {s.location} · {new Date(s.collected_at).toLocaleString()}
-                </small>
-                {s.history?.length > 0 && (
-                  <ol
-                    className="sample-history"
-                    aria-label={"Status history for " + s.id}
-                  >
-                    {s.history.map((h: any) => (
-                      <li key={h.status + h.at}>
-                        <span>{h.status}</span>
-                        <time dateTime={h.at}>
-                          {new Date(h.at).toLocaleString()}
-                        </time>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                {can("ADMIN", "LAB") && sampleStates.indexOf(s.status) < 3 && (
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() =>
-                      save("sampleStatus", {
-                        sampleId: s.id,
-                        status:
-                          sampleStates[sampleStates.indexOf(s.status) + 1],
-                        revision: s.revision,
-                      }).catch(() => {})
-                    }
-                  ><T text={"Mark "} />{sampleStates[sampleStates.indexOf(s.status) + 1]}{" "}
-                    <ArrowRight size={15} />
-                  </button>
-                )}
-                {can("ADMIN", "LAB") && s.status === "Processing" && (
-                  <ReportUpload
-                    sample={s}
-                    patient={p}
-                    mode={mode}
-                    done={async () => {
-                      await refresh();
-                      changed();
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-            <h3><T text={"Laboratory reports"} /></h3>
-            {data.reports.length === 0 && (
-              <p className="muted"><T text={"Verified reports will appear here when available."} /></p>
-            )}
-            {data.reports.map((r: any) => {
-              const s = data.samples.find((s: any) => s.id === r.sample_id);
-              return (
-                <div className="record" key={r.id}>
-                  <span className="badge"><T>{r.status}</T></span>
-                  <h3>
-                    <FileText size={16} /> {r.filename}
-                  </h3>
-                  <p className="patient-id">{r.sample_id}</p>
-                  {can("ADMIN", "LAB") && r.status !== "Linked" ? (
-                    <ReportVerification
-                      mode={mode}
-                      report={r}
-                      sample={s}
-                      patient={p}
-                      save={save}
-                    />
-                  ) : (
-                    <button
-                      className="text-button"
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(
-                            "/api/report?id=" + encodeURIComponent(r.id),
-                            { headers: { "x-care-mode": mode } },
-                          );
-                          if (!res.ok)
-                            throw new Error(((await res.json()) as any).error);
-                          const url = URL.createObjectURL(await res.blob());
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "verified-report.pdf";
-                          a.click();
-                          setTimeout(() => URL.revokeObjectURL(url), 1000);
-                        } catch (e) {
-                          setError((e as Error).message);
-                        }
-                      }}
-                    ><T text={"Open verified report"} /></button>
-                  )}
-                </div>
-              );
-            })}
           </div>
         </TabsContent>
         <TabsContent value="consent">
@@ -765,30 +665,6 @@ function Examination({
               onChange={(v) => set("impression", v)}
             />
           </Field>
-          <div className="form-grid">
-            <Field label="Referral required">
-              <Choice
-                value={d.referral}
-                label="Referral required"
-                options={["No", "Planned-routine", "Priority"]}
-                onChange={(v) => set("referral", v)}
-              />
-            </Field>
-            <Field label="Referral destination">
-              <Choice
-                value={d.destination}
-                label="Referral destination"
-                options={[
-                  "Not applicable",
-                  "Government hospital",
-                  "HAOC-associated specialist pathway",
-                  "Participant’s preferred hospital or doctor",
-                  "Other",
-                ]}
-                onChange={(v) => set("destination", v)}
-              />
-            </Field>
-          </div>
           <Check
             checked={d.followupRequired}
             onChange={(v) => set("followupRequired", v)}
@@ -975,7 +851,7 @@ function ActionForm({
           <Choice
             label="Consent type"
             value={d.type}
-            options={["registration", "screening", "testing", "treatment"]}
+            options={["registration", "screening", "testing", "treatment", "whatsapp_report"]}
             onChange={(v) => set("type", v)}
           />
           <Choice

@@ -248,6 +248,8 @@ export async function POST(req: Request) {
     const at = now();
     if (actionPermissions[b.action])
       await requirePermission(a, actionPermissions[b.action]);
+    if (["sample", "sampleStatus", "verifyReport", "linkReport"].includes(b.action))
+      throw new HttpError(410, "Sample and laboratory workflows are retired. Historical records are retained.");
     if (b.action === "sessionStart" || b.action === "sessionEnd") {
       await log(
         a,
@@ -324,6 +326,9 @@ export async function POST(req: Request) {
               "Explicit checkbox",
             ),
         ),
+        ...(d.whatsappReportConsent ? [db()
+          .prepare("INSERT INTO consents (id,patient_id,type,status,version,at,actor,method) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(id("CON"), pid, "whatsapp_report", "granted", consentVersion(a), at, a.id, "Explicit checkbox")]: []),
         await auditStatement(
           a,
           "Registration and screening consent recorded",
@@ -579,14 +584,14 @@ export async function POST(req: Request) {
           impression: z.string(),
           notes: z.string().max(8000),
           recommendedTests: z.string().max(2000).default(""),
-          referral: z.enum(["No", "Planned-routine", "Priority"]),
+          referral: z.enum(["No", "Planned-routine", "Priority"]).optional().default("No"),
           destination: z.enum([
             "Not applicable",
             "Government hospital",
             "HAOC-associated specialist pathway",
             "Participant’s preferred hospital or doctor",
             "Other",
-          ]),
+          ]).optional().default("Not applicable"),
           followupRequired: z.boolean(),
           followupDate: z.string().nullable(),
         })
@@ -693,27 +698,6 @@ export async function POST(req: Request) {
           .prepare("UPDATE patients SET category=?,pathway=? WHERE id=?")
           .bind(group, pathway, pid),
       ];
-      if (d.referral !== "No")
-        ins.push(
-          db()
-            .prepare(
-              "INSERT INTO records (id,patient_id,kind,data,status,at,actor) VALUES (?,?,?,?,?,?,?)",
-            )
-            .bind(
-              id("REC"),
-              pid,
-              "referral",
-              JSON.stringify({
-                notes: d.notes,
-                priority: d.referral,
-                destination: d.destination,
-                impression: d.impression,
-              }),
-              "Pending",
-              at,
-              a.id,
-            ),
-        );
       if (d.habit)
         ins.push(
           db()
@@ -768,7 +752,7 @@ export async function POST(req: Request) {
       requireRole(a, "ADMIN", "REGISTRATION", "DOCTOR");
       const d = z
         .object({
-          type: z.enum(["registration", "screening", "testing", "treatment"]),
+          type: z.enum(["registration", "screening", "testing", "treatment", "whatsapp_report"]),
           status: z.enum(["granted", "withdrawn"]),
           method: z.enum(["Written", "Verbal witnessed", "Patient checkbox"]),
           confirmed: z.literal(true),
@@ -872,6 +856,8 @@ export async function POST(req: Request) {
           supportOffered: z.boolean().optional(),
         })
         .parse(b.data);
+      if (d.kind === "referral")
+        throw new HttpError(410, "The doctor referral workflow is retired.");
       const statuses: Record<string, string[]> = {
         counselling: [
           "Pending",

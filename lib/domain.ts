@@ -64,6 +64,7 @@ export const registration = z
       "Other",
     ]),
     contactIntended: z.boolean(),
+    whatsappReportConsent: z.boolean().default(false),
     registrationConsent: z.literal(true),
     screeningConsent: z.literal(true),
   })

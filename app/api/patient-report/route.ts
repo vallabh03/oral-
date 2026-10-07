@@ -51,30 +51,6 @@ export async function GET(req: Request) {
         .bind(pid)
         .all()
     ).results;
-    const samples = (
-      await db()
-        .prepare(
-          "SELECT id,type,status,collected_at FROM samples WHERE patient_id=?",
-        )
-        .bind(pid)
-        .all()
-    ).results;
-    const reports = (
-      await db()
-        .prepare(
-          "SELECT id,sample_id,filename,status,at FROM reports WHERE patient_id=?",
-        )
-        .bind(pid)
-        .all()
-    ).results;
-    const sampleHistory = (
-      await db()
-        .prepare(
-          "SELECT sample_id,status,at FROM sample_events WHERE patient_id=? ORDER BY at",
-        )
-        .bind(pid)
-        .all()
-    ).results;
     await log(a, "Patient-specific report generated", pid);
     if (new URL(req.url).searchParams.get("format") === "html") {
       const table = (rows: any[]) =>
@@ -91,7 +67,7 @@ export async function GET(req: Request) {
               )
               .join("")
           : "<p>No records recorded.</p>";
-      const html = `<!doctype html><html lang="${locale}" dir="${localeInfo(locale).dir}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Patient report ${esc(pid)}</title><link rel="stylesheet" href="/fonts/indic.css"><style>body{font:15px/1.6 "Noto Sans Telugu","Noto Sans Devanagari","Noto Sans Tamil","Noto Sans Kannada","Noto Sans Malayalam","Noto Sans Bengali","Noto Sans Gujarati","Noto Sans Gurmukhi","Noto Sans Oriya","Noto Sans Arabic","Noto Sans Ol Chiki",Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#183e35}h1{font-size:25px}article{border-bottom:1px solid #ddd;padding:14px 0;break-inside:avoid}p{overflow-wrap:anywhere}button{padding:12px;margin:15px 0}@media print{button,.instructions{display:none}body{margin:0;padding:0}}</style><form class="instructions" method="get"><input type="hidden" name="patient" value="${esc(pid)}"><input type="hidden" name="mode" value="${a.demo ? 'demo' : 'live'}"><input type="hidden" name="format" value="html"><label>🌐 Language <select name="lang">${languages.map(l => '<option value="'+l.code+'"'+(l.code===locale?' selected':'')+'>'+l.name+'</option>').join('')}</select></label><button type="submit">${text('Apply language')}</button></form><h1>${text('Telangana Against Oral Cancer')} · ${text('Patient report')}</h1><p>Confidential · ${esc(new Date().toISOString())}${a.demo ? " · SYNTHETIC DEMONSTRATION" : ""}</p><p><strong>${esc(p.name)}</strong> · ${esc(pid)} · Age ${esc(p.age)}</p><p class="instructions">Use your browser’s Print command to print or save as PDF. Store only in an authorised location.</p><h2>${text("Clinical history")}</h2>${table(records)}<h2>${text("Questionnaire history")}</h2>${table(responses)}<h2>${text("Samples")}</h2>${table(samples)}<h2>${text("Sample history")}</h2>${table(sampleHistory)}<h2>${text("Laboratory reports")}</h2>${table(reports)}<p>Screening findings are not a confirmed cancer diagnosis. Laboratory files are available through the authorised patient record.</p></html>`;
+      const html = `<!doctype html><html lang="${locale}" dir="${localeInfo(locale).dir}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Patient report ${esc(pid)}</title><link rel="stylesheet" href="/fonts/indic.css"><style>body{font:15px/1.6 "Noto Sans Telugu","Noto Sans Devanagari","Noto Sans Tamil","Noto Sans Kannada","Noto Sans Malayalam","Noto Sans Bengali","Noto Sans Gujarati","Noto Sans Gurmukhi","Noto Sans Oriya","Noto Sans Arabic","Noto Sans Ol Chiki",Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#183e35}h1{font-size:25px}article{border-bottom:1px solid #ddd;padding:14px 0;break-inside:avoid}p{overflow-wrap:anywhere}button{padding:12px;margin:15px 0}@media print{button,.instructions{display:none}body{margin:0;padding:0}}</style><form class="instructions" method="get"><input type="hidden" name="patient" value="${esc(pid)}"><input type="hidden" name="mode" value="${a.demo ? 'demo' : 'live'}"><input type="hidden" name="format" value="html"><label>🌐 Language <select name="lang">${languages.map(l => '<option value="'+l.code+'"'+(l.code===locale?' selected':'')+'>'+l.name+'</option>').join('')}</select></label><button type="submit">${text('Apply language')}</button></form><h1>${text('Telangana Against Oral Cancer')} · ${text('Patient report')}</h1><p>Confidential · ${esc(new Date().toISOString())}${a.demo ? " · SYNTHETIC DEMONSTRATION" : ""}</p><p><strong>${esc(p.name)}</strong> · ${esc(pid)} · Age ${esc(p.age)}</p><p class="instructions">Use your browser’s Print command to print or save as PDF. Store only in an authorised location.</p><h2>${text("Clinical history")}</h2>${table(records.filter((r:any) => r.kind !== "referral"))}<h2>${text("Questionnaire history")}</h2>${table(responses)}<p>Screening findings are not a confirmed cancer diagnosis.</p></html>`;
       return new Response(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
@@ -108,9 +84,6 @@ export async function GET(req: Request) {
       patient: { id: p.id, name: p.name, age: p.age },
       records,
       responses,
-      samples,
-      sampleHistory,
-      reports,
     });
   } catch (e) {
     return failure(e);

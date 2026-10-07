@@ -16,6 +16,12 @@ export function runtime() {
     CONSENT_VERSION?: string;
     CONTACT_EMAIL?: string;
     CONTACT_PHONE?: string;
+    WHATSAPP_ENABLED?: string;
+    WHATSAPP_PHONE_NUMBER_ID?: string;
+    WHATSAPP_ACCESS_TOKEN?: string;
+    WHATSAPP_REPORT_TEMPLATE_NAME?: string;
+    WHATSAPP_TEMPLATE_LANGUAGE?: string;
+    WHATSAPP_GRAPH_VERSION?: string;
   };
 }
 export function db() {

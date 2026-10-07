@@ -29,6 +29,7 @@ export function Registration({
     workingArea: "",
     recruitment: "Stand",
     contactIntended: true,
+    whatsappReportConsent: false,
     registrationConsent: false,
     screeningConsent: false,
   });
@@ -150,7 +151,7 @@ export function Registration({
         <h3><T text={"Participation & screening consent"} /></h3>
         <p><T text={pilotConsent} clinical /></p>
         {privacyNotice && <p><T text={privacyNotice} clinical /></p>}
-        <p><T text={"We record identity/contact information, screening answers and clinician findings to coordinate screening, referrals and follow-up. Authorized programme staff can access information needed for their role. Test information is recorded only when separately consented. Ask the camp coordinator for assistance, corrections or privacy questions."} clinical /></p>
+        <p><T text={"We record identity/contact information, screening answers and clinician findings to coordinate screening and follow-up. Authorized programme staff can access information needed for their role. Ask the camp coordinator for assistance, corrections or privacy questions."} clinical /></p>
         <p className="fine">
           {demo
             ? "Provisional wording · DRIVE SAFE v1.0 · Must be reviewed before live deployment."
@@ -164,6 +165,7 @@ export function Registration({
           checked={d.screeningConsent}
           onChange={(v) => set("screeningConsent", v)}
         ><T text={"I understand and consent to the screening process described above."} clinical /></Check>
+        <Check checked={d.whatsappReportConsent} onChange={(v) => set("whatsappReportConsent", v)}><T text={"Optional: I agree to receive my screening report as a PDF on WhatsApp at the mobile number above. I understand that anyone with access to my WhatsApp account may see it, and that WhatsApp/Meta will process the message. I can withdraw this permission later."} clinical /></Check>
       </section>
       {error && (
         <p role="alert" className="error">

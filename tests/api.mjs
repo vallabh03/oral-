@@ -43,6 +43,7 @@ const reg = {
   contactIntended: true,
   registrationConsent: true,
   screeningConsent: true,
+  whatsappReportConsent: true,
 };
 await call("register", { data: { ...reg, screeningConsent: false } }, 400);
 const p = await call("register", { data: reg });
@@ -93,7 +94,7 @@ await call(
     patientId: pid,
     data: { type: "Oral sample", location: "Demo collection", labId: null },
   },
-  409,
+  410,
 );
 for (const [habit, lesion, group] of [
   [false, false, "1"],
@@ -121,99 +122,18 @@ for (const [habit, lesion, group] of [
   const exam = await call("examination", { patientId: pid, data: d });
   check(exam.group === group, "correct group " + group);
 }
-await call("consent", {
-  patientId: pid,
-  data: {
-    type: "testing",
-    status: "granted",
-    method: "Written",
-    confirmed: true,
-  },
-});
-const s = await call("sample", {
-  patientId: pid,
-  data: { type: "Oral sample", location: "Demo collection", labId: null },
-});
-await call(
-  "sampleStatus",
-  { patientId: pid, sampleId: s.id, status: "Processing", revision: 0 },
-  409,
-);
-for (const [revision, status] of [
-  "Sent to lab",
-  "Received",
-  "Processing",
-].entries())
-  await call("sampleStatus", {
-    patientId: pid,
-    sampleId: s.id,
-    status,
-    revision,
-  });
-const form = new FormData();
-form.set("patientId", pid);
-form.set("patientName", reg.name);
-form.set("sampleId", s.id);
-form.set("sampleType", "Oral sample");
-form.set("confirm", "true");
-form.set(
-  "file",
-  new Blob(["%PDF-1.4\n% Synthetic report test fixture\n%%EOF"], {
-    type: "application/pdf",
-  }),
-  "synthetic.pdf",
-);
-r = await fetch(base + "/api/report", {
-  method: "POST",
-  headers: { Origin: base, Cookie: cookie, "x-care-mode": "demo" },
-  body: form,
-});
-const report = await r.json();
-check(r.status === 200, "private upload");
-await call(
-  "linkReport",
-  {
-    patientId: pid,
-    reportId: report.id,
-    sampleId: s.id,
-    sampleType: "Oral sample",
-    patientName: reg.name,
-    confirm: true,
-  },
-  409,
-);
-await call(
-  "verifyReport",
-  {
-    patientId: pid,
-    reportId: report.id,
-    sampleId: s.id,
-    sampleType: "Oral sample",
-    patientName: "Wrong patient",
-    confirm: true,
-  },
-  400,
-);
-await call("verifyReport", {
-  patientId: pid,
-  reportId: report.id,
-  sampleId: s.id,
-  sampleType: "Oral sample",
-  patientName: reg.name,
-  confirm: true,
-});
-await call("linkReport", {
-  patientId: pid,
-  reportId: report.id,
-  sampleId: s.id,
-  sampleType: "Oral sample",
-  patientName: reg.name,
-  confirm: true,
-});
-r = await fetch(base + "/api/report?id=" + report.id, { headers });
-check(r.status === 200, "verified report retrieval");
-r = await fetch(base + "/api/report?id=" + report.id);
-check(r.status === 401, "anonymous report denied");
+await call("record", { patientId: pid, data: { kind: "referral", status: "Pending", notes: "Synthetic referral" } }, 410);
+await call("sampleStatus", { patientId: pid, sampleId: "old", status: "Processing", revision: 0 }, 410);
+await call("verifyReport", { patientId: pid, reportId: "old" }, 410);
+r = await fetch(base + "/api/report", { method: "POST", headers: { Origin: base, Cookie: cookie, "x-care-mode": "demo" } });
+check(r.status === 410, "laboratory upload retired");
+r = await fetch(base + "/api/whatsapp-report?patient=" + pid + "&mode=demo", { headers });
+const whatsappStatus = await r.json();
+check(r.status === 200 && whatsappStatus.consented && !whatsappStatus.configured, "separate WhatsApp consent; demo sending disabled");
+r = await fetch(base + "/api/whatsapp-report?patient=" + pid + "&mode=demo&format=pdf", { headers });
+check(r.status === 200 && (await r.text()).startsWith("%PDF-"), "clinician-verified PDF preview");
+r = await fetch(base + "/api/whatsapp-report", { method: "POST", headers, body: JSON.stringify({ patientId: pid, confirm: true }) });
+check(r.status === 403, "demo cannot send WhatsApp messages");
 const qr = await call("qr", { patientId: pid });
 check(
   !qr.token.includes(pid) && !qr.token.includes(reg.name),

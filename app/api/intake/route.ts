@@ -144,6 +144,9 @@ export async function POST(req: Request) {
               "Explicit checkbox",
             ),
         ),
+        ...(d.whatsappReportConsent ? [db()
+          .prepare("INSERT INTO consents (id,patient_id,type,status,version,at,actor,method) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(id("CON"), pid, "whatsapp_report", "granted", runtime().CONSENT_VERSION, at, "participant-entry", "Explicit checkbox")]: []),
         db()
           .prepare(
             "INSERT INTO intake_tokens (hash,patient_id,protocol_id,expires,used) VALUES (?,?,?,?,0)",

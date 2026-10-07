@@ -41,8 +41,6 @@ export const sectionPermissions: Record<string, Permission> = {
   Participants: "patients.read",
   Screening: "patients.read",
   "Cessation support": "patients.read",
-  "Doctor referrals": "patients.read",
-  "Samples & lab": "patients.read",
   Reports: "patients.read",
   "Analysis & reporting": "analytics.read",
   "Follow-ups": "patients.read",
