@@ -1,14 +1,15 @@
-/* Public landing page. Palette: white, warm off-white, charcoal, soft grey, one bronze accent. */
+/* Public landing page. Palette matched to the supplied blue-and-white reference. */
 .tl {
-  --tl-bg: #fbfaf7;
-  --tl-alt: #f4f1ea;
+  --tl-bg: #ffffff;
+  --tl-alt: #f2f8fc;
   --tl-surface: #ffffff;
-  --tl-ink: #1f2326;
-  --tl-ink-2: #4a4f54;
-  --tl-muted: #6b7075;
-  --tl-line: #e4e0d8;
-  --tl-accent: #8a6431;
-  --tl-accent-soft: #f3eadc;
+  --tl-ink: #1d2a33;
+  --tl-ink-2: #435e70;
+  --tl-muted: #5b7180;
+  --tl-line: #d5e4ee;
+  --tl-accent: #1b5f8c;
+  --tl-accent-soft: #d6ebf9;
+  --tl-accent-hover: #154c70;
   --tl-radius: 14px;
   background: var(--tl-bg);
   color: var(--tl-ink);
@@ -35,27 +36,28 @@
 .tl-header-row { display: flex; align-items: center; gap: 16px; min-height: 68px; }
 .tl-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; line-height: 1.1; }
 .tl-brand small { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; color: var(--tl-muted); }
-.tl-mark { width: 36px; height: 36px; color: var(--tl-ink); flex: none; }
+.tl-mark { width: 36px; height: 36px; color: var(--tl-accent); flex: none; }
 .tl-nav { display: none; gap: 28px; margin-left: auto; font-size: 15px; }
 .tl-nav a { text-decoration: none; color: var(--tl-ink-2); padding: 6px 0; }
-.tl-nav a:hover { color: var(--tl-ink); }
+.tl-nav a:hover { color: var(--tl-accent); }
 .tl-staff { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; text-decoration: none; padding: 10px 14px; min-height: 44px; border: 1px solid var(--tl-line); border-radius: 999px; background: var(--tl-surface); white-space: nowrap; }
-.tl-staff:hover { border-color: var(--tl-ink-2); }
+.tl-staff { background: var(--tl-accent); border-color: var(--tl-accent); color: #fff !important; }
+.tl-staff:hover { background: var(--tl-accent-hover); border-color: var(--tl-accent-hover); }
 @media (min-width: 900px) { .tl-nav { display: flex; } .tl-staff { margin-left: 12px; } }
 
 /* Hero */
 .tl-hero { padding-top: clamp(48px, 9vw, 112px); padding-bottom: clamp(56px, 8vw, 104px); }
 .tl-eyebrow { font-size: 12.5px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tl-accent); margin-bottom: 18px !important; }
-.tl-hero h1 { font-size: clamp(40px, 8.4vw, 84px); font-weight: 680; letter-spacing: -0.035em; line-height: 1.02; max-width: 14ch; }
+.tl-hero h1 { font-size: clamp(40px, 8.4vw, 84px); font-weight: 680; letter-spacing: -0.035em; line-height: 1.02; max-width: 14ch; color: var(--tl-accent); }
 .tl-hero h1 span { color: var(--tl-accent); }
 .tl-lead { margin-top: 24px !important; font-size: clamp(17px, 2.2vw, 21px); color: var(--tl-ink-2); max-width: 36em; }
 .tl-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
 .tl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: 999px; font-weight: 620; font-size: 15.5px; text-decoration: none; letter-spacing: 0.01em; transition: background .15s, border-color .15s, color .15s; }
-.tl-btn-primary { background: var(--tl-ink); color: #fff !important; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
-.tl-btn-primary:hover { background: #000; }
-.tl-btn-ghost { border: 1.5px solid var(--tl-ink); color: var(--tl-ink); text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
-.tl-btn-ghost:hover { background: var(--tl-surface); }
-.tl-btn-light { background: #fff; color: var(--tl-ink) !important; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
+.tl-btn-primary { background: var(--tl-accent); color: #fff !important; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
+.tl-btn-primary:hover { background: var(--tl-accent-hover); }
+.tl-btn-ghost { border: 1.5px solid var(--tl-accent); color: var(--tl-accent) !important; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
+.tl-btn-ghost:hover { background: var(--tl-accent-soft); }
+.tl-btn-light { background: #fff; color: var(--tl-accent) !important; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
 .tl-btn-light:hover { background: var(--tl-accent-soft); }
 @media (max-width: 479px) { .tl-actions .tl-btn { width: 100%; } }
 .tl-note { margin-top: 18px !important; font-size: 13.5px; color: var(--tl-muted); max-width: 40em; }
@@ -67,7 +69,7 @@
 /* Sections */
 .tl-section { padding: clamp(56px, 8vw, 104px) 0; }
 .tl-alt { background: var(--tl-alt); }
-.tl-section h2 { font-size: clamp(28px, 4.4vw, 44px); max-width: 20ch; }
+.tl-section h2 { font-size: clamp(28px, 4.4vw, 44px); max-width: 20ch; color: var(--tl-accent); }
 .tl-split { display: grid; gap: 28px; }
 .tl-split-top { margin-top: 40px; }
 @media (min-width: 900px) { .tl-split { grid-template-columns: 5fr 6fr; gap: 72px; align-items: start; } }
@@ -105,9 +107,9 @@
 .tl-after dt { font-weight: 650; font-size: 17px; }
 .tl-after dd { margin: 4px 0 0; color: var(--tl-ink-2); font-size: 16px; }
 
-.tl-cta { background: var(--tl-ink); color: #f4f1ea; text-align: left; }
+.tl-cta { background: var(--tl-accent); color: #e2f1fa; text-align: left; }
 .tl-cta h2 { color: #fff; }
-.tl-cta p { margin: 14px 0 30px !important; color: #c9c5bd; font-size: 17px; }
+.tl-cta p { margin: 14px 0 30px !important; color: #e2f1fa; font-size: 17px; }
 
 .tl-contact { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .tl-contact li { display: grid; gap: 2px; }
@@ -127,7 +129,7 @@
 @media (prefers-reduced-motion: reduce) { .tl * { transition: none !important; } }
 
 /* Campaign additions retain the existing programme palette. */
-.tl-contact-strip{background:var(--tl-ink);color:#fff;font-size:14px;padding:10px 0}
+.tl-contact-strip{background:var(--tl-accent);color:#fff;font-size:14px;padding:10px 0}
 .tl-contact-strip .tl-wrap{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
 .tl-contact-strip a:last-child{margin-inline-start:auto}
 .tl-header-row{flex-wrap:wrap;padding-block:12px}

@@ -2,33 +2,36 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 :root {
-  --background: #fbfaf7;
-  --foreground: #1f2326;
+  --brand-blue: #1b5f8c;
+  --brand-blue-hover: #154c70;
+  --brand-blue-soft: #d6ebf9;
+  --background: #f5faff;
+  --foreground: #1d2a33;
   --card: #fff;
   --card-foreground: #1f2326;
   --popover: #fff;
   --popover-foreground: #1f2326;
-  --primary: #1f2326;
+  --primary: var(--brand-blue);
   --primary-foreground: #fff;
-  --secondary: #f1eee8;
-  --secondary-foreground: #2b3034;
-  --muted: #f3f1ec;
-  --muted-foreground: #6b7075;
-  --accent: #f3eadc;
-  --accent-foreground: #1f2326;
+  --secondary: #e2f1fa;
+  --secondary-foreground: #1b5f8c;
+  --muted: #f2f8fc;
+  --muted-foreground: #5b7180;
+  --accent: var(--brand-blue-soft);
+  --accent-foreground: #154c70;
   --destructive: #a63f35;
-  --border: #e4e0d8;
-  --input: #d6d1c7;
-  --ring: #1f2326;
+  --border: #d5e4ee;
+  --input: #bacfdd;
+  --ring: var(--brand-blue);
   --radius: 0.6rem;
   --sidebar: #fff;
   --sidebar-foreground: #5a5f64;
-  --sidebar-primary: #1f2326;
+  --sidebar-primary: var(--brand-blue);
   --sidebar-primary-foreground: #fff;
-  --sidebar-accent: #f3eadc;
-  --sidebar-accent-foreground: #1f2326;
-  --sidebar-border: #e4e0d8;
-  --sidebar-ring: #1f2326;
+  --sidebar-accent: var(--brand-blue-soft);
+  --sidebar-accent-foreground: #154c70;
+  --sidebar-border: #d5e4ee;
+  --sidebar-ring: var(--brand-blue);
 }
 @theme inline {
   --color-background: var(--background);
@@ -83,7 +86,7 @@ button:disabled {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid #887e69;
+  outline: 3px solid #1b5f8c;
   outline-offset: 3px;
 }
 h1,
@@ -132,7 +135,7 @@ h3 {
   place-items: center;
   width: 38px;
   height: 42px;
-  background: #1f2326;
+  background: var(--brand-blue);
   color: white;
   border-radius: 12px 12px 12px 2px;
 }
@@ -182,7 +185,7 @@ h3 {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #efeeeb;
+  background: #e2f1fa;
   display: inline-grid;
   place-items: center;
   font-size: 12px;
@@ -213,7 +216,7 @@ h3 {
   border: 1px solid #e3e1de;
   border-radius: 5px;
   padding: 4px 9px;
-  background: #faf8f4;
+  background: #f2f8fc;
   white-space: nowrap;
   color: #596068;
 }
@@ -242,9 +245,9 @@ h3 {
   margin-top: 9px;
 }
 .primary {
-  background: #1f2326;
+  background: var(--brand-blue);
   color: white;
-  border: 1px solid #1f2326;
+  border: 1px solid var(--brand-blue);
   display: inline-flex;
   gap: 9px;
   align-items: center;
@@ -256,14 +259,14 @@ h3 {
   min-height: 44px;
 }
 .primary:hover {
-  background: #2f3337;
+  background: var(--brand-blue-hover);
 }
 .notice {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #f1f0ee;
-  border: 1px solid #e4e0d8;
+  background: #edf5fa;
+  border: 1px solid #d5e4ee;
   padding: 12px 16px;
   border-radius: 6px;
   font-size: 13px;
@@ -351,7 +354,7 @@ h3 {
 .path-number {
   font-size: 12px;
   color: #69727b;
-  background: #f3f2f0;
+  background: #edf5fa;
   border: 1px solid #e8e6e3;
   border-radius: 6px;
   width: 35px;
@@ -377,13 +380,13 @@ h3 {
   margin-top: 18px;
 }
 .priority-card {
-  background: #2b3034;
+  background: var(--brand-blue);
   border-radius: 9px;
   padding: 26px 27px;
   color: #fff;
 }
 .priority-card .eyebrow {
-  color: #c5c0b7;
+  color: #e2f1fa;
 }
 .priority-card h2 {
   font-size: 25px;
@@ -393,7 +396,7 @@ h3 {
 }
 .priority-card p {
   font-size: 13px;
-  color: #d6d1c7;
+  color: #e2f1fa;
   max-width: 250px;
 }
 .priority-card button {
@@ -401,9 +404,9 @@ h3 {
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #484e55;
+  background: var(--brand-blue-hover);
   padding: 10px 14px;
-  border: 1px solid #69727b;
+  border: 1px solid #92bfdb;
   border-radius: 5px;
   margin-top: 21px;
 }
@@ -411,7 +414,7 @@ h3 {
   display: flex;
   gap: 15px;
   align-items: center;
-  border-top: 1px solid #5b626a;
+  border-top: 1px solid #92bfdb;
   margin-top: 23px;
   padding-top: 16px;
 }
@@ -421,7 +424,7 @@ h3 {
 }
 .priority-stat span {
   font-size: 12px;
-  color: #d6d1c7;
+  color: #e2f1fa;
 }
 .text-button {
   display: inline-flex;
@@ -578,7 +581,7 @@ footer {
 }
 .program-tag span {
   font-size: 9px;
-  background: #f1efec;
+  background: #edf5fa;
   border-radius: 3px;
   padding: 2px 5px;
   color: #837e75;
@@ -673,7 +676,7 @@ footer {
   font-size: 14px;
 }
 .secondary:hover {
-  background: #f3f2f0;
+  background: #edf5fa;
 }
 .stack {
   display: flex;
@@ -713,7 +716,7 @@ footer {
 }
 .field input:focus,
 .field textarea:focus {
-  outline: 2px solid #8a7f68;
+  outline: 2px solid #1b5f8c;
   outline-offset: 1px;
 }
 .field textarea {
@@ -778,7 +781,7 @@ footer {
 }
 .consent-box {
   padding: 20px;
-  background: #f4f1ea;
+  background: #e2f1fa;
   border: 1px solid #e5e2dd;
   border-radius: 7px;
 }
@@ -824,7 +827,7 @@ footer {
 .question {
   margin: 0;
   padding: 20px;
-  border: 1px solid #e4e0d8;
+  border: 1px solid #d5e4ee;
   border-radius: 7px;
   min-width: 0;
 }
@@ -849,7 +852,7 @@ footer {
   color: #79766f;
 }
 .profile-tabs {
-  background: #f4f1ea;
+  background: #e2f1fa;
   display: flex;
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -871,7 +874,7 @@ footer {
 .patient-sheet [data-slot="sheet-header"] {
   padding: 26px;
   border-bottom: 1px solid var(--border);
-  background: #faf8f4;
+  background: #f2f8fc;
 }
 .sheet-body {
   padding: 26px;
@@ -904,7 +907,7 @@ footer {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
-  background: #faf8f4;
+  background: #f2f8fc;
   padding: 18px;
   border-radius: 6px;
 }
@@ -969,7 +972,7 @@ footer {
 }
 .report-box {
   margin-top: 14px;
-  background: #faf8f4;
+  background: #f2f8fc;
   padding: 16px;
   border-radius: 6px;
 }
@@ -1048,7 +1051,7 @@ footer {
   text-align: left;
 }
 .pathway-button:hover {
-  background: #fbfaf7;
+  background: #f5faff;
 }
 .priority-bottom {
   margin-top: 19px !important;
@@ -1144,7 +1147,7 @@ footer {
   color: #94918a;
 }
 .queue-row:hover {
-  background: #fbfaf7;
+  background: #f5faff;
 }
 .empty-state {
   min-height: 170px;
@@ -1346,7 +1349,7 @@ footer {
   }
 }
 .campaign {
-  background: #fbfaf7;
+  background: #f5faff;
 }
 .campaign-header {
   max-width: 1280px;
