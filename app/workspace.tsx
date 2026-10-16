@@ -139,6 +139,23 @@ export default function Workspace({
     void init();
     setEntryUrl(window.location.origin + "/register");
   }, [mode, reload]);
+  // Public registrations continue on a separate participant device. Refresh
+  // staff data while the live dashboard is visible so the new registration
+  // and its completed questionnaire appear without a manual page reload.
+  useEffect(() => {
+    if (mode !== "live") return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    const timer = window.setInterval(refreshWhenVisible, 15000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [mode, reload]);
   useEffect(() => {
     const context = (document as any).modelContext;
     if (!context?.registerTool) return;
