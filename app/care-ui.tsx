@@ -123,7 +123,13 @@ export async function api(action?: string, data?: any, mode = "demo") {
   if (!r.ok) throw new Error(j.error || "Unable to complete request.");
   return j;
 }
-export function QRImage({ value }: { value: string }) {
+export function QRImage({
+  value,
+  alt = "QR code containing only the secure retrieval token",
+}: {
+  value: string;
+  alt?: string;
+}) {
   const t = useT();
   const [src, setSrc] = useState("");
   useEffect(() => {
@@ -143,7 +149,7 @@ export function QRImage({ value }: { value: string }) {
       src={src}
       width="220"
       height="220"
-      alt={t("QR code containing only the secure retrieval token")}
+      alt={t(alt)}
     />
   ) : (
     <p><T text={"Preparing QR…"} /></p>

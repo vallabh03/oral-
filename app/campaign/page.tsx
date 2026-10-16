@@ -160,6 +160,7 @@ export default async function Campaign() {
           <div className="tl-actions">
             <a className="tl-btn tl-btn-primary" href="/register"><T text={"Register for screening "} /><ArrowRight size={18} aria-hidden="true" />
             </a>
+            {liveIntake && <a className="tl-btn tl-btn-ghost" href="/register/qr"><T text={"Open registration QR"} /></a>}
             <a className="tl-btn tl-btn-ghost" href="#learn"><T text={"Learn about oral cancer"} /></a>
           </div>
           {!liveIntake && (
