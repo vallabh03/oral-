@@ -1,4 +1,5 @@
 import { permitted, type Permission } from "./permissions";
+import { isBootstrapAdmin } from "./admin-emails";
 import { pilot, groupPaths } from "./domain";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
@@ -110,13 +111,7 @@ export async function actor(
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
     .bind(u.userId)
     .first<any>();
-  const bootstrapEmails = [
-    runtime().ADMIN_EMAIL,
-    ...(runtime().ADMIN_EMAILS ?? "").split(","),
-  ]
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-  if (!row && bootstrapEmails.includes(u.email.trim().toLowerCase())) {
+  if (!row && isBootstrapAdmin(u.email, runtime().ADMIN_EMAIL, runtime().ADMIN_EMAILS)) {
     await db()
       .prepare(
         "INSERT OR IGNORE INTO users (id,email,name,role,active) VALUES (?,?,?,?,1)",
