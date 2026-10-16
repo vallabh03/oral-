@@ -8,6 +8,7 @@ export function runtime() {
     DB: D1Database;
     BUCKET: R2Bucket;
     ADMIN_EMAIL?: string;
+    ADMIN_EMAILS?: string;
     LIVE_INTAKE_ENABLED?: string;
     STAFF_ACCESS_ENABLED?: string;
     AUDIT_KEY?: string;
@@ -109,11 +110,13 @@ export async function actor(
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
     .bind(u.userId)
     .first<any>();
-  if (
-    !row &&
-    runtime().ADMIN_EMAIL &&
-    u.email.toLowerCase() === runtime().ADMIN_EMAIL!.toLowerCase()
-  ) {
+  const bootstrapEmails = [
+    runtime().ADMIN_EMAIL,
+    ...(runtime().ADMIN_EMAILS ?? "").split(","),
+  ]
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  if (!row && bootstrapEmails.includes(u.email.trim().toLowerCase())) {
     await db()
       .prepare(
         "INSERT OR IGNORE INTO users (id,email,name,role,active) VALUES (?,?,?,?,1)",
