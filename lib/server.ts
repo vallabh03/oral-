@@ -1,5 +1,5 @@
 import { permitted, type Permission } from "./permissions";
-import { isBootstrapAdmin } from "./admin-emails";
+import { isBootstrapAdmin, isBootstrapEmail } from "./admin-emails";
 import { pilot, groupPaths } from "./domain";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
@@ -10,6 +10,7 @@ export function runtime() {
     BUCKET: R2Bucket;
     ADMIN_EMAIL?: string;
     ADMIN_EMAILS?: string;
+    DOCTOR_ADMIN_EMAILS?: string;
     LIVE_INTAKE_ENABLED?: string;
     STAFF_ACCESS_ENABLED?: string;
     AUDIT_KEY?: string;
@@ -111,12 +112,21 @@ export async function actor(
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
     .bind(u.userId)
     .first<any>();
-  if (!row && isBootstrapAdmin(u.email, runtime().ADMIN_EMAIL, runtime().ADMIN_EMAILS)) {
+  const bootstrapRole = isBootstrapAdmin(
+    u.email,
+    runtime().ADMIN_EMAIL,
+    runtime().ADMIN_EMAILS,
+  )
+    ? "SUPER_ADMIN"
+    : isBootstrapEmail(u.email, runtime().DOCTOR_ADMIN_EMAILS)
+      ? "DOCTOR_ADMIN"
+      : null;
+  if (!row && bootstrapRole) {
     await db()
       .prepare(
         "INSERT OR IGNORE INTO users (id,email,name,role,active) VALUES (?,?,?,?,1)",
       )
-      .bind(u.userId, u.email, u.displayName, "SUPER_ADMIN")
+      .bind(u.userId, u.email, u.displayName, bootstrapRole)
       .run();
     row = await db()
       .prepare("SELECT * FROM users WHERE id=? AND active=1")
