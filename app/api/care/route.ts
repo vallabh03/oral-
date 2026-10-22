@@ -126,89 +126,93 @@ export async function GET(req: Request) {
         timeline: full ? events.results : [],
       });
     }
-    let clause = "tenant=?",
-      args: any[] = [a.tenant];
+    // ------------------------------------------------------------------
+    // Build a tenant-scoped, role-filtered WHERE clause for patients.
+    // ------------------------------------------------------------------
+    const patientTerms: string[] = ["tenant=?"];
+    const patientArgs: any[] = [a.tenant];
     if (!a.demo) {
-      if (a.role === "DOCTOR") {
-        clause += " AND doctor_id=?";
-        args.push(a.id);
-      }
-      if (a.role === "COUNSELLOR") {
-        clause += " AND counsellor_id=?";
-        args.push(a.id);
-      }
-      if (a.role === "PATIENT") {
-        clause += " AND id=?";
-        args.push(a.patientId || "none");
-      }
-      if (a.role === "LAB") {
-        clause += " AND id IN (SELECT patient_id FROM samples WHERE lab_id=?)";
-        args.push(a.id);
-      }
+      if (a.role === "DOCTOR") { patientTerms.push("doctor_id=?"); patientArgs.push(a.id); }
+      if (a.role === "COUNSELLOR") { patientTerms.push("counsellor_id=?"); patientArgs.push(a.id); }
+      if (a.role === "PATIENT") { patientTerms.push("id=?"); patientArgs.push(a.patientId || "none"); }
+      if (a.role === "LAB") { patientTerms.push("id IN (SELECT patient_id FROM samples WHERE lab_id=?)"); patientArgs.push(a.id); }
     }
-    const patients = await db()
-      .prepare(
-        `SELECT id,name,phone,camp_id,created_at,category,pathway FROM patients WHERE ${clause} ORDER BY created_at DESC LIMIT 1000`,
-      )
-      .bind(...args)
-      .all();
-    const camps = await db()
-      .prepare("SELECT * FROM camps WHERE tenant=?")
-      .bind(a.tenant)
-      .all();
-    const protocols = await db()
-      .prepare("SELECT * FROM protocols WHERE tenant=? ORDER BY rowid DESC")
-      .bind(a.tenant)
-      .all<any>();
-    const audit =
-      a.demo || ["SUPER_ADMIN", "ADMIN"].includes(a.role)
-        ? await db()
-            .prepare(
-              "SELECT id,patient_id,actor,action,at FROM audit WHERE tenant=? ORDER BY rowid DESC LIMIT 200",
-            )
-            .bind(a.tenant)
-            .all()
-        : { results: [] };
-    const users = a.demo
-      ? { results: [] }
-      : ["SUPER_ADMIN", "ADMIN"].includes(a.role)
-        ? await db()
-            .prepare("SELECT id,name,email,role,active FROM users")
-            .all()
-        : a.role === "DOCTOR_ADMIN"
-          ? await db()
-              .prepare(
+    const pClause = patientTerms.join(" AND ");
+
+    // ------------------------------------------------------------------
+    // Cursor-based pagination for patients list.
+    // Accept: ?cursor=<ISO created_at>&limit=<1-100>
+    // Returns: { patients, nextCursor } — nextCursor is null when no more.
+    // ------------------------------------------------------------------
+    const url2 = new URL(req.url);
+    const cursor = url2.searchParams.get("cursor") || "9999-99-99T99:99:99.999Z";
+    const rawLimit = Math.min(100, Math.max(1, parseInt(url2.searchParams.get("limit") || "50", 10)));
+    // Fetch one extra row to detect whether there are more pages.
+    const fetchLimit = rawLimit + 1;
+
+    // ------------------------------------------------------------------
+    // Batch all workspace reads into a single D1 round-trip.
+    // ------------------------------------------------------------------
+    const usersStmt =
+      a.demo
+        ? db().prepare("SELECT 1 WHERE 0") // no-op placeholder
+        : ["SUPER_ADMIN", "ADMIN"].includes(a.role)
+          ? db().prepare("SELECT id,name,email,role,active FROM users")
+          : a.role === "DOCTOR_ADMIN"
+            ? db().prepare(
                 "SELECT id,name,role,active FROM users WHERE active=1 AND role IN ('DOCTOR_ADMIN','SUPER_ADMIN','LAB')",
               )
-              .all()
-          : { results: [] };
-    const records = await db()
-      .prepare(
-        `SELECT r.id,r.patient_id,r.kind,r.status,r.at,r.data FROM records r JOIN patients p ON p.id=r.patient_id WHERE p.${clause.replaceAll(" AND id", " AND p.id")} AND r.kind IN ('referral','counselling','followup')`,
-      )
-      .bind(...args)
-      .all<any>();
-    const samples = await db()
-      .prepare(
-        `SELECT s.* FROM samples s JOIN patients p ON p.id=s.patient_id WHERE p.${clause.replaceAll(" AND id", " AND p.id")}`,
-      )
-      .bind(...args)
-      .all();
+            : db().prepare("SELECT 1 WHERE 0"); // no-op for roles that don't need users
+
+    const [patientsResult, campsResult, protocolsResult, recordsResult, samplesResult, usersResult] =
+      await db().batch([
+        db()
+          .prepare(
+            `SELECT id,name,phone,camp_id,created_at,category,pathway FROM patients WHERE ${pClause} AND created_at<=? ORDER BY created_at DESC LIMIT ?`,
+          )
+          .bind(...patientArgs, cursor, fetchLimit),
+        db()
+          .prepare("SELECT * FROM camps WHERE tenant=?")
+          .bind(a.tenant),
+        db()
+          .prepare("SELECT * FROM protocols WHERE tenant=? ORDER BY rowid DESC")
+          .bind(a.tenant),
+        // Records join: use the same term list but prefix with p. to avoid ambiguity.
+        db()
+          .prepare(
+            `SELECT r.id,r.patient_id,r.kind,r.status,r.at,r.data
+             FROM records r
+             JOIN patients p ON p.id=r.patient_id
+             WHERE ${patientTerms.map((t) => t.replace(/^(\w)/, "p.$1")).join(" AND ")}
+               AND r.kind IN ('referral','counselling','followup')`,
+          )
+          .bind(...patientArgs),
+        db()
+          .prepare(
+            `SELECT s.* FROM samples s
+             JOIN patients p ON p.id=s.patient_id
+             WHERE ${patientTerms.map((t) => t.replace(/^(\w)/, "p.$1")).join(" AND ")}`,
+          )
+          .bind(...patientArgs),
+        usersStmt,
+      ]);
+
+    const allPatients = patientsResult.results as any[];
+    const hasMore = allPatients.length > rawLimit;
+    const pagePatients = hasMore ? allPatients.slice(0, rawLimit) : allPatients;
+    const nextCursor = hasMore ? pagePatients[pagePatients.length - 1].created_at : null;
+
     await log(a, "Workspace accessed");
     return response({
       actor: { name: a.name, role: a.role, demo: a.demo },
-      patients: patients.results.map((p: any) =>
+      patients: pagePatients.map((p: any) =>
         a.role === "LAB" && !a.demo
-          ? {
-              id: p.id,
-              name: p.name,
-              camp_id: p.camp_id,
-              created_at: p.created_at,
-            }
+          ? { id: p.id, name: p.name, camp_id: p.camp_id, created_at: p.created_at }
           : p,
       ),
-      camps: camps.results,
-      protocols: protocols.results
+      nextCursor,
+      camps: campsResult.results,
+      protocols: (protocolsResult.results as any[])
         .filter(
           (p) =>
             a.demo ||
@@ -216,9 +220,8 @@ export async function GET(req: Request) {
             p.status === "Approved",
         )
         .map((p) => ({ ...p, definition: JSON.parse(p.definition) })),
-      audit: audit.results,
-      users: users.results,
-      records: records.results.map((r) => ({
+      users: a.demo ? [] : usersResult.results,
+      records: (recordsResult.results as any[]).map((r) => ({
         ...r,
         data:
           a.demo || hasRole(a.role, "ADMIN", "DOCTOR", "ASSISTANT")
@@ -231,7 +234,7 @@ export async function GET(req: Request) {
                 )
               : { date: JSON.parse(r.data).date },
       })),
-      samples: samples.results,
+      samples: samplesResult.results,
     });
   } catch (e) {
     return failure(e);
@@ -243,7 +246,6 @@ export async function POST(req: Request) {
     const a = await actor(req);
     await rate(a);
     const raw = new TextDecoder().decode(await boundedBody(req, 100000));
-    if (raw.length > 100000) throw new HttpError(413, "Request too large.");
     const b = JSON.parse(raw);
     const at = now();
     if (actionPermissions[b.action])

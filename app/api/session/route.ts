@@ -9,13 +9,17 @@ import {
   log,
   response,
   failure,
+  invalidatePolicyCache,
+  HttpError,
 } from "@/lib/server";
 import { dashboardPath } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
+
 function cookie(req: Request, value: string, maxAge: number) {
   const secure = new URL(req.url).protocol === "https:";
   return `${secure ? "__Host-care_session" : "care_session"}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
+
 export async function POST(req: Request) {
   try {
     originCheck(req);
@@ -46,35 +50,40 @@ export async function POST(req: Request) {
       .run();
     await log(a, "Secure application session started");
     const r = response({ path: dashboardPath(a.role), role: a.role, policy });
-    r.headers.set(
-      "Set-Cookie",
-      cookie(req, token, policy.absoluteHours * 3600),
-    );
+    r.headers.set("Set-Cookie", cookie(req, token, policy.absoluteHours * 3600));
     return r;
   } catch (e) {
     return failure(e);
   }
 }
+
 export async function DELETE(req: Request) {
   try {
     originCheck(req);
     const token = sessionToken(req);
     if (token) {
       const key = await hash(token);
+      // Fetch the userId bound to this token so we can log the actor correctly.
+      // This also acts as a pre-check that the session actually exists before
+      // issuing the revocation UPDATE.
       const row = await db()
         .prepare(
           "SELECT user_id FROM app_sessions WHERE token_hash=? AND revoked=0",
         )
         .bind(key)
-        .first<any>();
+        .first<{ user_id: string }>();
+
+      // Revoke the session unconditionally — even if no row found, clearing the
+      // cookie below is still the right outcome.
       await db()
         .prepare("UPDATE app_sessions SET revoked=1 WHERE token_hash=?")
         .bind(key)
         .run();
+
       if (row)
         await log(
           { id: row.user_id, name: "", role: "", tenant: "live", demo: false },
-          "Application session ended or expired",
+          "Application session ended",
         );
     }
     const r = response({ ok: true });
@@ -84,13 +93,17 @@ export async function DELETE(req: Request) {
     return failure(e);
   }
 }
+
 export async function GET(req: Request) {
   try {
     const a = await actor(req);
     const s = await db()
-      .prepare("SELECT expires_at FROM app_sessions WHERE token_hash=?")
+      .prepare(
+        "SELECT expires_at FROM app_sessions WHERE token_hash=? AND revoked=0",
+      )
       .bind(await hash(sessionToken(req)))
-      .first<any>();
+      .first<{ expires_at: number }>();
+    // securityPolicy() is cached — near-zero cost after warm-up
     return response({
       role: a.role,
       policy: await securityPolicy(),

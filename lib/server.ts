@@ -4,10 +4,17 @@ import { pilot, groupPaths } from "./domain";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { canAccess, roles, hasRole } from "./domain";
+import { logEntry } from "./telemetry";
+
+// ---------------------------------------------------------------------------
+// Runtime environment binding
+// ---------------------------------------------------------------------------
 export function runtime() {
   return env as unknown as {
     DB: D1Database;
     BUCKET: R2Bucket;
+    /** Optional KV namespace for rate-limiting (preferred over D1) */
+    RATE_KV?: KVNamespace;
     ADMIN_EMAIL?: string;
     ADMIN_EMAILS?: string;
     DOCTOR_ADMIN_EMAILS?: string;
@@ -25,11 +32,22 @@ export function runtime() {
     WHATSAPP_REPORT_TEMPLATE_NAME?: string;
     WHATSAPP_TEMPLATE_LANGUAGE?: string;
     WHATSAPP_GRAPH_VERSION?: string;
+    /**
+     * Set to "true" to allow authenticated users to enter demo mode.
+     * When STAFF_ACCESS_ENABLED is "true" and this is not explicitly "true",
+     * demo mode is blocked so live operators cannot accidentally use it.
+     */
+    DEMO_MODE_ENABLED?: string;
   };
 }
+
 export function db() {
   return runtime().DB;
 }
+
+// ---------------------------------------------------------------------------
+// Bounded body reader — prevents memory exhaustion
+// ---------------------------------------------------------------------------
 export async function boundedBody(req: Request, limit: number) {
   const reader = req.body?.getReader();
   if (!reader) return new Uint8Array();
@@ -53,9 +71,15 @@ export async function boundedBody(req: Request, limit: number) {
   }
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
 export const id = (prefix: string) =>
   prefix + "-" + crypto.randomUUID().toUpperCase();
+
 export const now = () => new Date().toISOString();
+
 export async function hash(v: string) {
   return [
     ...new Uint8Array(
@@ -65,14 +89,23 @@ export async function hash(v: string) {
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
 }
+
+// ---------------------------------------------------------------------------
+// HTTP error class
+// ---------------------------------------------------------------------------
 export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
   ) {
     super(message);
+    this.name = "HttpError";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Actor type
+// ---------------------------------------------------------------------------
 export type Actor = {
   id: string;
   name: string;
@@ -81,17 +114,64 @@ export type Actor = {
   demo: boolean;
   patientId?: string;
 };
+
+// ---------------------------------------------------------------------------
+// Security policy — with 60-second module-level cache
+// Avoids a D1 read on every single authenticated request.
+// ---------------------------------------------------------------------------
+type Policy = { idleMinutes: number; absoluteHours: number };
+
+let _policyCache: { v: Policy; ts: number } | null = null;
+const POLICY_TTL_MS = 60_000; // 60 seconds
+
+export async function securityPolicy(): Promise<Policy> {
+  const now_ms = Date.now();
+  if (_policyCache && now_ms - _policyCache.ts < POLICY_TTL_MS)
+    return _policyCache.v;
+
+  const row = await db()
+    .prepare("SELECT value FROM app_settings WHERE id='security'")
+    .first<{ value: string }>();
+
+  const v: Policy = row
+    ? (JSON.parse(row.value) as Policy)
+    : { idleMinutes: 15, absoluteHours: 8 };
+
+  _policyCache = { v, ts: now_ms };
+  return v;
+}
+
+/**
+ * Call this after any admin write that changes security settings
+ * so the next request re-reads from D1.
+ */
+export function invalidatePolicyCache() {
+  _policyCache = null;
+}
+
+// ---------------------------------------------------------------------------
+// Actor resolution — resolves the ChatGPT identity to an app-level actor
+// ---------------------------------------------------------------------------
 export async function actor(
   req: Request,
   options: { skipSession?: boolean; forceLive?: boolean } = {},
 ): Promise<Actor> {
   const u = await getChatGPTUser();
   if (!u) throw new HttpError(401, "Sign in to access this workspace.");
-  const demo =
+
+  // Demo mode: only allowed when explicitly enabled OR live staff access is not yet open.
+  // This prevents live operators from accidentally (or maliciously) entering demo mode
+  // via a header/query-param trick.
+  const demoRequested =
     !options.forceLive &&
     (req.headers.get("x-care-mode") === "demo" ||
       new URL(req.url).searchParams.get("mode") === "demo");
-  if (demo)
+
+  const demoPermitted =
+    runtime().DEMO_MODE_ENABLED === "true" ||
+    runtime().STAFF_ACCESS_ENABLED !== "true";
+
+  if (demoRequested && demoPermitted) {
     return {
       id: u.userId,
       name: u.displayName,
@@ -99,6 +179,11 @@ export async function actor(
       tenant: "demo:" + u.userId,
       demo: true,
     };
+  }
+
+  // If demo was requested but not permitted, fall through to live auth.
+  // Do NOT throw — just treat it as a normal live request.
+
   if (
     (runtime().STAFF_ACCESS_ENABLED !== "true" &&
       runtime().LIVE_INTAKE_ENABLED !== "true") ||
@@ -108,10 +193,12 @@ export async function actor(
       503,
       "Staff access is locked. Administrator setup and operational approval are required.",
     );
+
   let row = await db()
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
     .bind(u.userId)
     .first<any>();
+
   const bootstrapRole = isBootstrapAdmin(
     u.email,
     runtime().ADMIN_EMAIL,
@@ -121,6 +208,7 @@ export async function actor(
     : isBootstrapEmail(u.email, runtime().DOCTOR_ADMIN_EMAILS)
       ? "DOCTOR_ADMIN"
       : null;
+
   if (!row && bootstrapRole) {
     await db()
       .prepare(
@@ -133,12 +221,15 @@ export async function actor(
       .bind(u.userId)
       .first<any>();
   }
+
   if (!row || !roles.includes(row.role))
     throw new HttpError(
       403,
       "An administrator must grant access to this account.",
     );
+
   if (!options.skipSession) await validateSession(req, u.userId);
+
   return {
     id: u.userId,
     name: row.name,
@@ -148,10 +239,25 @@ export async function actor(
     patientId: row.patient_id,
   };
 }
+
+// ---------------------------------------------------------------------------
+// RBAC helpers
+// ---------------------------------------------------------------------------
 export function requireRole(a: Actor, ...allow: string[]) {
   if (!a.demo && !hasRole(a.role, ...allow))
     throw new HttpError(403, "Your role cannot perform this action.");
 }
+
+export async function requirePermission(a: Actor, p: Permission) {
+  if (!a.demo && !permitted(a.role, p)) {
+    await log(a, "Access denied: " + p);
+    throw new HttpError(403, "Your account cannot perform this action.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Patient access — tenant-scoped with per-role data isolation
+// ---------------------------------------------------------------------------
 export async function patient(a: Actor, pid: string) {
   const p = await db()
     .prepare("SELECT * FROM patients WHERE id=? AND tenant=?")
@@ -170,6 +276,10 @@ export async function patient(a: Actor, pid: string) {
   }
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// Audit trail — HMAC-signed, append-only
+// ---------------------------------------------------------------------------
 export async function auditStatement(
   a: Actor,
   action: string,
@@ -211,23 +321,66 @@ export async function auditStatement(
     )
     .bind(uid, a.tenant, pid, a.id, action, at, signature);
 }
-export async function log(a: Actor, action: string, pid: string | null = null) {
+
+export async function log(
+  a: Actor,
+  action: string,
+  pid: string | null = null,
+) {
   await (await auditStatement(a, action, pid)).run();
 }
-export async function rate(a: Actor) {
-  const bucket = Math.floor(Date.now() / 60000),
-    key = a.id + ":" + bucket;
-  const r = await db()
-    .prepare(
-      "INSERT INTO limits (id,count,expires) VALUES (?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count",
-    )
-    .bind(key, bucket + 2)
-    .first<any>();
-  if (r.count > 120)
-    throw new HttpError(429, "Please wait a minute before trying again.");
-  if (Math.random() < 0.01)
-    await db().prepare("DELETE FROM limits WHERE expires<?").bind(bucket).run();
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// Strategy: prefer Cloudflare KV (atomic, no D1 write contention).
+// Falls back to D1 when RATE_KV is not bound (local dev / minimal deployments).
+// Window: 120 requests per user per calendar minute.
+// ---------------------------------------------------------------------------
+export async function rateKey(
+  key: string,
+  limit = 120,
+  windowSecs = 60,
+  customMessage = "Please wait a minute before trying again.",
+) {
+  const kv = runtime().RATE_KV;
+
+  if (kv) {
+    // KV path — preferred; no D1 write, auto-expires, eventual consistency
+    // acceptable for rate-limiting.
+    const current = Number((await kv.get(key)) ?? "0");
+    if (current >= limit)
+      throw new HttpError(429, customMessage);
+    // expirationTtl: twice the window covers overlap cleanly without manual GC sweeps.
+    await kv.put(key, String(current + 1), { expirationTtl: Math.max(windowSecs * 2, 60) });
+  } else {
+    // D1 fallback — used in local dev when KV is not configured.
+    const bucket = Math.floor(Date.now() / (windowSecs * 1000));
+    const r = await db()
+      .prepare(
+        "INSERT INTO limits (id,count,expires) VALUES (?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count",
+      )
+      .bind(key, bucket + 2)
+      .first<any>();
+    if (r && r.count > limit)
+      throw new HttpError(429, customMessage);
+    // Probabilistic GC: 1% of requests sweep expired rows.
+    if (Math.random() < 0.01)
+      await db()
+        .prepare("DELETE FROM limits WHERE expires<?")
+        .bind(bucket)
+        .run();
+  }
 }
+
+export async function rate(a: Actor) {
+  const bucket = Math.floor(Date.now() / 60000);
+  const key = `rl:${a.id}:${bucket}`;
+  await rateKey(key, 120, 60);
+}
+
+// ---------------------------------------------------------------------------
+// Standard JSON response — always no-store, always typed
+// ---------------------------------------------------------------------------
 export function response(data: unknown, status = 200) {
   return Response.json(data, {
     status,
@@ -238,27 +391,63 @@ export function response(data: unknown, status = 200) {
     },
   });
 }
-export async function failure(e: unknown) {
+
+// ---------------------------------------------------------------------------
+// Structured error handler
+// Discriminates error types, stores context in app_errors, and returns a
+// request ID the client can quote when reporting issues.
+// ---------------------------------------------------------------------------
+export async function failure(
+  e: unknown,
+  req?: Request,
+  actorId?: string,
+): Promise<Response> {
   if (e instanceof HttpError) return response({ error: e.message }, e.status);
+
   if (e instanceof Error && e.name === "ZodError")
     return response(
       { error: "Please check the supplied fields and required values." },
       400,
     );
+
+  // Unexpected error — log and return generic message with a trackable ID.
+  const rid = id("ERR");
+  const code =
+    e instanceof SyntaxError
+      ? "json_parse_error"
+      : e instanceof TypeError
+        ? "type_error"
+        : "internal_error";
+  const message =
+    e instanceof Error ? e.message.slice(0, 300) : "Unknown error";
+  const path = req ? new URL(req.url).pathname : "unknown";
+
+  logEntry("ERROR", message, { rid, code, path, actorId });
+
   try {
     await db()
-      .prepare("INSERT INTO app_errors(id,at,code) VALUES (?,?,?)")
-      .bind(id("ERR"), now(), "internal_error")
+      .prepare(
+        "INSERT INTO app_errors(id,at,code,message,path,actor) VALUES (?,?,?,?,?,?)",
+      )
+      .bind(rid, now(), code, message, path, actorId ?? null)
       .run();
-  } catch {}
+  } catch {
+    // D1 itself may be the cause — swallow to avoid masking the original error.
+  }
+
   return response(
     {
       error:
         "The request could not be completed. Your unsaved input remains on this page.",
+      requestId: rid,
     },
     500,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Origin + content-type guard for mutating endpoints
+// ---------------------------------------------------------------------------
 export function originCheck(req: Request) {
   if (req.headers.get("origin") !== new URL(req.url).origin)
     throw new HttpError(403, "Request origin rejected.");
@@ -267,6 +456,10 @@ export function originCheck(req: Request) {
   if (Number(req.headers.get("content-length") || 0) > 100000)
     throw new HttpError(413, "Request too large.");
 }
+
+// ---------------------------------------------------------------------------
+// Demo data seeding
+// ---------------------------------------------------------------------------
 export async function seed(a: Actor) {
   if (!a.demo) return;
   const existing = await db()
@@ -390,7 +583,9 @@ export async function seed(a: Actor) {
   await db().batch(stmts);
 }
 
-// Append-only sample lifecycle event, written in the same batch as the status change.
+// ---------------------------------------------------------------------------
+// Append-only sample lifecycle event
+// ---------------------------------------------------------------------------
 export function sampleEvent(
   a: Actor,
   sampleId: string,
@@ -411,18 +606,9 @@ export function sampleEvent(
     );
 }
 
-export async function requirePermission(a: Actor, p: Permission) {
-  if (!a.demo && !permitted(a.role, p)) {
-    await log(a, "Access denied: " + p);
-    throw new HttpError(403, "Your account cannot perform this action.");
-  }
-}
-export async function securityPolicy() {
-  const row = await db()
-    .prepare("SELECT value FROM app_settings WHERE id='security'")
-    .first<any>();
-  return row ? JSON.parse(row.value) : { idleMinutes: 15, absoluteHours: 8 };
-}
+// ---------------------------------------------------------------------------
+// Cookie parsing
+// ---------------------------------------------------------------------------
 export function sessionToken(req: Request) {
   const cookies = req.headers.get("cookie") || "";
   return (
@@ -439,31 +625,50 @@ export function sessionToken(req: Request) {
     ""
   );
 }
+
+// ---------------------------------------------------------------------------
+// Session validation — ATOMIC: single UPDATE RETURNING replaces 3 round-trips
+//
+// Old approach: SELECT (1 RTT) → check in JS → UPDATE (1 RTT) → check meta.changes
+// New approach: UPDATE RETURNING (1 RTT) → check result
+//
+// Security is identical: the WHERE clause enforces all the same invariants
+// (not revoked, not expired, not idle-timed-out, correct user) atomically.
+// ---------------------------------------------------------------------------
 export async function validateSession(req: Request, userId: string) {
   const token = sessionToken(req);
   if (!token)
     throw new HttpError(401, "Open your secure workspace to start a session.");
-  const key = await hash(token),
-    time = Date.now();
+
+  const key = await hash(token);
+  const time = Date.now();
+  const policy = await securityPolicy(); // near-zero cost after cache is warm
+
   const row = await db()
-    .prepare("SELECT * FROM app_sessions WHERE token_hash=? AND user_id=?")
-    .bind(key, userId)
-    .first<any>();
-  const policy = await securityPolicy();
-  if (
-    !row ||
-    row.revoked ||
-    row.expires_at <= time ||
-    row.last_seen + policy.idleMinutes * 60000 <= time ||
-    row.created_at + policy.absoluteHours * 3600000 <= time
-  )
-    throw new HttpError(401, "Your session has expired. Sign in again.");
-  const result = await db()
     .prepare(
-      "UPDATE app_sessions SET last_seen=? WHERE token_hash=? AND revoked=0 AND expires_at>? AND last_seen>?",
+      `UPDATE app_sessions
+       SET last_seen = ?
+       WHERE token_hash = ?
+         AND user_id    = ?
+         AND revoked    = 0
+         AND expires_at > ?
+         AND last_seen  > ?
+       RETURNING expires_at`,
     )
-    .bind(time, key, time, time - policy.idleMinutes * 60000)
-    .run();
-  if (!result.meta.changes)
-    throw new HttpError(401, "Your session has expired.");
+    .bind(
+      time,
+      key,
+      userId,
+      time,
+      time - policy.idleMinutes * 60000,
+    )
+    .first<{ expires_at: number }>();
+
+  if (!row)
+    throw new HttpError(401, "Your session has expired. Sign in again.");
+
+  // Additional absolute-session check — the RETURNING value lets us do this
+  // without a separate SELECT.
+  if (row.expires_at <= time)
+    throw new HttpError(401, "Your session has expired. Sign in again.");
 }

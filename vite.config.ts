@@ -33,6 +33,12 @@ const localBindingConfig = {
         },
       ]
     : [],
+  kv_namespaces: [
+    {
+      binding: "RATE_KV",
+      id: "site-creator-rate-kv",
+    },
+  ],
 };
 
 export default defineConfig(async () => {

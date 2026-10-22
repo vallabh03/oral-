@@ -5,6 +5,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+
 export const camps = sqliteTable("camps", {
   id: text("id").primaryKey(),
   tenant: text("tenant").notNull(),
@@ -12,6 +13,7 @@ export const camps = sqliteTable("camps", {
   location: text("location").notNull(),
   date: text("date").notNull(),
 });
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
@@ -20,10 +22,12 @@ export const users = sqliteTable("users", {
   active: integer("active").notNull().default(1),
   patientId: text("patient_id"),
 });
+
 export const languagePreferences = sqliteTable("language_preferences", {
   userId: text("user_id").primaryKey(),
   locale: text("locale").notNull(),
 });
+
 export const patients = sqliteTable(
   "patients",
   {
@@ -51,8 +55,11 @@ export const patients = sqliteTable(
     index("patients_assignments").on(t.doctorId, t.counsellorId),
     index("patients_lookup").on(t.tenant, t.name, t.phone),
     uniqueIndex("patients_qr").on(t.qrHash),
+    // Supports cursor-based pagination: WHERE tenant=? AND created_at < ?
+    index("patients_tenant_created").on(t.tenant, t.createdAt),
   ],
 );
+
 export const consents = sqliteTable(
   "consents",
   {
@@ -69,6 +76,7 @@ export const consents = sqliteTable(
   },
   (t) => [index("consents_patient").on(t.patientId, t.type, t.at)],
 );
+
 export const protocols = sqliteTable(
   "protocols",
   {
@@ -83,6 +91,7 @@ export const protocols = sqliteTable(
   },
   (t) => [index("protocols_tenant").on(t.tenant, t.status)],
 );
+
 export const responses = sqliteTable(
   "responses",
   {
@@ -102,6 +111,7 @@ export const responses = sqliteTable(
   },
   (t) => [index("responses_patient").on(t.patientId)],
 );
+
 export const records = sqliteTable(
   "records",
   {
@@ -117,6 +127,7 @@ export const records = sqliteTable(
   },
   (t) => [index("records_patient").on(t.patientId, t.kind)],
 );
+
 export const samples = sqliteTable(
   "samples",
   {
@@ -138,6 +149,7 @@ export const samples = sqliteTable(
     index("samples_lab").on(t.labId),
   ],
 );
+
 export const reports = sqliteTable(
   "reports",
   {
@@ -161,6 +173,7 @@ export const reports = sqliteTable(
     index("reports_sample").on(t.sampleId),
   ],
 );
+
 export const audit = sqliteTable(
   "audit",
   {
@@ -175,13 +188,17 @@ export const audit = sqliteTable(
   (t) => [
     index("audit_tenant").on(t.tenant, t.at),
     index("audit_patient").on(t.patientId, t.at),
+    // Supports ORDER BY at DESC queries on the admin dashboard
+    index("audit_tenant_rowid").on(t.tenant),
   ],
 );
+
 export const limits = sqliteTable("limits", {
   id: text("id").primaryKey(),
   count: integer("count").notNull(),
   expires: integer("expires").notNull(),
 });
+
 export const intakeTokens = sqliteTable("intake_tokens", {
   hash: text("hash").primaryKey(),
   patientId: text("patient_id")
@@ -208,14 +225,24 @@ export const sampleEvents = sqliteTable(
   (t) => [index("sample_events_sample").on(t.sampleId, t.at)],
 );
 
-export const appSessions = sqliteTable("app_sessions", {
-  tokenHash: text("token_hash").primaryKey(),
-  userId: text("user_id").notNull(),
-  createdAt: integer("created_at").notNull(),
-  lastSeen: integer("last_seen").notNull(),
-  expiresAt: integer("expires_at").notNull(),
-  revoked: integer("revoked").notNull().default(0),
-});
+export const appSessions = sqliteTable(
+  "app_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id").notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastSeen: integer("last_seen").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    revoked: integer("revoked").notNull().default(0),
+  },
+  (t) => [
+    // Used by: DELETE /session revocation by userId, admin session list
+    index("sessions_user").on(t.userId),
+    // Used by: admin dashboard active-session query (revoked=0, expires_at, last_seen)
+    index("sessions_active").on(t.revoked, t.expiresAt, t.lastSeen),
+  ],
+);
+
 export const appSettings = sqliteTable("app_settings", {
   id: text("id").primaryKey(),
   value: text("value").notNull(),
@@ -223,8 +250,18 @@ export const appSettings = sqliteTable("app_settings", {
   updatedBy: text("updated_by").notNull(),
 });
 
-export const appErrors = sqliteTable("app_errors", {
-  id: text("id").primaryKey(),
-  at: text("at").notNull(),
-  code: text("code").notNull(),
-});
+export const appErrors = sqliteTable(
+  "app_errors",
+  {
+    id: text("id").primaryKey(),
+    at: text("at").notNull(),
+    code: text("code").notNull(),
+    /** Sanitised error message — must never contain PII */
+    message: text("message"),
+    /** Request path, e.g. /api/care */
+    path: text("path"),
+    /** User ID of the actor, if known at the time of error */
+    actor: text("actor"),
+  },
+  (t) => [index("errors_at").on(t.at)],
+);
