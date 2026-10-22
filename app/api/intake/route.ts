@@ -11,6 +11,7 @@ import {
   HttpError,
   originCheck,
   boundedBody,
+  rateKey,
 } from "@/lib/server";
 import { registration, protocolSchema, validateAnswers } from "@/lib/domain";
 export const dynamic = "force-dynamic";
@@ -57,19 +58,11 @@ export async function POST(req: Request) {
         "Participant intake is not open yet. Please speak with the camp coordinator.",
       );
     const raw = new TextDecoder().decode(await boundedBody(req, 50000));
-    if (raw.length > 50000) throw new HttpError(413, "Request too large.");
     const b = JSON.parse(raw);
     const ip = req.headers.get("cf-connecting-ip") || "unavailable";
-    const minute = Math.floor(Date.now() / 60000),
-      key = "intake:" + (await hash(ip + runtime().AUDIT_KEY)) + ":" + minute;
-    const count = await db()
-      .prepare(
-        "INSERT INTO limits (id,count,expires) VALUES (?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count",
-      )
-      .bind(key, minute + 2)
-      .first<any>();
-    if (count.count > 20)
-      throw new HttpError(429, "Please wait a minute and try again.");
+    const minute = Math.floor(Date.now() / 60000);
+    const key = "intake:" + (await hash(ip + (runtime().AUDIT_KEY || "default"))) + ":" + minute;
+    await rateKey(key, 20, 60, "Please wait a minute and try again.");
     const a = {
       id: "participant-entry",
       name: "Participant",
@@ -240,6 +233,6 @@ export async function POST(req: Request) {
     }
     throw new HttpError(400, "Unsupported request.");
   } catch (e) {
-    return failure(e);
+    return failure(e, req, "participant-entry");
   }
 }

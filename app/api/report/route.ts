@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   try {
     await actor(req);
     throw new HttpError(410, "Laboratory report upload is retired. Historical files are retained.");
-  } catch (e) { return failure(e); }
+  } catch (e) { return failure(e, req); }
 }
 export async function GET(req: Request) {
   try {
@@ -47,6 +47,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (e) {
-    return failure(e);
+    return failure(e, req);
   }
 }
