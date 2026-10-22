@@ -4,6 +4,12 @@
   "main": "dist/server/index.js",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "telanganaagainstoralcancer.com/*", "zone_name": "telanganaagainstoralcancer.com" },
+    { "pattern": "www.telanganaagainstoralcancer.com/*", "zone_name": "telanganaagainstoralcancer.com" }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
