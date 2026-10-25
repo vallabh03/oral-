@@ -1,0 +1,23 @@
+{
+  "name": "taoc-infra",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AWS infrastructure (CDK) for the TAOC DRIVE SAFE platform",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.274.0",
+    "constructs": "10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "aws-cdk": "2.1146.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

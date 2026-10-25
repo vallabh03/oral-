@@ -1,0 +1,27 @@
+node_modules/
+.next/
+out/
+coverage/
+test-results/
+playwright-report/
+.data/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets and local credentials — never commit
+.env
+.env.*
+!.env.example
+.dev-credentials.json
+.e2e-credentials.json
+*.pem
+*.key
+
+# Load-test output
+load-results/
+load-results.log
+
+# Build output for container ops scripts and infrastructure
+dist/
+infra/cdk.out/
+infra/node_modules/

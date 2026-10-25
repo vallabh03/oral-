@@ -1,0 +1,18 @@
+{
+  "$comment": "Non-secret settings for the staging environment. Secrets are generated in AWS Secrets Manager by the stack.",
+  "envName": "staging",
+  "appEnv": "staging",
+  "account": "000000000000",
+  "region": "ap-south-2",
+  "availabilityZones": ["ap-south-2a", "ap-south-2b"],
+  "siteUrl": "https://staging.example.org",
+  "certificate": { "arn": "", "domainName": "staging.example.org", "route53ZoneName": "" },
+  "alarmEmail": "",
+  "github": { "repo": "vallabh03/oral-", "createOidcProvider": true },
+  "app": { "cpu": 512, "memoryMiB": 1024, "desiredCount": 1, "maxCount": 2 },
+  "db": { "instanceClass": "t4g.micro", "multiAz": false, "allocatedStorageGb": 20, "maxAllocatedStorageGb": 100, "backupRetentionDays": 7, "deletionProtection": true },
+  "waf": { "requestsPer5MinPerIp": 3000 },
+  "features": { "intakeEnabled": true, "indexingEnabled": false, "clinicalImagesEnabled": false, "oidcEnabled": false },
+  "participantIdPrefix": "HAOC-DS",
+  "email": { "driver": "console", "from": "no-reply@example.org", "contactTo": "programme@example.org", "sesRegion": "" }
+}

@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for the secret scan
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Dependency vulnerabilities
+        run: npm audit --audit-level=high
+      - name: Secret scan (working tree + history)
+        run: npm run audit:secrets
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit, integration and security tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end, accessibility and responsive tests
+        run: npx playwright test
+      - name: SEO release gate
+        run: |
+          npx next start -p 3000 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+          SEO_BASE=http://localhost:3000 npm run audit:seo
+        env:
+          PGLITE_DIR: .data/ci-seo
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  container:
+    # Builds the production image and runs it in production mode against a real PostgreSQL:
+    # the migrate command (schema owner) provisions the DML-only app role, then the server
+    # starts as that role. Proves the standalone server, native modules and ops scripts on Linux.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: taoc_owner
+          POSTGRES_PASSWORD: ci-owner-password # same as OPW below
+          POSTGRES_DB: taoc
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U taoc_owner" --health-interval 5s --health-retries 20
+    env:
+      SITE: https://ci.invalid
+      OPW: ci-owner-password # throwaway CI-only database passwords
+      APW: ci-app-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --build-arg NEXT_PUBLIC_SITE_URL=$SITE -t taoc:ci .
+      - name: Migrate and provision app role
+        run: |
+          echo "AUDIT_HMAC_SECRET=$(openssl rand -hex 32)" >> ci.env
+          echo "DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> ci.env
+          echo "NEXT_PUBLIC_SITE_URL=$SITE" >> ci.env
+          echo "APP_ENV=production" >> ci.env
+          docker run --rm --network host --env-file ci.env \
+            -e DATABASE_URL="postgres://taoc_owner:$OPW@localhost:5432/taoc?sslmode=disable" \
+            -e APP_DB_USER=taoc_app -e APP_DB_PASSWORD="$APW" taoc:ci migrate
+      - name: Start server as the app role and smoke test
+        run: |
+          docker run -d --name taoc --network host --env-file ci.env \
+            -e DATABASE_URL="postgres://taoc_app:$APW@localhost:5432/taoc?sslmode=disable" taoc:ci
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+          curl -sf http://localhost:3000/api/health
+          curl -sf -o /dev/null http://localhost:3000/
+          # The app role must not be able to change the schema.
+          ! PGPASSWORD="$APW" psql -h localhost -U taoc_app -d taoc -c "drop table audit_events"
+      - name: Container logs
+        if: always()
+        run: docker logs taoc || true
+
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npx tsc --noEmit
+      - name: Synthesize every environment
+        run: |
+          for env in staging production; do npx cdk synth -c env=$env --quiet; done

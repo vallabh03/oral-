@@ -1,0 +1,88 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`permission matrix (regression snapshot) > matches the approved PRD §3.3 matrix 1`] = `
+{
+  "analytics.read": [
+    "admin",
+    "super_admin",
+    "assistant",
+  ],
+  "audit.read": [
+    "super_admin",
+  ],
+  "camps.manage": [
+    "super_admin",
+  ],
+  "checkin.write": [
+    "admin",
+  ],
+  "clinical_image.capture": [
+    "admin",
+  ],
+  "clinical_image.delete": [
+    "admin",
+  ],
+  "clinical_image.view": [
+    "admin",
+  ],
+  "consent.withdraw": [
+    "admin",
+  ],
+  "errors.read": [
+    "super_admin",
+  ],
+  "exam.verify": [
+    "admin",
+  ],
+  "exam.write": [
+    "admin",
+  ],
+  "export.deidentified": [
+    "super_admin",
+    "assistant",
+  ],
+  "followup.write": [
+    "admin",
+  ],
+  "patient.create": [
+    "admin",
+  ],
+  "patient.photo.read": [
+    "admin",
+    "super_admin",
+  ],
+  "patient.photo.write": [
+    "admin",
+  ],
+  "patient.read": [
+    "admin",
+    "super_admin",
+  ],
+  "patient.search": [
+    "admin",
+    "super_admin",
+  ],
+  "questionnaire.assist": [
+    "admin",
+  ],
+  "report.generate": [
+    "admin",
+  ],
+  "report.read": [
+    "admin",
+    "super_admin",
+  ],
+  "sessions.revoke": [
+    "super_admin",
+  ],
+  "settings.manage": [
+    "super_admin",
+  ],
+  "users.manage": [
+    "super_admin",
+  ],
+  "whatsapp.send": [
+    "admin",
+  ],
+}
+`;

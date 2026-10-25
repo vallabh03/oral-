@@ -1,0 +1,18 @@
+{
+  "$comment": "Non-secret settings for production. Feature switches stay off until the approvals in docs/DECISIONS.md are recorded.",
+  "envName": "production",
+  "appEnv": "production",
+  "account": "000000000000",
+  "region": "ap-south-2",
+  "availabilityZones": ["ap-south-2a", "ap-south-2b"],
+  "siteUrl": "https://app.example.org",
+  "certificate": { "arn": "", "domainName": "app.example.org", "route53ZoneName": "" },
+  "alarmEmail": "",
+  "github": { "repo": "vallabh03/oral-", "createOidcProvider": false },
+  "app": { "cpu": 1024, "memoryMiB": 2048, "desiredCount": 2, "maxCount": 6 },
+  "db": { "instanceClass": "t4g.small", "multiAz": true, "allocatedStorageGb": 50, "maxAllocatedStorageGb": 500, "backupRetentionDays": 35, "deletionProtection": true },
+  "waf": { "requestsPer5MinPerIp": 3000 },
+  "features": { "intakeEnabled": false, "indexingEnabled": false, "clinicalImagesEnabled": false, "oidcEnabled": false },
+  "participantIdPrefix": "HAOC-DS",
+  "email": { "driver": "ses", "from": "no-reply@example.org", "contactTo": "programme@example.org", "sesRegion": "" }
+}

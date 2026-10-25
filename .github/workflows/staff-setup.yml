@@ -1,0 +1,58 @@
+name: Create staff account
+
+# Provisions a staff account in a deployed environment. The one-time setup link is written
+# only to the task's CloudWatch log stream (never to GitHub logs); share it privately.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        default: staging
+      email:
+        description: Staff email
+        required: true
+      role:
+        type: choice
+        options: [super_admin, admin, assistant]
+        default: admin
+      name:
+        description: Display name
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      STAFF_EMAIL: ${{ inputs.email }}
+      STAFF_ROLE: ${{ inputs.role }}
+      STAFF_NAME: ${{ inputs.name }}
+    steps:
+      - name: Validate input
+        run: |
+          [[ "$STAFF_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || { echo "::error::Invalid email"; exit 1; }
+          [[ "$STAFF_NAME" =~ ^[[:alpha:][:space:].\'-]{1,120}$ ]] || { echo "::error::Name may contain letters, spaces, . ' - only"; exit 1; }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-2' }}
+      - name: Run one-off task
+        run: |
+          out() { aws cloudformation describe-stacks --stack-name "Taoc-$DEPLOY_ENV" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          cluster=$(out ClusterName); family=$(out TaskFamily); sg=$(out TaskSecurityGroup); subnets=$(out TaskSubnets); logs=$(out LogGroup)
+          overrides=$(jq -n --arg e "$STAFF_EMAIL" --arg r "$STAFF_ROLE" --arg n "$STAFF_NAME" \
+            '{containerOverrides:[{name:"app",command:["create-staff",$e,$r,$n]}]}')
+          task=$(aws ecs run-task --cluster "$cluster" --task-definition "$family" --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$subnets],securityGroups=[$sg],assignPublicIp=ENABLED}" \
+            --overrides "$overrides" --query 'tasks[0].taskArn' --output text)
+          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task"
+          code=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task" --query "tasks[0].containers[?name=='app'].exitCode | [0]" --output text)
+          id=${task##*/}
+          echo "Setup link: CloudWatch log group $logs, stream app/app/$id" >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" = "0" ] || { echo "::error::Task exited with $code (see CloudWatch stream app/app/$id)"; exit 1; }
