@@ -2,7 +2,7 @@
   "$comment": "Non-secret settings for production. Feature switches stay off until the approvals in docs/DECISIONS.md are recorded.",
   "envName": "production",
   "appEnv": "production",
-  "account": "000000000000",
+  "account": "024303525196",
   "region": "ap-south-2",
   "availabilityZones": ["ap-south-2a", "ap-south-2b"],
   "siteUrl": "https://app.example.org",

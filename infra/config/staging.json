@@ -2,7 +2,7 @@
   "$comment": "Non-secret settings for the staging environment. Secrets are generated in AWS Secrets Manager by the stack.",
   "envName": "staging",
   "appEnv": "staging",
-  "account": "000000000000",
+  "account": "024303525196",
   "region": "ap-south-2",
   "availabilityZones": ["ap-south-2a", "ap-south-2b"],
   "siteUrl": "https://staging.example.org",
