@@ -20,7 +20,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       APP_ENV: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # full history for the secret scan
       - uses: actions/setup-node@v4
@@ -79,7 +79,7 @@ jobs:
       OPW: ci-owner-password # throwaway CI-only database passwords
       APW: ci-app-password
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build --build-arg NEXT_PUBLIC_SITE_URL=$SITE -t taoc:ci .
       - name: Migrate and provision app role
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Write throwaway production settings
         run: |
           sudo mkdir -p /opt/taoc/backups
@@ -152,7 +152,7 @@ jobs:
       run:
         working-directory: infra
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
