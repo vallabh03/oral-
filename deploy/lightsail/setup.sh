@@ -56,6 +56,7 @@ if [[ ! -f $ENV_FILE ]]; then
   umask 077
   cat > "$ENV_FILE" <<EOF
 # TAOC production settings. Keep private: contains secrets. Never commit or share.
+# Quote any value that contains spaces (the scripts read this file with bash).
 SITE_DOMAIN=$DOMAIN
 SITE_URL=https://$DOMAIN
 ALERT_EMAIL=$ALERT_EMAIL
@@ -71,7 +72,7 @@ INDEXING_ENABLED=false
 CLINICAL_IMAGES_ENABLED=false
 VIRTUAL_SCREENING_ENABLED=false
 NOTIFY_DRIVER=console
-NOTIFY_CLINIC_NAME=Telangana Against Oral Cancer
+NOTIFY_CLINIC_NAME="Telangana Against Oral Cancer"
 NOTIFY_CLINIC_PHONE=
 
 # Photo storage: local disk on this server. Switch to s3 (with the S3_* and AWS_* settings)
