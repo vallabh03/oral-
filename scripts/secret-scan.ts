@@ -11,7 +11,8 @@ const PATTERNS: [string, RegExp][] = [
   ["AWS secret key", /aws_secret_access_key\s*[:=]\s*['"]?[A-Za-z0-9/+]{40}/i],
   ["Private key", /-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----/],
   ["Generic secret assignment", /\b(secret|token|password|api[_-]?key)\b\s*[:=]\s*['"][A-Za-z0-9_\-+/=]{24,}['"]/i],
-  ["Postgres URL with password", /postgres(ql)?:\/\/[^:\s]+:[^@\s]{6,}@/i],
+  // A ${VAR} placeholder (filled from a private env file at runtime) is not a password.
+  ["Postgres URL with password", /postgres(ql)?:\/\/[^:\s]+:(?!\$\{)[^@\s]{6,}@/i],
   ["Google API key", /\bAIza[0-9A-Za-z_-]{35}\b/],
   ["Slack token", /\bxox[abprs]-[0-9A-Za-z-]{10,}/],
 ];
