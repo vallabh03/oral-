@@ -41,6 +41,8 @@ COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/dist/ops ./dist/ops
 COPY --from=build --chown=node:node /app/src/lib/server/db/migrations ./src/lib/server/db/migrations
 COPY --chown=node:node docker/entrypoint.mjs ./entrypoint.mjs
+# Writable photo storage for single-server deployments (STORAGE_DRIVER=local, mounted as a volume).
+RUN mkdir -p /data/objects && chown -R node:node /data
 USER node
 EXPOSE 3000
 ENTRYPOINT ["node", "/app/entrypoint.mjs"]
