@@ -3,7 +3,12 @@
 	email {$ACME_EMAIL}
 }
 
-{$SITE_DOMAIN} {
+# SITE_ADDRESSES lists every name this server answers to (for example the domain and its www
+# version); www is redirected to the main SITE_DOMAIN so there is one canonical address.
+{$SITE_ADDRESSES} {
+	@www host www.{$SITE_DOMAIN}
+	redir @www https://{$SITE_DOMAIN}{uri} permanent
+
 	encode zstd gzip
 	# Uploads: clinical photos up to 15 MB (the app enforces its own, smaller limits per route).
 	request_body {

@@ -116,6 +116,7 @@ jobs:
           sudo mkdir -p /opt/taoc/backups
           {
             echo "SITE_DOMAIN=localhost"
+            echo "SITE_ADDRESSES=localhost, www.localhost"
             echo "SITE_URL=https://localhost"
             echo "ALERT_EMAIL=ci@example.org"
             # A value with spaces, as setup.sh writes it (the ops scripts read this file with bash).
@@ -131,6 +132,8 @@ jobs:
           for i in $(seq 1 90); do curl -skf https://localhost/api/health && break; sleep 2; done
           curl -skf https://localhost/api/health
           curl -skf -o /dev/null https://localhost/
+          # www redirects permanently to the main address.
+          test "$(curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' --resolve www.localhost:443:127.0.0.1 https://www.localhost/about)" = "301 https://localhost/about"
           # The database must not be reachable from outside the Docker network.
           ! timeout 3 bash -c "</dev/tcp/127.0.0.1/5432"
       - name: Create a staff account
