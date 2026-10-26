@@ -118,17 +118,20 @@ export async function upsertCamp(actor: StaffSession, input: z.infer<typeof camp
 
 // ---------- Analytics (de-identified aggregates) ----------
 
-export async function dashboardCounts(staff: StaffSession, filters: { campId?: string; from?: string; to?: string }) {
+export async function dashboardCounts(staff: StaffSession, filters: { campId?: string; from?: string; to?: string; mode?: "in_person" | "virtual" }) {
   const d = await db();
   const where: string[] = [];
   const args: unknown[] = [];
   if (filters.campId) { args.push(filters.campId); where.push(`camp_id = $${args.length}`); }
   if (filters.from) { args.push(filters.from); where.push(`created_at >= $${args.length}::date`); }
   if (filters.to) { args.push(filters.to); where.push(`created_at < ($${args.length}::date + 1)`); }
+  if (filters.mode) { args.push(filters.mode); where.push(`screening_mode = $${args.length}`); }
   if (staff.campScope) { args.push(staff.campScope); where.push(`camp_id = any($${args.length}::uuid[])`); }
   const w = where.length ? "where " + where.join(" and ") : "";
   const c = (await d.query<Record<string, number>>(
     `select count(*)::int as registered,
+            count(*) filter (where screening_mode = 'in_person')::int as in_person,
+            count(*) filter (where screening_mode = 'virtual')::int as virtual,
             count(*) filter (where questionnaire_completed_at is not null)::int as questionnaires_completed,
             count(*) filter (where status in ('questionnaire_completed','checked_in'))::int as awaiting_exam,
             count(*) filter (where status = 'exam_recorded')::int as awaiting_verification,
@@ -143,7 +146,7 @@ export async function dashboardCounts(staff: StaffSession, filters: { campId?: s
        from patients ${w}`, args)).rows[0]!;
   const byCamp = (await d.query<{ camp: string | null; registered: number; categorised: number }>(
     `select coalesce(c.name, 'No camp') as camp, count(*)::int as registered, count(*) filter (where p.group_code is not null)::int as categorised
-       from patients p left join camps c on c.id = p.camp_id ${w.replace(/\b(camp_id|created_at)\b/g, "p.$1")}
+       from patients p left join camps c on c.id = p.camp_id ${w.replace(/\b(camp_id|created_at|screening_mode)\b/g, "p.$1")}
       group by 1 order by 2 desc limit 20`, args)).rows;
   return { counts: c, byCamp };
 }
@@ -156,7 +159,7 @@ export async function conversionCounts() {
   )).rows;
 }
 
-const EXPORT_FIELDS = ["pseudo_id", "camp_code", "age_band", "driver_type", "habit_present", "group_code", "clinical_impression", "status", "registered_month"] as const;
+const EXPORT_FIELDS = ["pseudo_id", "camp_code", "age_band", "driver_type", "habit_present", "group_code", "clinical_impression", "status", "screening_mode", "registered_month"] as const;
 
 /** Schema-limited de-identified export: no names, mobiles, programme IDs or free-text notes. */
 export async function deidentifiedExport(staff: StaffSession, filters: { campId?: string; from?: string; to?: string }, correlationId: string) {
@@ -167,8 +170,8 @@ export async function deidentifiedExport(staff: StaffSession, filters: { campId?
   if (filters.from) { args.push(filters.from); where.push(`p.created_at >= $${args.length}::date`); }
   if (filters.to) { args.push(filters.to); where.push(`p.created_at < ($${args.length}::date + 1)`); }
   if (staff.campScope) { args.push(staff.campScope); where.push(`p.camp_id = any($${args.length}::uuid[])`); }
-  const rows = (await d.query<{ id: string; camp_code: string | null; age: number; driver_type: string; habit_present: boolean | null; group_code: number | null; clinical_impression: string | null; status: string; registered_month: string }>(
-    `select p.id, c.code as camp_code, p.age, p.driver_type, p.habit_present, p.group_code, cl.clinical_impression, p.status,
+  const rows = (await d.query<{ id: string; camp_code: string | null; age: number; driver_type: string; habit_present: boolean | null; group_code: number | null; clinical_impression: string | null; status: string; screening_mode: string; registered_month: string }>(
+    `select p.id, c.code as camp_code, p.age, p.driver_type, p.habit_present, p.group_code, cl.clinical_impression, p.status, p.screening_mode,
             to_char(p.created_at, 'YYYY-MM') as registered_month
        from patients p left join camps c on c.id = p.camp_id
        left join lateral (select clinical_impression from classifications where patient_id = p.id order by computed_at desc limit 1) cl on true
@@ -181,7 +184,7 @@ export async function deidentifiedExport(staff: StaffSession, filters: { campId?
   };
   const lines = [EXPORT_FIELDS.join(",")];
   for (const r of rows) {
-    lines.push([hmac("pseudo:" + r.id).slice(0, 16), r.camp_code, ageBand(r.age), r.driver_type, r.habit_present, r.group_code, r.clinical_impression, r.status, r.registered_month].map(csvCell).join(","));
+    lines.push([hmac("pseudo:" + r.id).slice(0, 16), r.camp_code, ageBand(r.age), r.driver_type, r.habit_present, r.group_code, r.clinical_impression, r.status, r.screening_mode, r.registered_month].map(csvCell).join(","));
   }
   await d.query("insert into exports (requested_by, kind, filters, fields, row_count) values ($1, 'deidentified_csv', $2::jsonb, $3, $4)", [staff.userId, JSON.stringify(filters), [...EXPORT_FIELDS], rows.length]);
   await audit({ actorType: "staff", actorId: staff.userId, action: "export.deidentified", outcome: "success", correlationId, details: { rows: rows.length } });

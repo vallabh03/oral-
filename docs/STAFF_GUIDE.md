@@ -23,6 +23,22 @@ and scan the QR code to set up two-step verification. Shared camp devices sign o
 Camp-assisted registration: *Register participant* → details → read each consent aloud and tick only
 what the person agrees to → take the identity photo → *Open record*.
 
+## Admin (Doctor): virtual review
+Participants who registered remotely send photos of their own mouth. Open **Virtual review**.
+1. **Awaiting review** lists submitted cases, oldest first. *Help requested* shows people who could
+   not take a photo: call them.
+2. Open a case: details, district/PIN and answers on the left; every photo on the right. Click a
+   photo for full size (*Actual size* to zoom).
+3. For each photo press **✓ Acceptable** or **Need clearer image** (add a short reason).
+4. Record the outcome: *No suspicious lesion* (only when all photos are acceptable), *Suspicious*,
+   *Inconclusive* (choose more photos or an in-person examination), or *Ask for clearer photos*.
+   Notes are never shown to the participant. The confirmation shows the exact message they will get.
+5. Check **Messages**: *Sent / Delivered / Read*. If a message *Failed*, press *Resend* or call them.
+6. Record **Follow-up** (called, appointment booked, attended, referred, closed).
+
+Photo review is a screening step: it cannot confirm or rule out cancer. Suspicious or inconclusive
+findings need an in-person clinical evaluation.
+
 ## Super Admin
 Staff & roles (create accounts, change roles, deactivate, reset MFA — you cannot change your own
 role), Camps (public camps appear on `/camps`), Sessions (end a session immediately), Audit & errors
@@ -32,5 +48,5 @@ role), Camps (public camps appear on `/camps`), Sessions (end a session immediat
 Analytics only: filter by camp/date and download the de-identified CSV (no names, phones, IDs or notes).
 
 ## Never
-Share screenshots or exports of records on WhatsApp/personal devices, photograph lesions in this
-system, or use a colleague's account.
+Share screenshots or exports of records on WhatsApp/personal devices, photograph participants on
+personal devices outside this system, or use a colleague's account.

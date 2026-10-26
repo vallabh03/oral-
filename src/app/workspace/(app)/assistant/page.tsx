@@ -30,6 +30,8 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       </form>
       <StatGrid items={[
         { label: "Registered", value: c.registered ?? 0 },
+        { label: "In person", value: c.in_person ?? 0 },
+        { label: "Virtual", value: c.virtual ?? 0 },
         { label: "Questionnaires completed", value: c.questionnaires_completed ?? 0 },
         { label: "Categorised (verified)", value: c.categorised ?? 0 },
         { label: "Follow-up due", value: c.follow_up_due ?? 0 },

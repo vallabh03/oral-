@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PATIENT_STATUSES, STATUS_LABELS } from "@/lib/shared/constants";
+import { PATIENT_STATUSES, SCREENING_MODES, STATUS_LABELS } from "@/lib/shared/constants";
 import { getJson, type ApiError } from "./api";
 import { QrScanner } from "./QrScanner";
 
 type Item = {
   id: string; displayId: string; fullName: string; age: number; campName: string | null; status: keyof typeof STATUS_LABELS;
-  groupCode: number | null; createdAt: string; photo: { thumbUrl: string } | null;
+  groupCode: number | null; screeningMode: "in_person" | "virtual"; createdAt: string; photo: { thumbUrl: string } | null;
 };
 
 /** Record list with photos: keyset-paginated, thumbnails lazy-loaded and browser-cached. */
@@ -15,6 +15,7 @@ export function PatientList({ camps, canCreate }: { camps: { id: string; name: s
   const [q, setQ] = useState("");
   const [campId, setCampId] = useState("");
   const [status, setStatus] = useState("");
+  const [mode, setMode] = useState(""); // "" = all; otherwise one screening type, so the two are kept apart
   const [items, setItems] = useState<Item[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "more" | "error">("loading");
@@ -35,6 +36,7 @@ export function PatientList({ camps, canCreate }: { camps: { id: string; name: s
     if (query.trim()) p.set("q", query.trim());
     if (campId) p.set("campId", campId);
     if (status) p.set("status", status);
+    if (mode) p.set("mode", mode);
     if (opts.cursor) p.set("cursor", opts.cursor);
     try {
       const r = await getJson<{ items: Item[]; nextCursor: string | null }>(`/api/patients?${p}`);
@@ -47,9 +49,9 @@ export function PatientList({ camps, canCreate }: { camps: { id: string; name: s
       setError((e as ApiError).message);
       setState("error");
     }
-  }, [q, campId, status]);
+  }, [q, campId, status, mode]);
 
-  useEffect(() => { void load(); }, [campId, status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, [campId, status, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePrivacy = () => {
     setPrivacy((p) => {
@@ -60,6 +62,11 @@ export function PatientList({ camps, canCreate }: { camps: { id: string; name: s
 
   return (
     <div className={privacy ? "privacy-blur" : ""}>
+      <div className="mode-tabs" role="group" aria-label="Screening type">
+        {[{ value: "", label: "All participants" }, ...SCREENING_MODES].map((m) => (
+          <button key={m.value} type="button" aria-pressed={mode === m.value} className={mode === m.value ? "active" : ""} onClick={() => setMode(m.value)}>{m.label}</button>
+        ))}
+      </div>
       <form className="toolbar" role="search" onSubmit={(e) => { e.preventDefault(); void load(); }}>
         <div className="field">
           <label htmlFor="pq">Search <span className="hint">Participant ID, 10-digit mobile, exact full name, or scan QR</span></label>
@@ -116,6 +123,7 @@ export function PatientList({ camps, canCreate }: { camps: { id: string; name: s
                     <span className="code-chip" style={{ fontSize: "0.8rem" }}>{p.displayId}</span>{" "}
                     <span className="hint" style={{ display: "inline" }}>Age {p.age}{p.campName ? ` · ${p.campName}` : ""}</span>
                     <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                      <span className={`badge ${p.screeningMode === "virtual" ? "badge-virtual" : "badge-inperson"}`}>{p.screeningMode === "virtual" ? "Virtual" : "In person"}</span>
                       <span className="badge">{STATUS_LABELS[p.status]}</span>
                       {p.groupCode && <span className="badge badge-brand">Group {p.groupCode}</span>}
                       {!p.photo && <span className="badge badge-warn">No photo</span>}

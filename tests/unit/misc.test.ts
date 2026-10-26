@@ -81,7 +81,7 @@ describe("permission matrix (regression snapshot)", () => {
     expect(PERMISSIONS).toMatchSnapshot();
   });
   it("keeps clinical actions away from Super Admin and Assistant", () => {
-    for (const p of ["exam.write", "exam.verify", "report.generate", "whatsapp.send", "clinical_image.capture", "clinical_image.view", "clinical_image.delete"] as const) {
+    for (const p of ["exam.write", "exam.verify", "report.generate", "whatsapp.send", "clinical_image.capture", "clinical_image.view", "clinical_image.delete", "virtual.review"] as const) {
       expect(can("super_admin", p)).toBe(false);
       expect(can("assistant", p)).toBe(false);
       expect(can("admin", p)).toBe(true);

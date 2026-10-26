@@ -25,6 +25,7 @@ export type PatientRow = {
   pathway: string | null;
   classified_at: string | null;
   created_via: string;
+  screening_mode: "in_person" | "virtual";
   created_at: string;
 };
 

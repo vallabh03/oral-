@@ -7,7 +7,7 @@ export const SITE = {
   shortName: "TAOC",
   tagline: "Prevent. Detect Early. Act Early.",
   description:
-    "A state-wide public-health initiative for oral cancer prevention, tobacco cessation support, early recognition of suspicious mouth changes and timely specialist care.",
+    "A public-health initiative for oral cancer prevention, tobacco cessation support, early recognition of suspicious mouth changes and timely specialist care.",
   founder: { name: "Dr Abhinav Thaduri", role: "Head & Neck Surgical Oncologist" },
   areaServed: ["Telangana", "Hyderabad"],
   locale: "en_IN",
@@ -16,7 +16,7 @@ export const SITE = {
 
 export type PageKey =
   | "home" | "about" | "know" | "programs" | "drive-safe" | "build-safe" | "nextgen-safe" | "workplace-safe" | "get-help"
-  | "professionals" | "partner" | "impact" | "camps" | "faq" | "contact" | "privacy" | "cookies" | "search" | "register";
+  | "professionals" | "partner" | "impact" | "camps" | "virtual" | "faq" | "contact" | "privacy" | "cookies" | "search" | "register";
 
 export type PageMeta = {
   path: string;
@@ -112,6 +112,12 @@ export const PAGES: Record<PageKey, PageMeta> = {
     title: "Free Oral Cancer Screening Camps in Telangana",
     description: "Find upcoming DRIVE SAFE oral screening camps. Register in about a minute, answer a short questionnaire and get a clinician examination with clear next steps.",
     related: ["drive-safe", "faq", "register"],
+  },
+  virtual: {
+    path: "/virtual-screening", label: "Virtual Screening", indexable: true, updated: "2026-10-26",
+    title: "Virtual Oral Cancer Screening from Home",
+    description: "Cannot reach a camp? Register online, answer a short questionnaire and talk with the programme team by phone or video. We book an examination if needed.",
+    related: ["camps", "faq", "register"],
   },
   faq: {
     path: "/faq", label: "FAQ", indexable: true, updated: "2026-10-24",

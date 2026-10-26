@@ -59,6 +59,12 @@ export const RECRUITMENT_SOURCES = [
   { value: "other", label: "Other" },
 ] as const;
 
+export const SCREENING_MODES = [
+  { value: "in_person", label: "In person" },
+  { value: "virtual", label: "Virtual" },
+] as const;
+export type ScreeningMode = (typeof SCREENING_MODES)[number]["value"];
+
 export const CONTACT_PREFERENCES = [
   { value: "whatsapp", label: "WhatsApp" },
   { value: "phone", label: "Phone call" },
@@ -124,7 +130,7 @@ export const CLINICAL_IMPRESSIONS = [
   { value: "uncertain", label: "Uncertain — specialist evaluation required" },
 ] as const;
 
-export const CONSENT_TYPES = ["registration", "screening", "whatsapp_report", "followup_contact", "photo", "clinical_photo", "clinical_photo_face"] as const;
+export const CONSENT_TYPES = ["registration", "screening", "whatsapp_report", "followup_contact", "photo", "clinical_photo", "clinical_photo_face", "remote_images", "review_notifications"] as const;
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 
 /** Consent wording (draft v1 — must be approved by programme/privacy owner before live intake). */
@@ -165,6 +171,17 @@ export const CONSENT_POLICIES: Record<ConsentType, { version: string; text: stri
     version: "2026-10-draft-1",
     required: false,
     text: "I also agree that a clinical photograph may include parts of my face when this is clinically necessary.",
+  },
+  // Virtual screening (PRD addendum). Draft wording pending clinical/privacy approval.
+  remote_images: {
+    version: "2026-10-draft-1",
+    required: false, // required only for virtual screening (enforced in the registration schema)
+    text: "I agree to take or upload photographs of the inside of my mouth and submit them, with my answers, for review by the programme's authorised doctors. The photos are stored privately, are not shared publicly and are not used for automated diagnosis. I understand that reviewing photos has limitations: it cannot confirm or rule out oral cancer, and I should see a doctor in person if I have a persistent ulcer, lump, red or white patch, bleeding or other concerning symptom.",
+  },
+  review_notifications: {
+    version: "2026-10-draft-1",
+    required: false,
+    text: "I agree to receive messages about my screening review on WhatsApp, or by SMS if WhatsApp is not available, at the mobile number I provided. Messages will not contain photos or detailed medical information.",
   },
 };
 

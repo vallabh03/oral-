@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { habitPresentFromAnswers, PROTOCOL, validateAnswers, visibleQuestions } from "@/lib/shared/protocol";
 
-const complete = { habits: ["bidi"], duration: "lt5", frequency: "occasional", symptoms: ["none"], risk_awareness: "yes", sign_awareness: "yes", previous_screening: "dont_know", cessation_interest: "maybe" };
+const complete = { habits: ["bidi"], duration: "lt5", frequency: "occasional", symptoms: ["none"], alcohol: "occasionally", medical_history: ["none"], risk_awareness: "yes", sign_awareness: "yes", previous_screening: "dont_know", cessation_interest: "maybe" };
 
 describe("questionnaire protocol", () => {
   it("is versioned with stable answer codes", () => {

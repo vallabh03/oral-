@@ -14,11 +14,16 @@ export interface ObjectStore {
   get(key: string): Promise<{ data: Buffer; contentType: string } | null>;
   /** Short-lived direct URL (S3 only). Offloads photo traffic from the app servers. */
   signedUrl?(key: string, ttlSec: number, opts?: { disposition?: string; contentType?: string }): Promise<string>;
+  /** Object size in bytes without downloading it (null if missing). */
+  size?(key: string): Promise<number | null>;
+  /** Short-lived presigned PUT for a quarantine key (S3 only). Other drivers upload through the app. */
+  signedUploadUrl?(key: string, ttlSec: number, contentType: string): Promise<string>;
   delete(key: string): Promise<void>;
 }
 
-// photos/<patient>/<uuid>[-thumb].webp  ·  lesions/<patient>/<uuid>.(jpg|png|webp) + -preview.webp
-const KEY_RE = /^(photos\/[0-9a-f-]{36}\/[0-9a-f-]{36}(-thumb)?\.webp|lesions\/[0-9a-f-]{36}\/[0-9a-f-]{36}(\.(jpg|png|webp)|-preview\.webp))$/;
+// photos/<patient>/<uuid>[-thumb].webp  ·  (lesions|remote)/<patient>/<uuid>.(jpg|png|webp) + -preview.webp
+// quarantine/<patient>/<uuid>.upload (untrusted, unvalidated browser uploads; deleted after checks)
+const KEY_RE = /^(photos\/[0-9a-f-]{36}\/[0-9a-f-]{36}(-thumb)?\.webp|(lesions|remote)\/[0-9a-f-]{36}\/[0-9a-f-]{36}(\.(jpg|png|webp)|-preview\.webp)|quarantine\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.upload)$/;
 function assertKey(key: string) {
   if (!KEY_RE.test(key)) throw new Error("invalid object key");
 }
@@ -62,7 +67,7 @@ function localStore(): ObjectStore {
     async get(key) {
       try {
         const ext = key.slice(key.lastIndexOf(".") + 1);
-        return { data: await fs.readFile(resolve(key)), contentType: ext === "jpg" ? "image/jpeg" : `image/${ext}` };
+        return { data: await fs.readFile(resolve(key)), contentType: ext === "jpg" ? "image/jpeg" : ext === "upload" ? "application/octet-stream" : `image/${ext}` };
       } catch {
         return null;
       }
@@ -120,6 +125,25 @@ function s3Store(kind: StoreKind): ObjectStore {
           ResponseContentType: opts?.contentType,
           ResponseCacheControl: clinical ? "private, no-store" : undefined,
         }),
+        { expiresIn: ttlSec },
+      );
+    },
+    async size(key) {
+      assertKey(key);
+      const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+      try {
+        return (await (await clientP).send(new HeadObjectCommand({ Bucket: bucket, Key: key }))).ContentLength ?? null;
+      } catch {
+        return null;
+      }
+    },
+    async signedUploadUrl(key, ttlSec, contentType) {
+      assertKey(key);
+      if (!key.startsWith("quarantine/")) throw new Error("uploads go to quarantine only");
+      const [{ PutObjectCommand }, { getSignedUrl }] = await Promise.all([import("@aws-sdk/client-s3"), import("@aws-sdk/s3-request-presigner")]);
+      return getSignedUrl(
+        await clientP,
+        new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType, ServerSideEncryption: kmsKey ? "aws:kms" : "AES256", SSEKMSKeyId: kmsKey || undefined }),
         { expiresIn: ttlSec },
       );
     },

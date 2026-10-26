@@ -3,12 +3,12 @@ import { useState } from "react";
 import { RegistrationForm, type CampOption } from "./RegistrationForm";
 import { CameraCapture } from "./CameraCapture";
 
-export function StaffRegistration({ camps }: { camps: CampOption[] }) {
+export function StaffRegistration({ camps, virtualPhotos = false }: { camps: CampOption[]; virtualPhotos?: boolean }) {
   const [created, setCreated] = useState<{ id: string; displayId: string; photoConsent: boolean } | null>(null);
   const [photo, setPhoto] = useState<"pending" | "saved" | "skipped">("pending");
   const photoDone = photo !== "pending";
   if (!created) {
-    return <RegistrationForm endpoint="/api/patients" camps={camps} staffMode onRegistered={(r) => setCreated({ id: r.id!, displayId: r.displayId, photoConsent: r.photoConsent })} />;
+    return <RegistrationForm endpoint="/api/patients" camps={camps} staffMode virtualPhotos={virtualPhotos} onRegistered={(r) => setCreated({ id: r.id!, displayId: r.displayId, photoConsent: r.photoConsent })} />;
   }
   return (
     <div className="stack" style={{ "--stack": "20px" } as React.CSSProperties}>

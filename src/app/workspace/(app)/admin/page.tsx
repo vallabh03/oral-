@@ -20,6 +20,8 @@ export default async function AdminDashboard() {
       </div>
       <StatGrid items={[
         { label: "Registered", value: c.registered ?? 0 },
+        { label: "In person", value: c.in_person ?? 0 },
+        { label: "Virtual", value: c.virtual ?? 0 },
         { label: "Questionnaires completed", value: c.questionnaires_completed ?? 0 },
         { label: "Awaiting examination", value: c.awaiting_exam ?? 0 },
         { label: "Awaiting verification", value: c.awaiting_verification ?? 0 },

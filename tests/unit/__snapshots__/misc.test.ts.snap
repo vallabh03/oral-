@@ -81,6 +81,9 @@ exports[`permission matrix (regression snapshot) > matches the approved PRD §3.
   "users.manage": [
     "super_admin",
   ],
+  "virtual.review": [
+    "admin",
+  ],
   "whatsapp.send": [
     "admin",
   ],

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3100;
-const env = { CLINICAL_IMAGES_ENABLED: "true", INDEXING_ENABLED: "true", APP_ENV: "test", PGLITE_DIR: ".data/e2e", STORAGE_DRIVER: "db", INTAKE_ENABLED: "true", EMAIL_DRIVER: "console", NEXT_TELEMETRY_DISABLED: "1" };
+const env = { CLINICAL_IMAGES_ENABLED: "true", VIRTUAL_SCREENING_ENABLED: "true", NOTIFY_DRIVER: "console", INDEXING_ENABLED: "true", APP_ENV: "test", PGLITE_DIR: ".data/e2e", STORAGE_DRIVER: "db", INTAKE_ENABLED: "true", EMAIL_DRIVER: "console", NEXT_TELEMETRY_DISABLED: "1" };
 const fakeCamera = { launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] }, permissions: ["camera"] };
 
 // One synthetic database per run; staff sessions are created once in the setup project.
@@ -24,7 +24,7 @@ export default defineConfig({
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, ...fakeCamera }, dependencies: ["setup"] },
-    { name: "tablet", use: { ...devices["Desktop Chrome"], viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: false, ...fakeCamera }, dependencies: ["setup"], testIgnore: /staff-workflow|responsive|lesion-images/ },
-    { name: "mobile", use: { ...devices["Pixel 7"], ...fakeCamera }, dependencies: ["setup"], testIgnore: /staff-workflow|responsive|lesion-images/ },
+    { name: "tablet", use: { ...devices["Desktop Chrome"], viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: false, ...fakeCamera }, dependencies: ["setup"], testIgnore: /staff-workflow|responsive|lesion-images|virtual-screening/ },
+    { name: "mobile", use: { ...devices["Pixel 7"], ...fakeCamera }, dependencies: ["setup"], testIgnore: /staff-workflow|responsive|lesion-images|virtual-screening/ },
   ],
 });

@@ -26,6 +26,7 @@
     "load:photos": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/load-test-photos.ts",
     "assets": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/generate-assets.ts",
     "e2e:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/e2e-prepare.ts",
+    "whatsapp:verify-token": "tsx --env-file-if-exists=.env.local scripts/whatsapp-verify-token.ts",
     "staff:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/create-staff.ts"
   },
   "dependencies": {

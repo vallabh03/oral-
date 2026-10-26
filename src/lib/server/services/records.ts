@@ -5,7 +5,7 @@ import { audit } from "../audit";
 import { can } from "../authz";
 import { hashToken } from "../security/crypto";
 import type { StaffSession } from "../security/session";
-import type { PatientStatus } from "@/lib/shared/constants";
+import type { PatientStatus, ScreeningMode } from "@/lib/shared/constants";
 import { currentConsents, decodeCursor, encodeCursor, loadPatientForStaff, type PatientRow } from "./common";
 import { loadQuestionnaire } from "./questionnaire";
 import { signedThumbUrl } from "./photos";
@@ -19,6 +19,7 @@ export type PatientListItem = {
   campName: string | null;
   status: PatientStatus;
   groupCode: number | null;
+  screeningMode: ScreeningMode;
   createdAt: string;
   photo: { id: string; thumbUrl: string; fullUrl: string } | null;
 };
@@ -32,7 +33,7 @@ const photoUrls = (id: string, patientId: string, staff: StaffSession) => ({ id,
  */
 export async function searchPatients(
   staff: StaffSession,
-  params: { q?: string; campId?: string; status?: PatientStatus; cursor?: string; limit: number },
+  params: { q?: string; campId?: string; status?: PatientStatus; mode?: ScreeningMode; cursor?: string; limit: number },
   correlationId: string,
 ): Promise<{ items: PatientListItem[]; nextCursor: string | null; matchedBy: string }> {
   const d = await db();
@@ -69,6 +70,7 @@ export async function searchPatients(
   }
   if (params.campId) add("p.camp_id = ?", params.campId);
   if (params.status) add("p.status = ?", params.status);
+  if (params.mode) add("p.screening_mode = ?", params.mode);
   if (staff.campScope) add("p.camp_id = any(?::uuid[])", staff.campScope);
   const cur = decodeCursor(params.cursor);
   if (cur) add("(p.created_at, p.id) < (?::timestamptz, ?::uuid)", cur.createdAt, cur.id);
@@ -76,9 +78,9 @@ export async function searchPatients(
   args.push(params.limit + 1);
   const rows = (await d.query<{
     id: string; display_id: string; full_name: string; age: number; camp_id: string | null; camp_name: string | null; status: PatientStatus;
-    group_code: number | null; created_at: string; photo_id: string | null;
+    group_code: number | null; screening_mode: ScreeningMode; created_at: string; photo_id: string | null;
   }>(
-    `select p.id, p.display_id, p.full_name, p.age, p.camp_id, c.name as camp_name, p.status, p.group_code, p.created_at, ph.id as photo_id
+    `select p.id, p.display_id, p.full_name, p.age, p.camp_id, c.name as camp_name, p.status, p.group_code, p.screening_mode, p.created_at, ph.id as photo_id
        from patients p
        left join camps c on c.id = p.camp_id
        left join lateral (select id from patient_photos where patient_id = p.id and superseded_at is null order by created_at desc limit 1) ph on true
@@ -94,7 +96,7 @@ export async function searchPatients(
   return {
     items: page.map((r) => ({
       id: r.id, displayId: r.display_id, fullName: r.full_name, age: r.age, campId: r.camp_id, campName: r.camp_name, status: r.status,
-      groupCode: r.group_code, createdAt: r.created_at, photo: r.photo_id ? photoUrls(r.photo_id, r.id, staff) : null,
+      groupCode: r.group_code, screeningMode: r.screening_mode, createdAt: r.created_at, photo: r.photo_id ? photoUrls(r.photo_id, r.id, staff) : null,
     })),
     nextCursor: rows.length > params.limit && last ? encodeCursor(last.created_at, last.id) : null,
     matchedBy,
@@ -155,7 +157,8 @@ export async function patientDetail(staff: StaffSession, patientId: string, corr
       id: p.id, displayId: p.display_id, fullName: p.full_name, age: p.age, mobile: p.mobile, driverType: p.driver_type, workingArea: p.working_area,
       campId: p.camp_id, campName: camp.rows[0]?.name ?? null, recruitmentSource: p.recruitment_source, contactPreference: p.contact_preference,
       language: p.preferred_language, status: p.status, habitPresent: p.habit_present, groupCode: p.group_code, pathway: p.pathway, createdAt: p.created_at,
-      createdVia: p.created_via,
+      createdVia: p.created_via, screeningMode: p.screening_mode,
+      virtualCaseId: p.screening_mode === "virtual" ? ((await d.query<{ id: string }>("select id from virtual_cases where patient_id = $1", [patientId])).rows[0]?.id ?? null) : null,
     },
     photo: currentPhoto ? photoUrls(currentPhoto.id, p.id, staff) : null,
     consents: Object.fromEntries(Object.entries(consents).map(([k, v]) => [k, v?.status ?? "not_given"])),

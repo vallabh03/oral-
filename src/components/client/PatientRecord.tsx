@@ -19,7 +19,7 @@ type Exam = {
   recorded_by_name: string; recorded_at: string; verified_by_name: string | null; verified_at: string | null; correction_reason: string | null;
 };
 type Data = {
-  patient: { id: string; displayId: string; fullName: string; age: number; mobile: string | null; driverType: string; workingArea: string | null; campName: string | null; status: PatientStatus; habitPresent: boolean | null; groupCode: number | null; pathway: string | null; createdAt: string; createdVia: string; language: string };
+  patient: { id: string; displayId: string; fullName: string; age: number; mobile: string | null; driverType: string; workingArea: string | null; campName: string | null; status: PatientStatus; habitPresent: boolean | null; groupCode: number | null; pathway: string | null; createdAt: string; createdVia: string; screeningMode: "in_person" | "virtual"; virtualCaseId: string | null; language: string };
   photo: { id: string; thumbUrl: string; fullUrl: string } | null;
   consents: Record<string, string>;
   questionnaire: { status: string; answers: Answers; protocolVersion: string; completedAt: string | null; items: { questionId: string; questionText: string; answer: unknown }[] };
@@ -33,7 +33,7 @@ type Data = {
 const label = (list: readonly { value: string; label: string }[], v: string | null | undefined) => list.find((x) => x.value === v)?.label ?? v ?? "—";
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
-export function PatientRecord({ data, perms }: { data: Data; perms: { clinical: boolean; photo: boolean; whatsapp: boolean; clinicalImages: boolean } }) {
+export function PatientRecord({ data, perms }: { data: Data; perms: { clinical: boolean; photo: boolean; whatsapp: boolean; clinicalImages: boolean; virtual?: boolean } }) {
   const router = useRouter();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
@@ -83,6 +83,7 @@ export function PatientRecord({ data, perms }: { data: Data; perms: { clinical: 
             <span className="copy-row" style={{ justifyContent: "center" }}><span className="code-chip">{p.displayId}</span><CopyButton value={p.displayId} what="Participant ID" /></span>
           </div>
           <dl className="dl">
+            <dt>Screening type</dt><dd><span className={`badge ${p.screeningMode === "virtual" ? "badge-virtual" : "badge-inperson"}`}>{p.screeningMode === "virtual" ? "Virtual" : "In person"}</span>{perms.virtual && p.virtualCaseId && <> <Link href={`/workspace/virtual/${p.virtualCaseId}`}>Open photo review</Link></>}</dd>
             <dt>Status</dt><dd><span className="badge">{STATUS_LABELS[p.status]}</span></dd>
             <dt>Screening category</dt><dd>{p.groupCode ? <span className="badge badge-brand">Group {p.groupCode}</span> : "Not assigned"}</dd>
             <dt>Age</dt><dd>{p.age}</dd>

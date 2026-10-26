@@ -11,7 +11,7 @@ export default function AboutPage() {
     <>
       <JsonLd data={webPageJsonLd("about", "AboutPage")} />
       <PageHeader page="about" eyebrow="Mission, founder and model">
-        <p className="lede">{SITE.name} is the digital home of a state-wide oral cancer prevention and early-detection initiative.</p>
+        <p className="lede">{SITE.name} is the digital home of an oral cancer prevention and early-detection initiative.</p>
       </PageHeader>
       <section className="section">
         <div className="container split">

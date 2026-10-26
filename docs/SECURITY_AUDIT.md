@@ -88,3 +88,38 @@ Counts after remediation: Critical 0 · High 0 · Medium 0 open · Low 1 open (o
 Application: ________ Version: ________ Environment: ________ Audit date: ________ Audited by: ________
 Critical: ___ High: ___ Medium: ___ Low: ___ Critical/High resolved: YES / NO
 Production security review: PASS / FAIL · Final approval: ________ Date: ________
+
+## Virtual screening (patient-captured images): security controls
+
+- **Access:** images and findings are Doctor-only (`virtual.review`); Super Admin, Assistant and
+  participants get 403/401. Participants see only their own previews. Every image request
+  re-checks the doctor's session and role; responses are `no-store`; no public or CDN URL exists.
+- **Uploads:** untrusted bytes land in a quarantine key (presigned S3 PUT, 10 min, quarantine prefix
+  only) and become an image only after server-side validation and metadata removal; quarantine is
+  deleted either way. Tickets are bound to the participant (other participants get 404).
+- **State machine:** uploads, removals and submission are allowed only while the case awaits photos;
+  re-checked under a row lock at completion. Decisions only while a case is under review; "no
+  suspicious lesion" requires every current photo reviewed acceptable.
+- **Consent:** `remote_images` required to upload; withdrawal hides photos from doctors.
+  `review_notifications` required for review messages; STOP on WhatsApp withdraws it.
+- **Login codes:** 6 digits, HMAC-hashed, 10-minute expiry, single use, 5 attempts (the counter is
+  committed even on failure), per-IP and per-participant request limits, identical response whether
+  or not the details match. The code is shown on screen only with the console driver outside production.
+- **Messages:** template text only (first name, clinic, phone, participant ID); never images, notes
+  or diagnoses. Webhook calls are HMAC-verified; status updates are idempotent and monotonic.
+- **Feature switch:** `VIRTUAL_SCREENING_ENABLED=false` by default; production requires the
+  separate clinical bucket and KMS key.
+
+### Independent review of virtual screening (2026-10-26): findings and resolution
+
+| # | Severity | Finding | Fix | Regression test |
+|---|---|---|---|---|
+| 1 | High | Presigned S3 PUTs have no size limit; completion read the whole object into memory | HEAD size check before reading; oversize objects deleted (413); quarantine lifecycle rule | `virtual-hardening` 1 |
+| 2 | Medium | Login codes guessable over time (attempts reset with each new code) | Max 5 codes and 10 wrong guesses per participant per 24 h | `virtual-hardening` 2 |
+| 3 | Medium | Account-existence oracle via rate limit and send timing | Limit keyed on the entered details before lookup; code sent off the request path | `virtual-hardening` 3 |
+| 4 | Medium | Replaced or unsent photos reached doctors and were never deleted | Retake deletes the unsent photo; doctor queries and image serving require `submitted` | `virtual-hardening` 4 |
+| 5 | Medium | Production could run with the console message driver (messages "sent" nowhere, codes kept in memory) | Production requires `NOTIFY_DRIVER=whatsapp` with virtual screening; console outbox disabled in production | config guard (code review) |
+| 6 | Low | Dispatcher could reclaim a stuck login-code row and send an empty code | Login-code rows excluded from dispatch; send errors mark the row failed | `virtual-hardening` 6 |
+| 7 | Low | Review/decision possible after photo consent withdrawal | Image review blocked; only "inconclusive → in-person" allowed | `virtual-hardening` 7 |
+| 8 | Low | 21st photo round produced a 500 | Clear 409 asking for an in-person examination | `virtual-hardening` 8 |
+| 9 | Low | Webhook read an unbounded body before its size check | Streamed read capped at 256 KB before signature verification | `virtual-hardening` 9 |

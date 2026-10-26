@@ -63,3 +63,25 @@
 | Storage/upload failures handled safely | Cleanup + 503 | integration "handles storage failures safely" |
 | Not in PDFs, WhatsApp, analytics or social metadata; no AI diagnosis | Report and WhatsApp paths unchanged; no AI code | code review |
 | Disabled for live data until approvals | `CLINICAL_IMAGES_ENABLED` default false | integration "stays disabled unless explicitly enabled" |
+
+## PRD addendum: virtual registration, patient-captured images, doctor verification (acceptance criteria → code → tests)
+
+| Acceptance criterion | Implementation | Automated test |
+|---|---|---|
+| Patient registers and submits mouth images without visiting the clinic | `/register?mode=virtual`, `VirtualPhotos.tsx`, `services/virtual.ts` | e2e `virtual-screening.spec` (full journey) |
+| Name, mobile, address, age, questionnaire incl. habits, symptoms, medical history; consent for images and health information | Registration schema + `remote_images` consent, protocol 1.1.0 | integration "requires district, PIN, mobile and photo consent…" |
+| Camera from the page or gallery upload; guidance per area; preview, retake, remove | `VirtualPhotos.tsx`, `MouthDiagram.tsx` | e2e (gallery upload, retake) |
+| File type, size and quality validation; clear messages for dark/blurry images | `photoQuality.ts` (device), `processClinicalImage` + `imageQuality.ts` (server) | integration "uploads through quarantine…", "rejects non-images…"; e2e dark-photo warning |
+| Images securely associated with the correct registration | Tickets bound to the participant; `virtual_images.patient_id/case_id` | integration cross-participant 404s |
+| Upload status and confirmation; retry or request assistance | Progress bar, one automatic retry, "I need help" | integration "requires the required views (or a help request)…" |
+| Secure doctor dashboard: details, answers, each image | `/workspace/virtual`, `VirtualCaseReview.tsx` | integration "runs the whole review…"; e2e doctor |
+| Mark images acceptable / request clearer images; resubmission | `reviewImage`, `decideCase` (more_images → new round) | integration "retake request → resubmission…" |
+| Three outcome classes, notes, next steps, reviewer and date | `virtual_reviews`, case fields | integration + e2e |
+| Only authorised doctors record findings | `virtual.review` = admin | integration "allows only doctors…" |
+| WhatsApp notifications A/B/C with the PRD wording; consent recorded | `NOTIFICATION_TEMPLATES`, `review_notifications` consent | integration message text assertions |
+| Status, delivery failures and retries recorded; fallback channel | `notifications` table, dispatcher, webhook; SMS fallback reserved (ADR-20) | integration "retries transient failures…" |
+| No images, diagnoses or unnecessary medical information in messages | Template-only content | integration (notes never in text, payload has no image) |
+| Private S3, presigned uploads, encryption, no public URLs, audit | `signedUploadUrl` (quarantine only), clinical bucket + KMS, app-served images | integration audit assertions; config guard |
+| Failed uploads and notifications handled gracefully | 410/409/503 paths, retries, resend | integration |
+| Clinical review actions auditable | `audit()` on view, review, decision, follow-up | integration audit list |
+| No diagnosis from automated processing or unreviewed submission | Quality checks are advisory; outcomes only by a doctor; "no suspicious" needs all photos acceptable | integration "blocked until every image is reviewed acceptable" |

@@ -1,32 +1,27 @@
 import Link from "next/link";
-import { PAGES, SITE, WARNING_SIGNS } from "@/content/site";
+import { SITE, WARNING_SIGNS } from "@/content/site";
 import { pageMetadata, webPageJsonLd } from "@/lib/seo";
 import { JsonLd } from "@/components/JsonLd";
 import { Icon } from "@/components/Icon";
 import { TrackedLink, TrackView } from "@/components/client/Track";
+import { Reveal } from "@/components/client/Reveal";
+import { NextStepsArt, StepArt, type StepArtKind } from "@/components/ScreeningArt";
 import { config } from "@/lib/server/config";
 
 export const metadata = pageMetadata("home");
 
-const PROGRAMMES = [
-  { key: "drive-safe" as const, audience: "Auto, taxi and app-based cab drivers", status: "Pilot" },
-  { key: "build-safe" as const, audience: "Construction workforce", status: "Planned" },
-  { key: "nextgen-safe" as const, audience: "Colleges, ITIs and young adults", status: "Planned" },
-  { key: "workplace-safe" as const, audience: "Corporate and industrial workplaces", status: "Planned" },
-];
-
-const STEPS = [
-  { icon: "user", title: "Register and give consent", text: "Share a few basic details and read how your information is used. Participation is voluntary." },
-  { icon: "inbox", title: "Answer a short questionnaire", text: "About two minutes of questions on tobacco or areca-nut use and any mouth symptoms." },
-  { icon: "eye", title: "Oral examination", text: "An authorised clinician examines your mouth and explains what they see." },
-  { icon: "shield", title: "Guidance and next steps", text: "You receive advice and, where needed, a referral, support to quit, or a follow-up plan." },
+const STEPS: { art: StepArtKind; title: string; text: string }[] = [
+  { art: "register", title: "Register and give consent", text: "Share a few basic details and read how your information is used. Participation is voluntary." },
+  { art: "questionnaire", title: "Answer a short questionnaire", text: "About two minutes of questions on tobacco or areca-nut use and any mouth symptoms." },
+  { art: "exam", title: "Oral examination", text: "An authorised clinician examines your mouth and explains what they see." },
+  { art: "guidance", title: "Guidance and next steps", text: "You receive advice and, where needed, a referral, support to quit, or a follow-up plan." },
 ];
 
 const NEXT = [
-  { title: "You receive a participant ID", text: "A reference number is created for you. It does not contain your name or phone number." },
-  { title: "Your responses are recorded", text: "The screening team uses them, together with the examination, to guide your next step." },
-  { title: "A clinician decides the next step", text: "Any referral, testing or treatment is decided by qualified medical professionals — never by the software alone." },
-  { title: "We may contact you to follow up", text: "Only if follow-up is needed, only if you agreed, and only by authorised programme staff." },
+  { icon: "qr", title: "You receive a participant ID", text: "A reference number is created for you. It does not contain your name or phone number." },
+  { icon: "inbox", title: "Your responses are recorded", text: "The screening team uses them, together with the examination, to guide your next step." },
+  { icon: "eye", title: "A clinician decides the next step", text: "Any referral, testing or treatment is decided by qualified medical professionals — never by the software alone." },
+  { icon: "chat", title: "We may contact you to follow up", text: "Only if follow-up is needed, only if you agreed, and only by authorised programme staff." },
 ];
 
 const HELP = [
@@ -42,16 +37,41 @@ export default function HomePage() {
       <TrackView event="campaign_view" />
       <JsonLd data={webPageJsonLd("home")} />
 
-      <section className="tl-hero">
-        <div className="container fade-in">
-          <span className="eyebrow">Prevent · Detect early · Act early</span>
-          <h1 className="hero-title">Early Awareness.<br />Early Screening.<br />Better Care.</h1>
-          <p className="lede">Oral cancer prevention and free screening across Telangana. Take the first step toward oral health awareness through our screening and follow-up programme.</p>
-          <div className="cluster" style={{ marginTop: 28 }}>
-            <TrackedLink event="register_cta_clicked" href="/register" className="btn btn-primary">Register for screening <span aria-hidden="true">→</span></TrackedLink>
-            <Link href="/know-oral-cancer" className="btn btn-secondary">Learn about oral cancer</Link>
+      <section className="tl-hero hero-v2">
+        <div className="container">
+          <div className="hero-grid">
+            <div className="fade-in">
+              <span className="eyebrow">Prevent · Detect early · Act early</span>
+              <h1 className="hero-title">
+                Early Awareness.<br />
+                <span className="hero-accent">Early Screening.</span><br />
+                Better Care.
+              </h1>
+              <p className="lede">Oral cancer prevention and free screening across Telangana. Take the first step toward oral health awareness through our screening and follow-up programme.</p>
+              <p className="hero-learn"><Link href="/know-oral-cancer">Learn about oral cancer <span aria-hidden="true">→</span></Link></p>
+            </div>
+
+            <div className="hero-choose">
+              <p className="hero-choose-title">Choose how to get screened</p>
+              <TrackedLink event="register_cta_clicked" href="/register" className="choice-card">
+                <span className="choice-icon"><Icon name="map" size={24} /></span>
+                <span className="choice-text">
+                  <strong>Register for screening</strong>
+                  <span>Visit a free screening camp. A clinician examines your mouth in person.</span>
+                </span>
+                <span className="choice-arrow" aria-hidden="true">→</span>
+              </TrackedLink>
+              <TrackedLink event="register_cta_clicked" href="/virtual-screening" className="choice-card is-virtual">
+                <span className="choice-icon"><Icon name="chat" size={24} /></span>
+                <span className="choice-text">
+                  <strong>Register for virtual screening</strong>
+                  <span>Start from home. Answer online, then talk with our team by phone or video.</span>
+                </span>
+                <span className="choice-arrow" aria-hidden="true">→</span>
+              </TrackedLink>
+              {!intakeOpen && <p className="hint" style={{ margin: "4px 0 0" }}>Live registration will open at programme screening events. Contact us to be notified.</p>}
+            </div>
           </div>
-          {!intakeOpen && <p className="hint" style={{ marginTop: 14, maxWidth: "52ch" }}>Live registration will open at programme screening events. Contact us to be notified.</p>}
           <ul className="trust-row" aria-label="Our commitments">
             <li><Icon name="check" size={16} /> Voluntary and consent-based</li>
             <li><Icon name="eye" size={16} /> Examination by clinicians</li>
@@ -64,7 +84,7 @@ export default function HomePage() {
         <div className="container two-col">
           <div>
             <span className="eyebrow">About the campaign</span>
-            <h2 id="about-h">A state-wide initiative for prevention, early recognition and timely care.</h2>
+            <h2 id="about-h">An initiative for prevention, early recognition and timely care.</h2>
           </div>
           <div className="prose">
             <p>{SITE.name} brings oral health awareness, tobacco and areca-nut cessation support, clinical screening and follow-up to communities across the state.</p>
@@ -99,62 +119,57 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section section-alt" aria-labelledby="who-h">
-        <div className="container two-col">
-          <div>
-            <span className="eyebrow">Who can participate</span>
-            <h2 id="who-h">Adults attending a programme screening event.</h2>
-          </div>
-          <div>
-            <p>You can take part whether or not you use tobacco or areca nut. People without these habits can still have mouth changes that need to be checked.</p>
-            <ul className="row-list" aria-label="Outreach programmes">
-              {PROGRAMMES.map((p) => (
-                <li key={p.key}>
-                  <Link href={PAGES[p.key].path}>
-                    <span><strong>{PAGES[p.key].label}</strong><span className="hint">{p.audience}</span></span>
-                    <span className={`status-pill ${p.status === "Pilot" ? "is-live" : ""}`}>{p.status}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <section className="section" id="how-it-works" aria-labelledby="how-h">
+      <section className="section section-alt" id="how-it-works" aria-labelledby="how-h">
         <div className="container">
           <span className="eyebrow">How the screening works</span>
           <h2 id="how-h">One visit, four steps.</h2>
-          <ol className="step-cards">
+          <Reveal as="ol" className="step-cards steps-animated">
             {STEPS.map((s, i) => (
-              <li key={s.title} className="card">
+              <li key={s.title} className="card" style={{ "--i": i } as React.CSSProperties}>
+                <StepArt kind={s.art} />
                 <span className="step-num">{String(i + 1).padStart(2, "0")}</span>
-                <Icon name={s.icon} size={22} />
                 <h3>{s.title}</h3>
                 <p>{s.text}</p>
               </li>
             ))}
-          </ol>
+          </Reveal>
         </div>
       </section>
 
-      <section className="section section-alt" aria-labelledby="next-h">
+      <section className="section" aria-labelledby="next-h">
         <div className="container two-col">
           <div>
             <span className="eyebrow">After registration</span>
             <h2 id="next-h">What happens next.</h2>
+            <NextStepsArt />
           </div>
-          <ul className="divided-list">
-            {NEXT.map((n) => <li key={n.title}><h3>{n.title}</h3><p>{n.text}</p></li>)}
-          </ul>
+          <Reveal as="ol" className="next-timeline">
+            {NEXT.map((n, i) => (
+              <li key={n.title} style={{ "--i": i } as React.CSSProperties}>
+                <span className="nt-node" aria-hidden="true"><Icon name={n.icon} size={20} /></span>
+                <div>
+                  <h3>{n.title}</h3>
+                  <p>{n.text}</p>
+                </div>
+              </li>
+            ))}
+          </Reveal>
         </div>
       </section>
 
       <section className="section tl-cta" aria-labelledby="cta-h">
-        <div className="container">
-          <h2 id="cta-h">Ready to take the first step?</h2>
-          <p>Registration takes about a minute. The questionnaire takes about two.</p>
-          <TrackedLink event="register_cta_clicked" href="/register" className="btn btn-inverse">Register for screening <span aria-hidden="true">→</span></TrackedLink>
+        <div className="container tl-cta-grid">
+          <div>
+            <h2 id="cta-h">Ready to take the first step?</h2>
+            <p>Registration takes about a minute. The questionnaire takes about two.</p>
+            <TrackedLink event="register_cta_clicked" href="/register" className="btn btn-inverse">Register for screening <span aria-hidden="true">→</span></TrackedLink>
+          </div>
+          <div className="tl-cta-card">
+            <span className="eyebrow">Virtual screening</span>
+            <h3>Cannot reach a camp?</h3>
+            <p>Start from home. Answer the questionnaire online and the programme team will talk it through with you by phone or video. If anything needs a closer look, we book you an examination.</p>
+            <TrackedLink event="register_cta_clicked" href="/virtual-screening" className="btn btn-outline-inverse">Register for virtual screening <span aria-hidden="true">→</span></TrackedLink>
+          </div>
         </div>
       </section>
 

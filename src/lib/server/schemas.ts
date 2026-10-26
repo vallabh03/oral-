@@ -2,8 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   CLINICAL_IMPRESSIONS, CONTACT_PREFERENCES, CONTACT_TOPICS, DRIVER_TYPES, LANGUAGE_CODES, LESION_SITES, ORAL_FINDINGS,
-  PATIENT_STATUSES, RECRUITMENT_SOURCES, ROLES,
+  PATIENT_STATUSES, RECRUITMENT_SOURCES, ROLES, SCREENING_MODES,
 } from "@/lib/shared/constants";
+import { FOLLOWUP_ACTIONS, MOUTH_VIEW_VALUES, TELANGANA_DISTRICTS } from "@/lib/shared/virtual";
 
 // Request schemas. `.strict()` rejects unexpected fields on every mutation (checklist §3).
 
@@ -24,6 +25,12 @@ export const registrationSchema = z
     campId: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
     recruitmentSource: z.enum(vals(RECRUITMENT_SOURCES)),
     contactPreference: z.enum(vals(CONTACT_PREFERENCES)),
+    screeningMode: z.enum(vals(SCREENING_MODES)).default("in_person"),
+    // Location (virtual screening): district + mandal + PIN; the full address is optional.
+    district: z.enum(TELANGANA_DISTRICTS).optional().or(z.literal("").transform(() => undefined)),
+    mandal: z.string().trim().max(80).regex(/^[\p{L}\p{M}\p{N} .'/-]*$/u, "Use letters, numbers and basic punctuation").transform((v) => v || undefined).optional(),
+    pincode: z.string().trim().regex(/^[1-9]\d{5}$/, "Enter a valid 6-digit PIN code").optional().or(z.literal("").transform(() => undefined)),
+    addressLine: z.string().trim().max(300).regex(/^[\p{L}\p{M}\p{N} ,.'#/()-]*$/u, "Use letters, numbers and basic punctuation").transform((v) => v || undefined).optional(),
     language: z.enum(LANGUAGE_CODES),
     consents: z
       .object({
@@ -32,6 +39,8 @@ export const registrationSchema = z
         followupContact: z.boolean(),
         whatsappReport: z.boolean(),
         photo: z.boolean(),
+        remoteImages: z.boolean().default(false),
+        reviewNotifications: z.boolean().default(false),
       })
       .strict(),
     idempotencyKey,
@@ -41,6 +50,14 @@ export const registrationSchema = z
   .superRefine((v, ctx) => {
     if ((v.consents.whatsappReport || v.consents.followupContact || v.contactPreference !== "none") && !v.mobile) {
       ctx.addIssue({ code: "custom", path: ["mobile"], message: "A mobile number is needed for the contact options you chose" });
+    } else if (v.screeningMode === "virtual" && !v.mobile) {
+      ctx.addIssue({ code: "custom", path: ["mobile"], message: "A mobile number is needed so the team can call you for virtual screening" });
+    } else if (v.consents.reviewNotifications && !v.mobile) {
+      ctx.addIssue({ code: "custom", path: ["mobile"], message: "A mobile number is needed for review messages" });
+    }
+    if (v.screeningMode === "virtual") {
+      if (!v.district) ctx.addIssue({ code: "custom", path: ["district"], message: "Choose your district" });
+      if (!v.pincode) ctx.addIssue({ code: "custom", path: ["pincode"], message: "Enter your 6-digit PIN code" });
     }
   });
 export type RegistrationInput = z.infer<typeof registrationSchema>;
@@ -92,6 +109,7 @@ export const searchSchema = z.object({
   q: z.string().trim().max(64).optional(),
   campId: z.string().uuid().optional(),
   status: z.enum(PATIENT_STATUSES).optional(),
+  mode: z.enum(vals(SCREENING_MODES)).optional(),
   cursor: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(25),
 });
@@ -135,7 +153,7 @@ export const followUpSchema = z
   })
   .strict();
 
-export const consentWithdrawSchema = z.object({ consentType: z.enum(["whatsapp_report", "followup_contact", "photo", "registration", "screening", "clinical_photo", "clinical_photo_face"]) }).strict();
+export const consentWithdrawSchema = z.object({ consentType: z.enum(["whatsapp_report", "followup_contact", "photo", "registration", "screening", "clinical_photo", "clinical_photo_face", "remote_images", "review_notifications"]) }).strict();
 
 // Clinical photography consent decision, recorded by the examining clinician (PRD v1.2 §4).
 export const clinicalPhotoConsentSchema = z
@@ -182,3 +200,42 @@ export const eventSchema = z
 export const exportSchema = z
   .object({ campId: z.string().uuid().optional(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
   .strict();
+
+// ---- Virtual screening -------------------------------------------------------------------
+export const virtualTicketSchema = z.object({
+  view: z.enum(MOUTH_VIEW_VALUES),
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  bytes: z.number().int().min(1),
+  capturedBy: z.enum(["patient", "caregiver"]).default("patient"),
+}).strict();
+export const virtualAssistanceSchema = z.object({ note: z.string().trim().max(500).optional() }).strict();
+export const otpRequestSchema = z.object({
+  displayId: z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}(-[A-Z]{2,8})?-\d{1,8}$/, "Enter your participant ID"),
+  mobile,
+}).strict();
+export const otpVerifySchema = otpRequestSchema.extend({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") }).strict();
+export const imageReviewSchema = z.object({
+  decision: z.enum(["acceptable", "needs_retake"]),
+  note: z.string().trim().max(500).optional(),
+}).strict();
+export const caseDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("more_images"), notes: z.string().trim().max(4000).optional() }).strict(),
+  z.object({
+    decision: z.enum(["no_suspicious", "suspicious"]),
+    notes: z.string().trim().max(4000).optional(),
+    nextSteps: z.string().trim().max(2000).optional(),
+  }).strict(),
+  z.object({
+    decision: z.literal("inconclusive"),
+    inconclusiveAction: z.enum(["more_images", "in_person"]),
+    notes: z.string().trim().max(4000).optional(),
+    nextSteps: z.string().trim().max(2000).optional(),
+  }).strict(),
+]);
+export const virtualFollowupSchema = z.object({
+  action: z.enum(vals(FOLLOWUP_ACTIONS)),
+  note: z.string().trim().max(1000).optional(),
+}).strict();
+export const virtualQueueSchema = z.object({
+  status: z.enum(["awaiting_review", "more_images_requested", "reviewed", "help", "awaiting_images", "all"]).default("awaiting_review"),
+});
