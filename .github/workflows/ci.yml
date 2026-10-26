@@ -104,6 +104,47 @@ jobs:
         if: always()
         run: docker logs taoc || true
 
+  lightsail:
+    # Runs the single-server production stack exactly as on the Lightsail server: PostgreSQL,
+    # migrations + DML-only app role, the app, and Caddy serving HTTPS; then the ops scripts.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write throwaway production settings
+        run: |
+          sudo mkdir -p /opt/taoc/backups
+          {
+            echo "SITE_DOMAIN=localhost"
+            echo "SITE_URL=https://localhost"
+            echo "ALERT_EMAIL=ci@example.org"
+            for k in DB_OWNER_PASSWORD DB_APP_PASSWORD AUDIT_HMAC_SECRET DATA_ENCRYPTION_KEY; do echo "$k=$(openssl rand -hex 32)"; done
+            echo "STORAGE_DRIVER=local"
+          } | sudo tee /opt/taoc/.env >/dev/null
+      - name: Build and start the stack
+        working-directory: deploy/lightsail
+        run: sudo docker compose --env-file /opt/taoc/.env up -d --build
+      - name: Health check through Caddy (HTTPS)
+        run: |
+          for i in $(seq 1 90); do curl -skf https://localhost/api/health && break; sleep 2; done
+          curl -skf https://localhost/api/health
+          curl -skf -o /dev/null https://localhost/
+          # The database must not be reachable from outside the Docker network.
+          ! timeout 3 bash -c "</dev/tcp/127.0.0.1/5432"
+      - name: Create a staff account
+        run: sudo deploy/lightsail/staff.sh ci-admin@example.org super_admin "CI Admin" | grep -q "token="
+      - name: Backup and restore
+        run: |
+          sudo deploy/lightsail/backup.sh
+          stamp=$(sudo ls /opt/taoc/backups | grep -o '^db-.*\.dump$' | sed 's/^db-//; s/\.dump$//' | tail -1)
+          echo RESTORE | sudo deploy/lightsail/restore.sh "$stamp"
+          for i in $(seq 1 60); do curl -skf https://localhost/api/health && break; sleep 2; done
+          curl -skf https://localhost/api/health
+      - name: Stack logs
+        if: always()
+        working-directory: deploy/lightsail
+        run: sudo docker compose --env-file /opt/taoc/.env logs --tail 80
+
   infra:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,0 +1,122 @@
+# Single-server production stack (AWS Lightsail, Mumbai): Caddy (HTTPS) → Next.js app → PostgreSQL.
+# Secrets come from /opt/taoc/.env (created by setup.sh, mode 600, never committed).
+# Only Caddy is reachable from the internet; the database has no published port.
+name: taoc
+
+x-app-env: &app-env
+  NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+  APP_ENV: production
+  AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+  STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+  LOCAL_STORAGE_DIR: /data/objects
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_KMS_KEY_ID: ${S3_KMS_KEY_ID:-}
+  CLINICAL_S3_BUCKET: ${CLINICAL_S3_BUCKET:-}
+  CLINICAL_S3_KMS_KEY_ID: ${CLINICAL_S3_KMS_KEY_ID:-}
+  AWS_REGION: ${AWS_REGION:-ap-south-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  # Feature switches: all off until the programme approvals are recorded.
+  INTAKE_ENABLED: ${INTAKE_ENABLED:-false}
+  INDEXING_ENABLED: ${INDEXING_ENABLED:-false}
+  CLINICAL_IMAGES_ENABLED: ${CLINICAL_IMAGES_ENABLED:-false}
+  VIRTUAL_SCREENING_ENABLED: ${VIRTUAL_SCREENING_ENABLED:-false}
+  NOTIFY_DRIVER: ${NOTIFY_DRIVER:-console}
+  NOTIFY_CLINIC_NAME: ${NOTIFY_CLINIC_NAME:-Telangana Against Oral Cancer}
+  NOTIFY_CLINIC_PHONE: ${NOTIFY_CLINIC_PHONE:-the programme helpline}
+  WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+  WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+  EMAIL_DRIVER: console
+  PARTICIPANT_ID_PREFIX: ${PARTICIPANT_ID_PREFIX:-HAOC-DS}
+  # Caddy is the only proxy and appends the client address to X-Forwarded-For.
+  TRUSTED_PROXY_HOPS: "1"
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taoc
+      POSTGRES_USER: taoc_owner
+      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60", "-c", "log_min_duration_statement=2000"]
+    shm_size: 256mb
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - /opt/taoc/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taoc_owner -d taoc"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [internal]
+
+  # Applies database migrations as the owner, then (re)creates the app's DML-only login role.
+  migrate:
+    image: taoc-app:latest
+    pull_policy: never # built locally by the app service
+    command: ["migrate"]
+    restart: "no"
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgres://taoc_owner:${DB_OWNER_PASSWORD}@db:5432/taoc?sslmode=disable
+      APP_DB_USER: taoc_app
+      APP_DB_PASSWORD: ${DB_APP_PASSWORD}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [internal]
+
+  app:
+    image: taoc-app:latest
+    pull_policy: build
+    build:
+      context: ../..
+      args:
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      # The database is on the private Docker network only, so TLS is not used between them.
+      DATABASE_URL: postgres://taoc_app:${DB_APP_PASSWORD}@db:5432/taoc?sslmode=disable
+    volumes:
+      - objects:/data/objects
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      ACME_EMAIL: ${ALERT_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app: { condition: service_healthy }
+    networks: [internal]
+
+volumes:
+  db-data:
+  objects:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:

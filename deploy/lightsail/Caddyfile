@@ -1,0 +1,24 @@
+# HTTPS with automatic Let's Encrypt certificates for SITE_DOMAIN (renewed by Caddy).
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	# Uploads: clinical photos up to 15 MB (the app enforces its own, smaller limits per route).
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy app:3000 {
+		# Replace (not append) client-supplied forwarding headers: Caddy is the only trusted hop.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+	# Security headers are set by the app; hide the server banner.
+	header -Server
+	log {
+		output stdout
+		format console
+	}
+}
+
