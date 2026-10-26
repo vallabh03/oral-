@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   "clinical_image.capture": ["admin"],
   "clinical_image.view": ["admin"],
   "clinical_image.delete": ["admin"],
+  // Virtual screening review (PRD addendum §3): only doctors record or approve clinical findings.
+  "virtual.review": ["admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -85,6 +85,23 @@ Repeat with `production.json` / `Taoc-production-Ci` for production. Set
 
 Changing a switch = edit the JSON in a pull request → merge → deploy.
 
+### Virtual screening and WhatsApp (additional setup)
+
+- **Switch:** `VIRTUAL_SCREENING_ENABLED` (off until ADR-19 approvals). Uses the clinical bucket and key.
+- **Clinical bucket CORS** (browsers upload photos straight to S3 with presigned PUTs): allow
+  `PUT` from the site origin only, header `content-type`, max age 600. Add a **lifecycle rule** that
+  deletes `quarantine/` objects after 1 day (normally the app deletes them within seconds).
+- **CSP:** `connect-src` automatically includes the clinical bucket when `STORAGE_DRIVER=s3`.
+- **WhatsApp:** set `NOTIFY_DRIVER=whatsapp`, `WHATSAPP_TOKEN` (permanent System User token),
+  `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `NOTIFY_CLINIC_NAME`, `NOTIFY_CLINIC_PHONE`
+  (secrets via Secrets Manager / the server's protected env file, never git). In Meta App → WhatsApp →
+  Configuration, set the webhook URL to `https://<site>/api/webhooks/whatsapp` and the verify token to
+  the value printed by `npm run whatsapp:verify-token`, and
+  subscribe to `messages`. Templates must be approved with the exact names and wording in
+  `src/lib/shared/virtual.ts`.
+- Until templates are approved keep `NOTIFY_DRIVER=console`: nothing is sent and doctors are told to
+  call the participant.
+
 ## Sizing and approximate cost (USD/month, before tax; check the AWS Pricing Calculator)
 
 | | Staging | Production |

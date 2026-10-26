@@ -24,6 +24,11 @@ export const LIMITS = {
   report: { name: "report", max: 60, windowSec: 15 * 60 },
   whatsapp: { name: "whatsapp", max: 30, windowSec: 60 * 60 },
   staffWrite: { name: "staff-write", max: 600, windowSec: 15 * 60 },
+  virtualUpload: { name: "virtual-upload", max: 60, windowSec: 15 * 60 },
+  otpRequest: { name: "otp-request", max: 5, windowSec: 60 * 60 },
+  otpRequestPatient: { name: "otp-request-id", max: 3, windowSec: 15 * 60 },
+  otpVerify: { name: "otp-verify", max: 20, windowSec: 15 * 60 },
+  notifyRetry: { name: "notify-retry", max: 60, windowSec: 60 * 60 },
 } satisfies Record<string, Limit>;
 
 /**

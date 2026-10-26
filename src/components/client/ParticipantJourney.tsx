@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { STATUS_LABELS, type PatientStatus } from "@/lib/shared/constants";
+import { VirtualPhotos } from "./VirtualPhotos";
 import { CameraCapture } from "./CameraCapture";
 import { Questionnaire } from "./Questionnaire";
 import { RegistrationForm, type CampOption } from "./RegistrationForm";
@@ -11,14 +12,16 @@ import { track } from "./analytics";
 import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "./Toaster";
 import type { Answers } from "@/lib/shared/protocol";
+import { VIRTUAL_STATUS_LABELS, type VirtualCaseStatus } from "@/lib/shared/virtual";
 
 type Status = {
   displayId: string; firstName: string; status: PatientStatus; statusLabel: string; questionnaire: string;
   photoCaptured: boolean; photoId: string | null; photoConsent: boolean; whatsappConsent: boolean; followupConsent: boolean;
+  screeningMode: "in_person" | "virtual"; virtualStatus: VirtualCaseStatus | null;
 };
 
-export function RegistrationJourney({ camps }: { camps: CampOption[] }) {
-  const [phase, setPhase] = useState<"form" | "photo" | "questionnaire" | "done">("form");
+export function RegistrationJourney({ camps, screeningMode = "in_person", virtualPhotos = false }: { camps: CampOption[]; screeningMode?: "in_person" | "virtual"; virtualPhotos?: boolean }) {
+  const [phase, setPhase] = useState<"form" | "photo" | "questionnaire" | "mouth" | "done">("form");
   const [displayId, setDisplayId] = useState("");
   const [resumeLink, setResumeLink] = useState("");
 
@@ -32,6 +35,8 @@ export function RegistrationJourney({ camps }: { camps: CampOption[] }) {
         <RegistrationForm
           endpoint="/api/intake/register"
           camps={camps}
+          screeningMode={screeningMode}
+          virtualPhotos={virtualPhotos}
           onRegistered={(r) => {
             setDisplayId(r.displayId);
             // The token lives in the URL fragment, which browsers never send to servers or logs.
@@ -61,15 +66,50 @@ export function RegistrationJourney({ camps }: { camps: CampOption[] }) {
         <section aria-labelledby="q-h">
           <h2 id="q-h" style={{ fontSize: "var(--step-2)" }}>Brief questionnaire</h2>
           <p>About two minutes. Your answers are private and help the clinician.</p>
-          <Questionnaire endpoint="/api/intake/questionnaire" onCompleted={() => { track("registration_completed"); setPhase("done"); }} />
+          <Questionnaire endpoint="/api/intake/questionnaire" onCompleted={() => { track("registration_completed"); setPhase(screeningMode === "virtual" && virtualPhotos ? "mouth" : "done"); }} />
         </section>
       )}
-      {phase === "done" && <CompletionPanel displayId={displayId} />}
+      {phase === "mouth" && (
+        <section aria-labelledby="mouth-h">
+          <h2 id="mouth-h" style={{ fontSize: "var(--step-2)" }}>Photos of your mouth</h2>
+          <p>Take a photo of each area below, or choose photos you already have. A doctor will review them. This usually takes about 5 minutes.</p>
+          <VirtualPhotos onSubmitted={() => setPhase("done")} />
+        </section>
+      )}
+      {phase === "done" && <CompletionPanel displayId={displayId} virtual={screeningMode === "virtual"} photos={virtualPhotos} />}
     </div>
   );
 }
 
-function CompletionPanel({ displayId }: { displayId: string }) {
+function CompletionPanel({ displayId, virtual, photos }: { displayId: string; virtual: boolean; photos: boolean }) {
+  if (virtual && !photos) {
+    return (
+      <div className="success-state" role="status">
+        <h2>Questionnaire completed — virtual screening pending</h2>
+        <p>Thank you. Your ID is <span className="code-chip">{displayId}</span>.</p>
+        <ol>
+          <li>The programme team will call you on the mobile number you gave to talk through your answers.</li>
+          <li>If anything needs a closer look, they will book you an examination at a camp or clinic.</li>
+          <li>If anything worries you before then, see a doctor — do not wait.</li>
+        </ol>
+      </div>
+    );
+  }
+  if (virtual) {
+    return (
+      <div className="success-state" role="status">
+        <h2>Photos submitted — doctor review pending</h2>
+        <p>Thank you. Your ID is <span className="code-chip">{displayId}</span>.</p>
+        <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>Next steps</h3>
+        <ol>
+          <li>A doctor will review your answers and photos.</li>
+          <li>We will send you a WhatsApp message with the result, or if we need clearer photos. To come back later, use <Link href="/register/login">Log in</Link> with your participant ID and mobile number.</li>
+          <li>Photo screening cannot rule out oral disease. If you have an ulcer, lump, red or white patch or bleeding lasting more than two weeks, see a doctor in person — do not wait for our message.</li>
+        </ol>
+        <Link href="/register/status" className="btn btn-primary">View my status</Link>
+      </div>
+    );
+  }
   return (
     <div className="success-state" role="status">
       <h2>Questionnaire completed — clinician screening pending</h2>
@@ -142,8 +182,11 @@ export function ParticipantStatusView() {
     return (
       <div className="empty-state" role="status">
         <h2>Your session has ended</h2>
-        <p>Open your resume link again to continue, or ask camp staff for help.</p>
-        <Link href="/register" className="btn btn-primary">Start a new registration</Link>
+        <p>Log in again with your participant ID and mobile number, open your resume link, or ask camp staff for help.</p>
+        <div className="cluster" style={{ justifyContent: "center" }}>
+          <Link href="/register/login" className="btn btn-primary">Log in</Link>
+          <Link href="/register" className="btn btn-secondary">Start a new registration</Link>
+        </div>
       </div>
     );
   }
@@ -163,6 +206,13 @@ export function ParticipantStatusView() {
         <section className="card" aria-labelledby="resume-q">
           <h2 id="resume-q" style={{ fontSize: "var(--step-2)" }}>Finish your questionnaire</h2>
           <Questionnaire endpoint="/api/intake/questionnaire" initial={answers} onCompleted={() => { track("registration_completed"); void load(); }} />
+        </section>
+      )}
+      {s.virtualStatus && (
+        <section className="card" aria-labelledby="vs-h">
+          <h2 id="vs-h" style={{ fontSize: "var(--step-1)" }}>Your mouth photos</h2>
+          <p><span className="badge badge-brand">{VIRTUAL_STATUS_LABELS[s.virtualStatus]}</span></p>
+          <Link href="/register/photos" className="btn btn-primary btn-sm">{["awaiting_images", "more_images_requested"].includes(s.virtualStatus) ? "Add or retake photos" : "View my photos"}</Link>
         </section>
       )}
       {s.photoConsent && !s.photoCaptured && (

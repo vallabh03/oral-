@@ -60,7 +60,16 @@ async function createPglite(dir: string): Promise<Db> {
     const blob = await pg.dumpDataDir("gzip");
     const tmp = `${snapshot}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, new Uint8Array(await blob.arrayBuffer()));
-    fs.renameSync(tmp, snapshot); // atomic replace
+    // Atomic replace. OneDrive/antivirus can briefly lock the file on Windows, so retry a few times.
+    for (let i = 0; ; i++) {
+      try {
+        fs.renameSync(tmp, snapshot);
+        break;
+      } catch (e) {
+        if (i >= 5 || (e as NodeJS.ErrnoException).code !== "EPERM") throw e;
+        await new Promise((r) => setTimeout(r, 100 * (i + 1)));
+      }
+    }
   };
   const flush = async () => {
     if (timer) clearTimeout(timer);
@@ -110,22 +119,39 @@ function wrapPglite(pg: import("@electric-sql/pglite").PGlite, onClose: () => Pr
   };
 }
 
+// The owner touches the lock file every few seconds. A lock that has not been touched recently is
+// stale even if its pid exists: after a crash or reboot Windows readily reuses process ids.
+const LOCK_HEARTBEAT_MS = 5_000;
+const LOCK_STALE_MS = 15_000;
+const heartbeats = new Map<string, NodeJS.Timeout>();
+
 function acquireLock(lockFile: string) {
   if (fs.existsSync(lockFile)) {
     const pid = Number(fs.readFileSync(lockFile, "utf8"));
+    const fresh = Date.now() - fs.statSync(lockFile).mtimeMs < LOCK_STALE_MS;
     let alive = false;
     try {
-      alive = !!pid && pid !== process.pid && process.kill(pid, 0);
+      alive = fresh && !!pid && pid !== process.pid && process.kill(pid, 0);
     } catch {
       alive = false;
     }
     if (alive) throw new Error(`The local database is in use by another process (pid ${pid}). Stop the running server before seeding or starting another one.`);
   }
   fs.writeFileSync(lockFile, String(process.pid));
+  const beat = setInterval(() => {
+    try {
+      const now = new Date();
+      fs.utimesSync(lockFile, now, now);
+    } catch {}
+  }, LOCK_HEARTBEAT_MS);
+  beat.unref();
+  heartbeats.set(lockFile, beat);
   process.once("exit", () => releaseLock(lockFile));
 }
 
 function releaseLock(lockFile: string) {
+  clearInterval(heartbeats.get(lockFile));
+  heartbeats.delete(lockFile);
   try {
     if (fs.readFileSync(lockFile, "utf8") === String(process.pid)) fs.rmSync(lockFile, { force: true });
   } catch {}

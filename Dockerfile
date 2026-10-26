@@ -31,7 +31,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/rds-global-bundle.pem
 # Amazon RDS certificate authorities (all regions) so TLS to the database is fully verified.
-ADD --chmod=0644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+# (No --chmod on ADD: it would also apply to the parent folders it creates, making /etc/ssl
+# unreadable for the non-root user, so Node could not load /etc/ssl/openssl.cnf.)
+ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+RUN chmod 0755 /etc/ssl /etc/ssl/certs && chmod 0644 /etc/ssl/certs/rds-global-bundle.pem
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public

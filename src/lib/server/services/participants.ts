@@ -28,6 +28,8 @@ const CONSENT_MAP: [keyof RegistrationInput["consents"], ConsentType][] = [
   ["followupContact", "followup_contact"],
   ["whatsappReport", "whatsapp_report"],
   ["photo", "photo"],
+  ["remoteImages", "remote_images"],
+  ["reviewNotifications", "review_notifications"],
 ];
 
 async function issueTokens(q: Queryable, patientId: string) {
@@ -47,8 +49,13 @@ async function issueTokens(q: Queryable, patientId: string) {
  * Creates the participant, consent rows and tokens atomically (PRD §6.3). Replays with the
  * same idempotency key return the original record instead of creating a duplicate.
  */
-export async function registerParticipant(input: RegistrationInput, actor: Actor, correlationId: string): Promise<RegistrationResult> {
+export async function registerParticipant(input: Omit<RegistrationInput, "screeningMode"> & Partial<Pick<RegistrationInput, "screeningMode">>, actor: Actor, correlationId: string): Promise<RegistrationResult> {
   if (!config().INTAKE_ENABLED) throw Errors.disabled("Registration is not open yet. Please check back soon or contact the programme.");
+  // With photo-based virtual screening switched on, virtual participants must agree to submit mouth photos.
+  if (input.screeningMode === "virtual" && config().VIRTUAL_SCREENING_ENABLED && !input.consents.remoteImages) {
+    throw Errors.validation({ "consents.remoteImages": "Consent to submit mouth photos is required for virtual screening" });
+  }
+  if (input.consents.remoteImages && input.screeningMode !== "virtual") throw Errors.validation({ "consents.remoteImages": "This consent applies to virtual screening only" });
   const d = await db();
   return d.tx(async (q) => {
     const existing = (await q.query<{ id: string; display_id: string }>("select id, display_id from patients where idempotency_key = $1", [input.idempotencyKey])).rows[0];
@@ -85,13 +92,16 @@ export async function registerParticipant(input: RegistrationInput, actor: Actor
     const p = (
       await q.query<{ id: string }>(
         `insert into patients (display_id, full_name, age, mobile, driver_type, working_area, camp_id, recruitment_source, contact_preference,
-                               preferred_language, created_via, created_by, idempotency_key)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`,
+                               preferred_language, created_via, created_by, idempotency_key, screening_mode,
+                               district, mandal, pincode, address_line)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) returning id`,
         [displayId, input.fullName, input.age, input.mobile ?? null, input.driverType, input.workingArea || null, input.campId ?? null,
-          input.recruitmentSource, input.contactPreference, input.language, actor.type === "staff" ? "camp_assisted" : "self", staffId, input.idempotencyKey],
+          input.recruitmentSource, input.contactPreference, input.language, actor.type === "staff" ? "camp_assisted" : "self", staffId, input.idempotencyKey, input.screeningMode ?? "in_person",
+          input.district ?? null, input.mandal ?? null, input.pincode ?? null, input.addressLine ?? null],
       )
     ).rows[0]!;
 
+    if (input.screeningMode === "virtual") await q.query("insert into virtual_cases (patient_id) values ($1)", [p.id]);
     for (const [field, type] of CONSENT_MAP) {
       if (!input.consents[field]) continue;
       const policy = CONSENT_POLICIES[type];
@@ -160,6 +170,10 @@ export async function participantStatus(patientId: string) {
     photoConsent: consents.photo?.status === "granted",
     whatsappConsent: consents.whatsapp_report?.status === "granted",
     followupConsent: consents.followup_contact?.status === "granted",
+    screeningMode: p.screening_mode,
+    virtualStatus: p.screening_mode === "virtual" && config().VIRTUAL_SCREENING_ENABLED
+      ? ((await d.query<{ status: string }>("select status from virtual_cases where patient_id = $1", [patientId])).rows[0]?.status ?? null)
+      : null,
   };
 }
 

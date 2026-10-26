@@ -53,6 +53,16 @@ const schema = z.object({
   CLINICAL_IMAGE_MAX_BYTES: z.coerce.number().int().min(500_000).max(40_000_000).default(15 * 1024 * 1024),
   CLINICAL_S3_BUCKET: z.string().optional(),
   CLINICAL_S3_KMS_KEY_ID: z.string().optional(),
+  // Virtual screening (patient-captured mouth images + remote doctor review). OFF unless enabled;
+  // stays off for live data until the photography instructions, consent wording, message
+  // templates and retention policy are approved. Images use the clinical store.
+  VIRTUAL_SCREENING_ENABLED: bool(false),
+  // Patient notifications: "console" writes to the server log/test outbox (no real messages).
+  NOTIFY_DRIVER: z.enum(["console", "whatsapp"]).default("console"),
+  NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
+  NOTIFY_CLINIC_PHONE: z.string().max(30).default("the programme helpline"),
+  WHATSAPP_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v21.0"),
+  WHATSAPP_TEMPLATE_LANGUAGE: z.string().max(10).default("en"),
 });
 
 export type AppConfig = z.infer<typeof schema> & { isProd: boolean; photoConcurrency: number; auditSecret: string; dataKey: string };
@@ -77,6 +87,17 @@ function load(): AppConfig {
       if (c.STORAGE_DRIVER !== "s3") throw new Error("Clinical images require STORAGE_DRIVER=s3 in production");
       if (!c.CLINICAL_S3_BUCKET || c.CLINICAL_S3_BUCKET === c.S3_BUCKET) throw new Error("CLINICAL_S3_BUCKET must be a separate private bucket when clinical images are enabled");
       if (!c.CLINICAL_S3_KMS_KEY_ID) throw new Error("CLINICAL_S3_KMS_KEY_ID is required when clinical images are enabled");
+    }
+    if (c.VIRTUAL_SCREENING_ENABLED) {
+      // Patient-captured mouth images are clinical images: same private bucket and key rules.
+      if (c.STORAGE_DRIVER !== "s3") throw new Error("Virtual screening requires STORAGE_DRIVER=s3 in production");
+      if (!c.CLINICAL_S3_BUCKET || c.CLINICAL_S3_BUCKET === c.S3_BUCKET) throw new Error("CLINICAL_S3_BUCKET must be a separate private bucket when virtual screening is enabled");
+      if (!c.CLINICAL_S3_KMS_KEY_ID) throw new Error("CLINICAL_S3_KMS_KEY_ID is required when virtual screening is enabled");
+      // Login codes and review messages would otherwise be marked sent but never delivered.
+      if (c.NOTIFY_DRIVER !== "whatsapp") throw new Error("Virtual screening requires NOTIFY_DRIVER=whatsapp in production");
+    }
+    if (c.NOTIFY_DRIVER === "whatsapp" && !(c.WHATSAPP_TOKEN && c.WHATSAPP_PHONE_NUMBER_ID && c.WHATSAPP_APP_SECRET)) {
+      throw new Error("NOTIFY_DRIVER=whatsapp requires WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_APP_SECRET");
     }
     if (!c.NEXT_PUBLIC_SITE_URL.startsWith("https://")) throw new Error("NEXT_PUBLIC_SITE_URL must be https in production");
   }

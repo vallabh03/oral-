@@ -165,6 +165,7 @@ const HEADINGS: Partial<Record<PageKey, string>> = {
   partner: "Partner with us",
   impact: "Our impact",
   camps: "Free oral screening camps near you",
+  virtual: "Virtual oral screening from home",
   contact: "Contact us",
   privacy: "Privacy notice",
   cookies: "Cookie policy",

@@ -9,6 +9,7 @@ const NAV: Record<Role, { href: string; label: string; icon: string }[]> = {
   admin: [
     { href: "/workspace/admin", label: "Dashboard", icon: "grid" },
     { href: "/workspace/patients", label: "Participants", icon: "users" },
+    { href: "/workspace/virtual", label: "Virtual review", icon: "camera" },
     { href: "/workspace/patients/new", label: "Register participant", icon: "plus" },
   ],
   super_admin: [

@@ -21,8 +21,9 @@ export async function seedDev(file = ".dev-credentials.json") {
     const r = await registerParticipant(
       {
         fullName, age: 28 + i * 6, mobile: `9${String(800000000 + i * 1234567)}`, driverType: i % 2 ? "cab_taxi" : "auto", workingArea: i % 2 ? "Secunderabad" : "Ameerpet",
-        campId: i % 2 ? camp2 : camp1, recruitmentSource: "stand", contactPreference: "whatsapp", language: "en",
-        consents: { registration: true, screening: true, followupContact: true, whatsappReport: i % 3 === 0, photo: true },
+        campId: i % 2 ? camp2 : camp1, recruitmentSource: "stand", contactPreference: "whatsapp", language: "en", screeningMode: i >= 4 ? "virtual" : "in_person",
+        consents: { registration: true, screening: true, followupContact: true, whatsappReport: i % 3 === 0, photo: true, remoteImages: i >= 4, reviewNotifications: i >= 4 },
+        ...(i >= 4 ? { district: "Hyderabad" as const, mandal: "Ameerpet", pincode: "500016" } : {}),
         idempotencyKey: `seed-dev-participant-${i}-000000`,
       },
       { type: "participant" },
@@ -33,7 +34,7 @@ export async function seedDev(file = ".dev-credentials.json") {
       const habit = i % 3 !== 2;
       await saveQuestionnaire(
         r.patientId,
-        { habits: habit ? ["gutkha"] : ["none"], ...(habit ? { duration: "5to10", frequency: "1to5", cessation_interest: "maybe" } : {}), symptoms: ["none"], risk_awareness: "yes", sign_awareness: "no", previous_screening: "no" },
+        { habits: habit ? ["gutkha"] : ["none"], ...(habit ? { duration: "5to10", frequency: "1to5", cessation_interest: "maybe" } : {}), symptoms: ["none"], alcohol: "no", medical_history: ["none"], risk_awareness: "yes", sign_awareness: "no", previous_screening: "no" },
         true,
         `seed-dev-q-${i}-000000000`,
         { type: "participant" },

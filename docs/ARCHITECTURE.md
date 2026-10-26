@@ -137,3 +137,51 @@ participants are denied by default.
 **Audit:** `consent.clinical_photo`, `consent.clinical_photo_face`, `lesion_image.capture`,
 `.replace`, `.view`, `.download`, `.delete` and `.access` (denials). Details hold only the image id,
 site, size and variant, never bytes, keys or URLs.
+
+## Virtual screening: patient-captured photos and remote doctor review (PRD addendum)
+
+**Switch:** `VIRTUAL_SCREENING_ENABLED` (default `false`). Production refuses to start with it on
+unless images go to a separate private S3 bucket with its own KMS key (same rule as lesion images).
+
+**Patient flow:** `/register?mode=virtual` → details incl. district + PIN → consents (registration,
+screening, `remote_images`; optional `review_notifications`) → questionnaire 1.1.0 → **guided photos**
+(`VirtualPhotos.tsx`): 9 views with an illustrated diagram and steps each (5 required), camera
+(front or back, chosen by "who is taking the photos") or gallery, instant on-device brightness and
+blur check (`photoQuality.ts`), preview / retake / remove, progress, "I need help" → submit.
+Returning participants log in at `/register/login` (participant ID + mobile + WhatsApp code) and
+continue at `/register/photos`.
+
+**Upload pipeline** (`services/virtual.ts`):
+1. `POST /api/intake/virtual/uploads` issues a 10-minute ticket for one view. With S3 this is a
+   presigned PUT to `quarantine/<patient>/<uuid>.upload` in the clinical bucket; with local/db
+   storage the browser PUTs to `/api/intake/virtual/uploads/<ticket>` instead.
+2. `POST …/<ticket>/complete` reads the quarantined bytes, runs the same validation as lesion images
+   (`processClinicalImage`: real type from content, decode check, 40 MP cap, lossless metadata
+   removal), measures brightness and focus (`imageQuality.ts`, advisory only), writes
+   `remote/<patient>/<uuid>.<ext>` + preview, deletes the quarantine object, and inserts
+   `virtual_images` inside a transaction that re-checks the case state and consent under a row lock.
+   Retried completions return the same image.
+3. `POST /api/intake/virtual/submit` requires the 5 required views (or a help request), locks the
+   submitted photos and queues the "submission received" message.
+
+**Doctor flow** (`/workspace/virtual`, permission `virtual.review` = Admin/Doctor only): queue by
+status (awaiting review, help requested, clearer photos requested, waiting, reviewed) with photo
+thumbnails; case page shows details, location, questionnaire answers and every photo directly
+(full size in a zoomable viewer). Per photo: *Acceptable* / *Need clearer image*. Outcome: no
+suspicious lesion (only when every current photo is acceptable and required views are present),
+suspicious, inconclusive (→ more photos or in-person exam), or "ask for clearer photos". Each
+decision is stored in `virtual_reviews`; the case keeps the latest. Asking for photos opens a new
+round; earlier photos stay visible to the doctor as history.
+
+**Images are served** through `/api/virtual/images/<id>` (doctor session + role on every request,
+`no-store`), and to the participant only their own previews through `/api/intake/virtual/images/<id>`.
+No public or CDN URL exists. Withdrawing `remote_images` consent hides all photos from doctors.
+
+**Notifications** (`notify.ts`): the decision and its outbox row are written in one transaction;
+`dispatchDue()` sends due rows (claimed with `SKIP LOCKED`), retries 429/5xx/network failures after
+1 min, 5 min, 30 min and 2 h, then marks them failed (doctors can resend). Variables (first name,
+clinic, phone, participant ID) are read at send time, so message content is never stored; login
+codes are sent immediately and never stored. A background loop started in `instrumentation.ts`
+retries every 20 s. The WhatsApp webhook updates delivery status (signature-verified, monotonic),
+handles **STOP** (withdraws message consent) and replies once a day to other messages with the
+clinic's number. Message text never includes photos, notes or diagnoses.

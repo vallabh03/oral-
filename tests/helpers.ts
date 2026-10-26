@@ -96,6 +96,7 @@ export async function registerParticipant(overrides: Record<string, unknown> = {
 
 export const COMPLETE_ANSWERS = {
   habits: ["gutkha"], duration: "gt10", frequency: "gt5", symptoms: ["patch"], symptom_gt_2w: "yes",
+  alcohol: "no", medical_history: ["none"],
   risk_awareness: "no", sign_awareness: "no", previous_screening: "no", cessation_interest: "yes",
 };
 

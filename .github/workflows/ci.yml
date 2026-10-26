@@ -49,6 +49,9 @@ jobs:
           SEO_BASE=http://localhost:3000 npm run audit:seo
         env:
           PGLITE_DIR: .data/ci-seo
+          # Audit the site as it will be once indexing is approved (the default keeps every page noindex;
+          # that safe mode is covered by tests/unit/seo.test.ts).
+          INDEXING_ENABLED: "true"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

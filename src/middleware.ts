@@ -10,7 +10,7 @@ export function middleware(req: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob:${[process.env.S3_BUCKET, process.env.CLINICAL_S3_BUCKET].filter(Boolean).map((b) => ` https://${b}.s3.${process.env.AWS_REGION ?? "ap-south-2"}.amazonaws.com`).join("")}`,
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self'${process.env.STORAGE_DRIVER === "s3" && process.env.CLINICAL_S3_BUCKET ? ` https://${process.env.CLINICAL_S3_BUCKET}.s3.${process.env.AWS_REGION ?? "ap-south-2"}.amazonaws.com` : ""}`,
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

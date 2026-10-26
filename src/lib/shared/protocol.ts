@@ -14,7 +14,7 @@ const hasSymptoms = (a: Answers) => Array.isArray(a.symptoms) && a.symptoms.leng
 
 export const PROTOCOL = {
   id: "drive-safe-brief",
-  version: "1.0.0",
+  version: "1.1.0",
   questions: [
     {
       id: "habits",
@@ -82,6 +82,32 @@ export const PROTOCOL = {
       options: [
         { value: "yes", label: "Yes" },
         { value: "no", label: "No" },
+      ],
+    },
+    // 1.1.0: medical history for remote (virtual) review — asked of everyone so answers are comparable.
+    {
+      id: "alcohol",
+      type: "single",
+      text: "Do you drink alcohol?",
+      required: true,
+      options: [
+        { value: "no", label: "No" },
+        { value: "occasionally", label: "Occasionally" },
+        { value: "regularly", label: "Regularly (most weeks)" },
+      ],
+    },
+    {
+      id: "medical_history",
+      type: "multi",
+      text: "Have you ever had any of these? (Select all that apply)",
+      required: true,
+      exclusive: "none",
+      options: [
+        { value: "oral_cancer", label: "Mouth or throat cancer" },
+        { value: "precancer", label: "A white or red patch (pre-cancer) treated or checked by a doctor" },
+        { value: "head_neck_radiation", label: "Radiotherapy to the head or neck" },
+        { value: "sharp_tooth", label: "A broken or sharp tooth, or dentures that rub the inside of the mouth" },
+        { value: "none", label: "None of these" },
       ],
     },
     {

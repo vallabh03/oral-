@@ -25,6 +25,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     photo: can(staff.role, "patient.photo.write"),
     whatsapp: can(staff.role, "whatsapp.send") && whatsappConfigured(),
     clinicalImages: can(staff.role, "clinical_image.view") && config().CLINICAL_IMAGES_ENABLED,
+    virtual: can(staff.role, "virtual.review") && config().VIRTUAL_SCREENING_ENABLED,
   };
   // Serialise to plain JSON (dates → strings) for the client component.
   return <PatientRecord data={JSON.parse(JSON.stringify(data))} perms={perms} />;
