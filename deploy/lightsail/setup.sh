@@ -58,6 +58,8 @@ if [[ ! -f $ENV_FILE ]]; then
 # TAOC production settings. Keep private: contains secrets. Never commit or share.
 # Quote any value that contains spaces (the scripts read this file with bash).
 SITE_DOMAIN=$DOMAIN
+# Names the server answers to; add www.<domain> (comma-separated) once its DNS points here.
+SITE_ADDRESSES=$DOMAIN
 SITE_URL=https://$DOMAIN
 ALERT_EMAIL=$ALERT_EMAIL
 DB_OWNER_PASSWORD=$(rnd)

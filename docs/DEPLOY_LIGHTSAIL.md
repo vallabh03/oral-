@@ -76,17 +76,27 @@ only. They set a password and connect an authenticator app on first sign-in. Rol
 
 ## 5. Connect your domain (when you have one)
 
-1. At your domain provider, add an **A record**: name `@` (or a subdomain such as `screening`) →
-   value = the static IP. Wait until it works (usually minutes, up to a few hours).
-2. On the server, change the address and rebuild:
+DNS can stay with your current provider (add the records there) or move to Lightsail (free):
+
+1. **Records** — both pointing to the static IP:
+   - `A` record `@` (the bare domain) → static IP
+   - `A` record `www` → static IP
+   With Lightsail DNS: Lightsail → **Domains & DNS → Create DNS zone** → "domain from another
+   registrar" → add two **A records** (`@` and `www`) assigned to `taoc-prod`, then set the four
+   Lightsail name servers at your registrar (e.g. GoDaddy → Domain → DNS → Nameservers → *I'll use
+   my own*). With Cloudflare instead: set both records to **DNS only** (grey cloud) and remove any
+   Worker routes for the domain.
+2. Wait until the domain shows the static IP (`nslookup your-domain` or dnschecker.org).
+3. On the server, change the address and rebuild:
    ```bash
    sudo nano /opt/taoc/.env
    ```
-   Set `SITE_DOMAIN=your-domain` and `SITE_URL=https://your-domain`, save (Ctrl+O, Enter, Ctrl+X), then:
+   Set `SITE_DOMAIN=your-domain`, `SITE_URL=https://your-domain` and
+   `SITE_ADDRESSES="your-domain, www.your-domain"`, save (Ctrl+O, Enter, Ctrl+X), then:
    ```bash
    sudo ~/oral-/deploy/lightsail/update.sh
    ```
-   The HTTPS certificate is issued automatically on the first visit.
+   Certificates are issued automatically; `www` redirects to the main address.
 
 ## Everyday operations
 
