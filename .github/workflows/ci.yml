@@ -52,7 +52,7 @@ jobs:
           # Audit the site as it will be once indexing is approved (the default keeps every page noindex;
           # that safe mode is covered by tests/unit/seo.test.ts).
           INDEXING_ENABLED: "true"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
