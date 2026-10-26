@@ -118,6 +118,8 @@ jobs:
             echo "SITE_DOMAIN=localhost"
             echo "SITE_URL=https://localhost"
             echo "ALERT_EMAIL=ci@example.org"
+            # A value with spaces, as setup.sh writes it (the ops scripts read this file with bash).
+            echo 'NOTIFY_CLINIC_NAME="Telangana Against Oral Cancer"'
             for k in DB_OWNER_PASSWORD DB_APP_PASSWORD AUDIT_HMAC_SECRET DATA_ENCRYPTION_KEY; do echo "$k=$(openssl rand -hex 32)"; done
             echo "STORAGE_DRIVER=local"
           } | sudo tee /opt/taoc/.env >/dev/null
