@@ -655,7 +655,12 @@ dialog.lesion-dialog { width: min(96vw, 900px); }
 .step-art .art-bar { fill: var(--accent); transform-box: fill-box; transform-origin: left center; }
 .step-art .art-bar.b2 { transform: scaleX(0.7); } .step-art .art-bar.b3 { transform: scaleX(0.45); }
 .step-art .art-timer { fill: var(--surface); stroke: var(--brand); stroke-width: 2; stroke-linecap: round; }
-.step-art .art-shine { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linecap: round; opacity: 0.5; }
+.step-art .art-lips { fill: #e8a3a8; stroke: var(--accent); stroke-width: 2; }
+.step-art .art-mouth { fill: #5a1f28; }
+.step-art .art-throat { fill: #3b1219; }
+.step-art .art-uvula, .step-art .art-tongue { fill: #e47884; }
+.step-art .art-teeth { fill: #fbf7f0; }
+.step-art .art-tongue-line { fill: none; stroke: #b9566a; stroke-width: 1.5; stroke-linecap: round; }
 .step-art .art-lens { fill: rgba(255, 255, 255, 0.35); stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; transform: translate(98px, 40px); }
 .step-art .art-spark { fill: var(--accent); }
 .step-art .art-route-bg { fill: none; stroke: var(--brand); stroke-opacity: 0.18; stroke-width: 6; stroke-linecap: round; }
