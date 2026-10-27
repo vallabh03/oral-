@@ -116,7 +116,7 @@ jobs:
           sudo mkdir -p /opt/taoc/backups
           {
             echo "SITE_DOMAIN=localhost"
-            echo "SITE_ADDRESSES=localhost, www.localhost"
+            echo 'SITE_ADDRESSES="localhost, www.localhost"'
             echo "SITE_URL=https://localhost"
             echo "ALERT_EMAIL=ci@example.org"
             # A value with spaces, as setup.sh writes it (the ops scripts read this file with bash).
