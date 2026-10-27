@@ -46,9 +46,14 @@ export function StepArt({ kind }: { kind: StepArtKind }) {
       )}
       {kind === "exam" && (
         <>
-          {/* Tooth being checked with a magnifier that scans across it */}
-          <path className="art-paper" d="M58 22 c8 -8 18 -2 22 -2 s14 -6 22 2 c6 8 2 20 -2 28 c-3 8 -3 24 -9 26 c-5 1 -6 -14 -11 -14 s-6 15 -11 14 c-6 -2 -6 -18 -9 -26 c-4 -8 -8 -20 -2 -28 z" />
-          <path className="art-shine" d="M66 30 c2 -4 6 -5 9 -4" />
+          {/* Open mouth and throat being examined, with a magnifier that scans across it */}
+          <ellipse className="art-lips" cx="80" cy="50" rx="38" ry="28" />
+          <ellipse className="art-mouth" cx="80" cy="52" rx="30" ry="21" />
+          <path className="art-throat" d="M68 64 q12 -30 24 0 z" />
+          <path className="art-uvula" d="M77.5 38 q2.5 -2 5 0 v7 q-2.5 4 -5 0 z" />
+          <g className="art-teeth">{[60, 67, 74, 81, 88, 95].map((x) => <rect key={x} x={x - 0.5} y="31" width="6" height="6.5" rx="1.6" />)}</g>
+          <path className="art-tongue" d="M57 64 q23 -13 46 0 q-3 9 -23 10 q-20 -1 -23 -10 z" />
+          <path className="art-tongue-line" d="M80 62 v7" />
           <g className="art-lens">
             <circle cx="0" cy="0" r="15" />
             <path d="M11 11 l12 12" />
