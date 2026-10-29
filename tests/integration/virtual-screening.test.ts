@@ -267,8 +267,13 @@ describe("doctor review and patient notifications", () => {
     }
   });
 
-  it("skips messages without consent and lets the doctor know", async () => {
-    const p = await registerVirtual({ consents: { ...VIRTUAL_CONSENTS, reviewNotifications: false } });
+  it("requires review-message consent to register for virtual screening", async () => {
+    await expect(registerVirtual({ consents: { ...VIRTUAL_CONSENTS, reviewNotifications: false } })).rejects.toThrow(/consents.reviewNotifications/);
+  });
+
+  it("skips messages once consent is withdrawn and lets the doctor know", async () => {
+    const p = await registerVirtual();
+    expect((await call(withdraw.POST, req("POST", "/api/intake/consent/withdraw", { jar: p.jar, body: { consentType: "review_notifications" } }))).status).toBe(200);
     await uploadRequired(p.jar);
     await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
     const r = await decide(c.doc, (await caseOf(p.patientId)).id, { decision: "suspicious" });

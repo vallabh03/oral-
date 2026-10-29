@@ -137,10 +137,16 @@ describe("consent declined → examination completes without images", () => {
     expect((await act(c.doc, p.patientId, "report", {})).status).toBe(201);
   });
 
-  it("does not require photography consent at all (not mandatory for every participant)", async () => {
+  it("requires photography consent to be asked, and an image when granted, before a lesion exam is verified", async () => {
     const p = await patientWithLesionExam(c.campA);
     const list = await call(lesions.GET, req("GET", `/api/patients/${p.patientId}/lesion-images`, { jar: c.doc }), { id: p.patientId });
     expect(list.json.status.photo).toBe("not_recorded");
+    const notAsked = await act(c.doc, p.patientId, "verify", { examId: p.examId });
+    expect(notAsked.status).toBe(409);
+    expect(notAsked.json.error.message).toMatch(/photography consent/);
+    await act(c.doc, p.patientId, "clinical-photo-consent", { decision: "granted", faceDecision: "declined" });
+    expect((await act(c.doc, p.patientId, "verify", { examId: p.examId })).json.error.message).toMatch(/at least one lesion image/);
+    expect((await upload(c.doc, p.patientId, { examId: p.examId, lesionSite: "tongue" }, await lesionPhoto())).status).toBe(201);
     expect((await act(c.doc, p.patientId, "verify", { examId: p.examId })).json.verified).toBe(true);
   });
 

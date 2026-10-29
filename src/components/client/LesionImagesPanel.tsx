@@ -28,7 +28,7 @@ export function LesionImagesPanel({ patientId, disabled }: { patientId: string; 
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
-  const [consentForm, setConsentForm] = useState<{ decision: "granted" | "declined" | ""; face: boolean } | null>(null);
+  const [consentForm, setConsentForm] = useState<{ decision: "granted" | "declined" | ""; face: "granted" | "declined" | "" } | null>(null);
   const [capture, setCapture] = useState<{ site: string; includesFace: boolean; replacesId?: string } | null>(null);
   const [viewer, setViewer] = useState<{ url: string; image: Image } | null>(null);
   const viewerRef = useRef<HTMLDialogElement>(null);
@@ -54,7 +54,7 @@ export function LesionImagesPanel({ patientId, disabled }: { patientId: string; 
     });
     if (!ok) return;
     try {
-      await postJson(`/api/patients/${patientId}/clinical-photo-consent`, { decision: consentForm.decision, faceDecision: consentForm.decision === "granted" ? (consentForm.face ? "granted" : "declined") : undefined });
+      await postJson(`/api/patients/${patientId}/clinical-photo-consent`, { decision: consentForm.decision, faceDecision: consentForm.decision === "granted" ? consentForm.face || "declined" : undefined });
       toast(consentForm.decision === "granted" ? "Photography consent recorded" : "Declined — continue the examination without images", "success");
       setConsentForm(null);
       void load();
@@ -109,15 +109,15 @@ export function LesionImagesPanel({ patientId, disabled }: { patientId: string; 
         <h2 id="li-h" style={{ fontSize: "var(--step-1)", margin: 0 }}>2b. Clinical images of the lesion</h2>
         <span className={`badge ${badge[data.status.photo]}`} role="status">{CLINICAL_PHOTO_STATUS_LABELS[data.status.photo]}</span>
       </div>
-      <p className="hint" style={{ marginTop: 6 }}>Optional clinical documentation for authorised review. Not a diagnosis, never analysed by AI, and not included in reports or WhatsApp messages.</p>
+      <p className="hint" style={{ marginTop: 6 }}>Required for every recorded lesion: ask for consent, then photograph the lesion. For authorised review only. Not a diagnosis, never analysed by AI, and not included in reports or WhatsApp messages.</p>
 
       {!exam && <p>Save the examination first. Images can be added when a lesion is recorded.</p>}
       {exam && !lesionRecorded && data.status.photo !== "granted" && <p>No lesion is recorded in the latest examination, so photography is not applicable.</p>}
 
       {exam && lesionRecorded && !disabled && exam.status === "draft" && !consentForm && (data.status.photo === "not_recorded" || data.status.photo === "declined" || data.status.photo === "withdrawn") && (
         <div className="callout" style={{ marginTop: 12 }}>
-          {data.status.photo === "declined" ? <p style={{ marginTop: 0 }}>The participant declined photography. Complete the examination without images.</p> : <p style={{ marginTop: 0 }}>Ask the participant for separate consent before taking any photograph.</p>}
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConsentForm({ decision: "", face: false })}>{data.status.photo === "not_recorded" ? "Ask for photography consent" : "Record a new decision"}</button>
+          {data.status.photo === "declined" ? <p style={{ marginTop: 0 }}>The participant declined photography. Complete the examination without images.</p> : <p style={{ marginTop: 0 }}><strong>Required:</strong> ask the participant for photography consent before taking any photograph. The examination cannot be verified until this is recorded.</p>}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConsentForm({ decision: "", face: "" })}>{data.status.photo === "not_recorded" ? "Ask for photography consent" : "Record a new decision"}</button>
         </div>
       )}
 
@@ -128,17 +128,20 @@ export function LesionImagesPanel({ patientId, disabled }: { patientId: string; 
           <blockquote className="callout" style={{ margin: "0 0 12px" }}>{CONSENT_POLICIES.clinical_photo.text}</blockquote>
           <div className="choice-grid">
             <label className="choice"><input type="radio" name="cp-decision" checked={consentForm.decision === "granted"} onChange={() => setConsentForm({ ...consentForm, decision: "granted" })} /> Participant agrees</label>
-            <label className="choice"><input type="radio" name="cp-decision" checked={consentForm.decision === "declined"} onChange={() => setConsentForm({ ...consentForm, decision: "declined", face: false })} /> Participant declines</label>
+            <label className="choice"><input type="radio" name="cp-decision" checked={consentForm.decision === "declined"} onChange={() => setConsentForm({ ...consentForm, decision: "declined", face: "" })} /> Participant declines</label>
           </div>
           {consentForm.decision === "granted" && (
-            <label className="choice" style={{ marginTop: 8 }}>
-              <input type="checkbox" checked={consentForm.face} onChange={(e) => setConsentForm({ ...consentForm, face: e.target.checked })} />
-              <span>{CONSENT_POLICIES.clinical_photo_face.text} <span className="hint">(Only if clinically necessary.)</span></span>
-            </label>
+            <fieldset style={{ marginTop: 8 }}>
+              <legend>{CONSENT_POLICIES.clinical_photo_face.text} <span className="hint">(Only if clinically necessary.)</span></legend>
+              <div className="choice-grid">
+                <label className="choice"><input type="radio" name="cp-face" checked={consentForm.face === "granted"} onChange={() => setConsentForm({ ...consentForm, face: "granted" })} /> Agrees to face in photo</label>
+                <label className="choice"><input type="radio" name="cp-face" checked={consentForm.face === "declined"} onChange={() => setConsentForm({ ...consentForm, face: "declined" })} /> Face must stay out of photo</label>
+              </div>
+            </fieldset>
           )}
-          <p className="hint">Consent version {CONSENT_POLICIES.clinical_photo.version} (draft pending approval).</p>
+          <p className="hint">Consent version {CONSENT_POLICIES.clinical_photo.version}. Asking is required before any photograph and before a lesion examination can be verified.</p>
           <div className="cluster">
-            <button type="button" className="btn btn-primary btn-sm" disabled={!consentForm.decision} onClick={saveConsent}>Save decision</button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={!consentForm.decision || (consentForm.decision === "granted" && !consentForm.face)} onClick={saveConsent}>Save decision</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConsentForm(null)}>Cancel</button>
           </div>
         </fieldset>

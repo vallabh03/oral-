@@ -20,6 +20,7 @@ x-app-env: &app-env
   # Feature switches: all off until the programme approvals are recorded.
   INTAKE_ENABLED: ${INTAKE_ENABLED:-false}
   INDEXING_ENABLED: ${INDEXING_ENABLED:-false}
+  GALLERY_ENABLED: ${GALLERY_ENABLED:-false}
   CLINICAL_IMAGES_ENABLED: ${CLINICAL_IMAGES_ENABLED:-false}
   VIRTUAL_SCREENING_ENABLED: ${VIRTUAL_SCREENING_ENABLED:-false}
   NOTIFY_DRIVER: ${NOTIFY_DRIVER:-console}

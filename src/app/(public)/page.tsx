@@ -43,7 +43,7 @@ export default function HomePage() {
             <div className="fade-in">
               <span className="eyebrow">Prevent · Detect early · Act early</span>
               <h1 className="hero-title">
-                Early Awareness.<br />
+                Awareness.<br />
                 <span className="hero-accent">Early Screening.</span><br />
                 Better Care.
               </h1>

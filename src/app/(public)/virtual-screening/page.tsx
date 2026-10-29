@@ -24,8 +24,8 @@ export default function VirtualScreeningPage() {
           <ol className="pathway">
             <li><strong>Register online</strong><br />Name, age, phone and consent. About a minute.</li>
             <li><strong>Questionnaire</strong><br />Nine short questions about habits and mouth symptoms.</li>
+            <li><strong>Examination if needed</strong><br />If anything needs a closer look, we book you into a clinic.</li>
             <li><strong>Call or video</strong><br />The programme team contacts you to talk through your answers.</li>
-            <li><strong>Examination if needed</strong><br />If anything needs a closer look, we book you into a camp or clinic.</li>
           </ol>
 
           <div className="card" style={{ marginTop: 32, borderLeft: "4px solid var(--brand)" }}>

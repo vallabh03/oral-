@@ -161,15 +161,16 @@ export const CONSENT_POLICIES: Record<ConsentType, { version: string; text: stri
     text: "I agree to a photo of my face being taken so programme staff can confirm my identity at screening and follow-up visits. The photo is stored privately and is not shared publicly.",
   },
   // PRD v1.2 clinical photography — recorded by the clinician at examination time, separately
-  // from every other consent. Draft wording pending clinical/privacy approval.
+  // from every other consent. Wording approved by the product owner (2026-10-30); asking is
+  // mandatory before any image and before a lesion examination is verified.
   clinical_photo: {
-    version: "2026-10-draft-1",
-    required: false,
-    text: "I agree to close-up photographs being taken of the affected area inside or around my mouth, for my clinical record and review by authorised clinicians. Photos are stored privately, are not shared publicly, are not used for automated diagnosis, and are not included in my report or WhatsApp messages. Saying no will not affect my screening.",
+    version: "2026-10-approved-1",
+    required: true,
+    text: "I agree to close-up photographs being taken of the affected area inside or around my mouth, for my clinical record and review by authorised clinicians. Photos are stored privately, are not shared publicly, are not used for automated diagnosis, and are not included in my report or WhatsApp messages.",
   },
   clinical_photo_face: {
-    version: "2026-10-draft-1",
-    required: false,
+    version: "2026-10-approved-1",
+    required: true, // asked with every grant; needed before any photo that includes the face
     text: "I also agree that a clinical photograph may include parts of my face when this is clinically necessary.",
   },
   // Virtual screening (PRD addendum). Draft wording pending clinical/privacy approval.
@@ -179,8 +180,8 @@ export const CONSENT_POLICIES: Record<ConsentType, { version: string; text: stri
     text: "I agree to take or upload photographs of the inside of my mouth and submit them, with my answers, for review by the programme's authorised doctors. The photos are stored privately, are not shared publicly and are not used for automated diagnosis. I understand that reviewing photos has limitations: it cannot confirm or rule out oral cancer, and I should see a doctor in person if I have a persistent ulcer, lump, red or white patch, bleeding or other concerning symptom.",
   },
   review_notifications: {
-    version: "2026-10-draft-1",
-    required: false,
+    version: "2026-10-approved-1",
+    required: false, // required only for virtual screening (enforced at registration)
     text: "I agree to receive messages about my screening review on WhatsApp, or by SMS if WhatsApp is not available, at the mobile number I provided. Messages will not contain photos or detailed medical information.",
   },
 };

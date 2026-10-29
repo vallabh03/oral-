@@ -107,6 +107,8 @@ describe("race conditions (findings 3, 9) and validation (finding 12)", () => {
   it("re-checks the workflow inside the transaction: an exam verified mid-upload rejects the image", async () => {
     const { pid, examId } = await lesionPatient();
     await act(pid, "clinical-photo-consent", { decision: "granted" });
+    // One image is already on the exam (verification requires it); the second races verification.
+    expect((await upload(pid, { examId, lesionSite: "tongue" }, await photo(4))).status).toBe(201);
     const store = objectStore("clinical");
     const original = store.put.bind(store);
     let verified = false;
@@ -121,8 +123,9 @@ describe("race conditions (findings 3, 9) and validation (finding 12)", () => {
     spy.mockRestore();
     expect(r.status).toBe(409);
     const d = await db();
-    expect((await d.query("select 1 from lesion_images where patient_id = $1", [pid])).rows).toHaveLength(0);
-    expect((await d.query("select 1 from blob_objects where key like $1", [`lesions/${pid}/%`])).rows).toHaveLength(0);
+    expect((await d.query("select 1 from lesion_images where patient_id = $1", [pid])).rows).toHaveLength(1);
+    // Only the first image's stored files remain: the rejected upload left nothing behind.
+    expect((await d.query("select 1 from blob_objects where key like $1", [`lesions/${pid}/%`])).rows).toHaveLength(2);
   });
 
   it("concurrent uploads with the same idempotency key produce one image, not an error", async () => {

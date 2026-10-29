@@ -71,6 +71,7 @@ DATA_ENCRYPTION_KEY=$(rnd)
 # Feature switches (turn on only after the programme approvals)
 INTAKE_ENABLED=false
 INDEXING_ENABLED=false
+GALLERY_ENABLED=false
 CLINICAL_IMAGES_ENABLED=false
 VIRTUAL_SCREENING_ENABLED=false
 NOTIFY_DRIVER=console

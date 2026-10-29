@@ -876,3 +876,9 @@ dialog.lesion-dialog { width: min(96vw, 900px); }
 .vp-current > div > .btn, .vp-pending > div > .cluster { justify-self: start; }
 .vr-img-actions input { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 10px; font: inherit; font-size: 0.9rem; background: var(--surface); color: var(--text); min-height: 40px; }
 @media (max-width: 719px) { .vp-card .mouth-diagram { max-width: 170px; } }
+
+/* Public gallery (hidden until GALLERY_ENABLED=true) */
+.gallery-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.gallery-item { margin: 0; border-radius: var(--radius); overflow: hidden; background: var(--surface); border: 1px solid var(--border); }
+.gallery-item img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+.gallery-cap { margin: 0; padding: 10px 14px; }

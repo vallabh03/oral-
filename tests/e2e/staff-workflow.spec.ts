@@ -37,6 +37,14 @@ test.describe("clinician workflow", () => {
     await exam.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("v1 draft", { exact: true })).toBeVisible();
 
+    // A recorded lesion needs a photography decision before verification; this participant declines.
+    const photos = page.locator("section[aria-labelledby='li-h']");
+    await photos.getByRole("button", { name: "Ask for photography consent" }).click();
+    await photos.getByLabel("Participant declines").check();
+    await photos.getByRole("button", { name: "Save decision" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Record decision" }).click();
+    await expect(photos.getByRole("status").filter({ hasText: "Photography declined" })).toBeVisible();
+
     await page.getByRole("button", { name: "Verify examination" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("locks this examination");

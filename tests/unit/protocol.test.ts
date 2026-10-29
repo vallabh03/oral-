@@ -43,4 +43,16 @@ describe("questionnaire protocol", () => {
     expect(habitPresentFromAnswers({ habits: ["areca"] })).toBe(true);
     expect(habitPresentFromAnswers({})).toBeNull();
   });
+
+  it("asks smokers how many cigarettes, in packets, and other users how much of the rest", () => {
+    const ids = (habits: string[]) => visibleQuestions({ habits }).map((q) => q.id);
+    expect(ids(["cigarette"])).toContain("cigarettes");
+    expect(ids(["cigarette"])).not.toContain("frequency");
+    expect(ids(["cigarette", "gutkha"])).toEqual(expect.arrayContaining(["cigarettes", "frequency"]));
+    expect(ids(["gutkha"])).not.toContain("cigarettes");
+    const q = PROTOCOL.questions.find((x) => x.id === "cigarettes")!;
+    expect(q.options.map((o) => o.label)).toEqual(["Occasionally / not every day", "1–3 packets a day", "More than 3 packets a day"]);
+    const r = validateAnswers({ ...complete, habits: ["cigarette"], frequency: undefined, cigarettes: "1to3_packets" }, { requireComplete: true });
+    expect(r.ok).toBe(true);
+  });
 });

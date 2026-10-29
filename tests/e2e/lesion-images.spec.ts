@@ -35,6 +35,8 @@ test.describe("clinical lesion images", () => {
     await panel.getByRole("button", { name: "Ask for photography consent" }).click();
     await expect(panel.getByText(/close-up photographs being taken of the affected area/)).toBeVisible();
     await panel.getByLabel("Participant agrees").check();
+    await expect(panel.getByRole("button", { name: "Save decision" })).toBeDisabled(); // face question must be answered
+    await panel.getByLabel("Face must stay out of photo").check();
     await panel.getByRole("button", { name: "Save decision" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Record decision" }).click();
     await expect(panel.getByRole("status").filter({ hasText: "Photography consented" })).toBeVisible();

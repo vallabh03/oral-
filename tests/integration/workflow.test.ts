@@ -59,6 +59,9 @@ describe("end-to-end screening workflow (participant → clinician → report)",
 
     const exam = await act(doc, p.patientId, "exam", { examCompleted: "yes", mouthOpening: "normal", oralFindings: ["leukoplakia"], lesionSites: ["left_buccal"], lesionPresent: "yes", clinicalImpression: "pmod", notes: "Synthetic note" });
     expect(exam.status).toBe(201);
+    // Photography consent must be asked for a recorded lesion; this participant declines.
+    expect((await act(doc, p.patientId, "verify", { examId: exam.json.examId })).status).toBe(409);
+    await act(doc, p.patientId, "clinical-photo-consent", { decision: "declined" });
     const verified = await act(doc, p.patientId, "verify", { examId: exam.json.examId });
     expect(verified.json.classification).toEqual({ group: 4, pathway: "Lesion evaluation plus cessation support" });
 
@@ -98,6 +101,7 @@ describe("end-to-end screening workflow (participant → clinician → report)",
     await call(questionnaire.POST, req("POST", "/api/intake/questionnaire", { jar: p.jar, body: { answers: COMPLETE_ANSWERS, complete: true, idempotencyKey: key() } }));
     const { jar: doc } = await staffJar("admin");
     const exam = await act(doc, p.patientId, "exam", { examCompleted: "yes", mouthOpening: "normal", oralFindings: ["ulcer"], lesionSites: ["tongue"], lesionPresent: "uncertain", clinicalImpression: "uncertain" });
+    await act(doc, p.patientId, "clinical-photo-consent", { decision: "declined" });
     const v = await act(doc, p.patientId, "verify", { examId: exam.json.examId });
     expect(v.json).toMatchObject({ verified: true, classification: null, blockedReason: "lesion_uncertain" });
   });

@@ -123,6 +123,7 @@ Edit `/opt/taoc/.env`, then run `update.sh`:
 |---|---|
 | `INTAKE_ENABLED=true` | Programme approves live public registration |
 | `INDEXING_ENABLED=true` | Clinical owner approves the public content (lets Google index the site) |
+| `GALLERY_ENABLED=true` | Programme approves the photos in `src/content/gallery.ts` (adds the Gallery page and menu link) |
 | `NOTIFY_DRIVER=whatsapp` + `WHATSAPP_*` | Meta verification and templates approved (see `DEPLOYMENT.md`) |
 | `VIRTUAL_SCREENING_ENABLED=true`, `CLINICAL_IMAGES_ENABLED=true` | Clinical, privacy and security approvals; **first** move photos to a private S3 bucket (`STORAGE_DRIVER=s3`, separate clinical bucket + KMS key) — the app refuses to start otherwise |
 

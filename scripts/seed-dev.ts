@@ -34,7 +34,7 @@ export async function seedDev(file = ".dev-credentials.json") {
       const habit = i % 3 !== 2;
       await saveQuestionnaire(
         r.patientId,
-        { habits: habit ? ["gutkha"] : ["none"], ...(habit ? { duration: "5to10", frequency: "1to5", cessation_interest: "maybe" } : {}), symptoms: ["none"], alcohol: "no", medical_history: ["none"], risk_awareness: "yes", sign_awareness: "no", previous_screening: "no" },
+        { habits: habit ? ["gutkha"] : ["none"], ...(habit ? { duration: "5to10", frequency: "1to3_packets", cessation_interest: "maybe" } : {}), symptoms: ["none"], alcohol: "no", medical_history: ["none"], risk_awareness: "yes", sign_awareness: "no", previous_screening: "no" },
         true,
         `seed-dev-q-${i}-000000000`,
         { type: "participant" },
