@@ -54,6 +54,13 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
     const submit = page.getByRole("button", { name: "Submit for doctor review" });
     await expect(submit).toBeDisabled();
 
+    // Each required photo has a short narrated clip; the language choice applies to every clip.
+    const first = page.locator(".vp-card").first();
+    await first.getByRole("button", { name: /Watch how/ }).click();
+    await first.getByRole("button", { name: "తెలుగు" }).click();
+    await expect(first.locator("video")).toHaveAttribute("src", "/tutorial/te/lips.mp4");
+    expect((await page.request.get("/tutorial/te/lips.mp4")).status()).toBe(200);
+
     const good = await mouth("#d9b8a0");
     const dark = await sharp(good).linear(0.1, 0).jpeg().toBuffer();
     for (const [i, view] of REQUIRED.entries()) {
