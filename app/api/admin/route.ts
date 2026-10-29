@@ -229,7 +229,7 @@ export async function POST(req: Request) {
 
     // Invalidate the in-memory policy cache so the next request re-reads the
     // new value from D1 immediately — no need to wait for the 60-second TTL.
-    if (key === "security") invalidatePolicyCache();
+    if (key === "security") await invalidatePolicyCache();
 
     return response({ ok: true });
   } catch (e) {

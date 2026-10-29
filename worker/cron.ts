@@ -21,7 +21,6 @@ interface Env {
 export async function scheduled(
   _event: ScheduledEvent,
   env: Env,
-  _ctx: ExecutionContext,
 ): Promise<void> {
   const db = env.DB;
   const now = Date.now();

@@ -35,3 +35,15 @@ test("telemetry measure tracks duration and returns result", async () => {
   assert.ok(typeof durationMs === "number");
   assert.ok(durationMs >= 0);
 });
+
+test("migration 0012 covers all performance hardening indexes", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const sql = fs.readFileSync(path.resolve("drizzle/0012_performance_hardening.sql"), "utf-8");
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS responses_patient_at"));
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS records_patient_at"));
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS audit_patient_at_desc"));
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS limits_expires"));
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS camps_tenant"));
+  assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS errors_gc"));
+});

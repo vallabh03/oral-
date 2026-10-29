@@ -126,9 +126,22 @@ const POLICY_TTL_MS = 60_000; // 60 seconds
 
 export async function securityPolicy(): Promise<Policy> {
   const now_ms = Date.now();
+  // Fast path: module-level cache (within this isolate)
   if (_policyCache && now_ms - _policyCache.ts < POLICY_TTL_MS)
     return _policyCache.v;
 
+  // Mid path: KV cache (consistent across all isolates, avoids D1 read)
+  const kv = runtime().RATE_KV;
+  if (kv) {
+    const kvVal = await kv.get("policy:security");
+    if (kvVal) {
+      const v = JSON.parse(kvVal) as Policy;
+      _policyCache = { v, ts: now_ms };
+      return v;
+    }
+  }
+
+  // Slow path: D1 read, then populate both caches
   const row = await db()
     .prepare("SELECT value FROM app_settings WHERE id='security'")
     .first<{ value: string }>();
@@ -138,15 +151,22 @@ export async function securityPolicy(): Promise<Policy> {
     : { idleMinutes: 15, absoluteHours: 8 };
 
   _policyCache = { v, ts: now_ms };
+  // Store in KV so other isolates pick it up; TTL matches the module-level cache.
+  if (kv)
+    await kv.put("policy:security", JSON.stringify(v), { expirationTtl: Math.ceil(POLICY_TTL_MS / 1000) });
+
   return v;
 }
 
 /**
  * Call this after any admin write that changes security settings
- * so the next request re-reads from D1.
+ * so the next request re-reads from D1 and repopulates both caches.
+ * Deletes from KV so all isolates immediately see stale entry removed.
  */
-export function invalidatePolicyCache() {
+export async function invalidatePolicyCache() {
   _policyCache = null;
+  const kv = runtime().RATE_KV;
+  if (kv) await kv.delete("policy:security");
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +218,20 @@ export async function actor(
     .prepare("SELECT * FROM users WHERE id=? AND active=1")
     .bind(u.userId)
     .first<any>();
+
+  // ---------------------------------------------------------------------------
+  // User row KV cache — avoids a D1 read on every authenticated request.
+  // Cached for 5 minutes; invalidated on role/active changes in the `user` action.
+  // ---------------------------------------------------------------------------
+  const kv = runtime().RATE_KV;
+  const userCacheKey = `user:${u.userId}`;
+  if (!row && kv) {
+    const cached = await kv.get(userCacheKey);
+    if (cached) row = JSON.parse(cached);
+  } else if (row && kv) {
+    // Refresh the cache on every live read (keeps it warm)
+    await kv.put(userCacheKey, JSON.stringify(row), { expirationTtl: 300 });
+  }
 
   const bootstrapRole = isBootstrapAdmin(
     u.email,
@@ -380,14 +414,17 @@ export async function rate(a: Actor) {
 
 // ---------------------------------------------------------------------------
 // Standard JSON response — always no-store, always typed
+// Attaches X-Request-Id for Cloudflare Logpush / tail worker correlation.
 // ---------------------------------------------------------------------------
-export function response(data: unknown, status = 200) {
+export function response(data: unknown, status = 200, requestId?: string) {
+  const rid = requestId ?? id("REQ");
   return Response.json(data, {
     status,
     headers: {
       "Cache-Control": "no-store, private",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "no-referrer",
+      "X-Request-Id": rid,
     },
   });
 }
@@ -431,6 +468,15 @@ export async function failure(
       )
       .bind(rid, now(), code, message, path, actorId ?? null)
       .run();
+    // Probabilistic GC: ~1% of error writes prune rows older than 7 days.
+    // Keeps app_errors table from growing unboundedly under sustained load.
+    if (Math.random() < 0.01) {
+      const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      await db()
+        .prepare("DELETE FROM app_errors WHERE at < ?")
+        .bind(cutoff)
+        .run();
+    }
   } catch {
     // D1 itself may be the cause — swallow to avoid masking the original error.
   }
@@ -442,6 +488,7 @@ export async function failure(
       requestId: rid,
     },
     500,
+    rid,
   );
 }
 

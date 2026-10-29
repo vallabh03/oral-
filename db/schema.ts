@@ -6,13 +6,21 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-export const camps = sqliteTable("camps", {
-  id: text("id").primaryKey(),
-  tenant: text("tenant").notNull(),
-  name: text("name").notNull(),
-  location: text("location").notNull(),
-  date: text("date").notNull(),
-});
+export const camps = sqliteTable(
+  "camps",
+  {
+    id: text("id").primaryKey(),
+    tenant: text("tenant").notNull(),
+    name: text("name").notNull(),
+    location: text("location").notNull(),
+    date: text("date").notNull(),
+  },
+  (t) => [
+    // Tenant-scoped reads in workspace GET
+    index("camps_tenant").on(t.tenant),
+  ],
+);
+
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -109,7 +117,11 @@ export const responses = sqliteTable(
     at: text("at").notNull(),
     actor: text("actor").notNull(),
   },
-  (t) => [index("responses_patient").on(t.patientId)],
+  (t) => [
+    index("responses_patient").on(t.patientId),
+    // Covering index for ORDER BY at queries (patient detail view)
+    index("responses_patient_at").on(t.patientId, t.at),
+  ],
 );
 
 export const records = sqliteTable(
@@ -125,7 +137,11 @@ export const records = sqliteTable(
     at: text("at").notNull(),
     actor: text("actor").notNull(),
   },
-  (t) => [index("records_patient").on(t.patientId, t.kind)],
+  (t) => [
+    index("records_patient").on(t.patientId, t.kind),
+    // Covering index for ORDER BY at DESC queries (patient detail view)
+    index("records_patient_at").on(t.patientId, t.at),
+  ],
 );
 
 export const samples = sqliteTable(
