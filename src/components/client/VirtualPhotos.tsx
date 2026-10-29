@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { VIEW_CLIP } from "@/lib/shared/tutorial";
 import { MOUTH_VIEWS, type MouthView } from "@/lib/shared/virtual";
 import { MouthDiagram } from "@/components/MouthDiagram";
 import { getJson, postJson, sendJson, type ApiError } from "./api";
 import { checkPhoto, FLAG_MESSAGES, type ClientFlag } from "./photoQuality";
+import { TutorialClip } from "./TutorialClip";
 
 type CaseImage = { id: string; view: MouthView; flags: ClientFlag[]; submitted: boolean; retakeRequested: boolean; previewUrl: string };
 type CaseData = {
@@ -185,6 +187,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
       {data.status === "more_images_requested" && (
         <div className="callout callout-warn" role="status"><strong>The doctor needs clearer photos.</strong> Retake the areas marked below, then submit again.</div>
       )}
+      <TutorialClip step="full" label="Watch the 1-minute photo guide (English, తెలుగు, हिन्दी)" />
       <div className="callout">
         <strong>Before you start</strong>
         <ul style={{ margin: "8px 0 0" }}>
@@ -222,6 +225,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
                 </h3>
                 {retake && <p className="vp-alert" role="alert">The doctor asked for a clearer photo of this area. Please take it again.</p>}
                 <ol className="vp-steps">{v.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+                {VIEW_CLIP[v.value] && <TutorialClip step={VIEW_CLIP[v.value]!} label={`Watch how (short video): ${v.label}`} />}
 
                 {(v.value === "concern" ? imgs : current ? [current] : []).map((i) => (
                   <div key={i.id} className="vp-current">
