@@ -13,6 +13,8 @@ import * as tickets from "@/app/api/intake/virtual/uploads/route";
 import * as putUpload from "@/app/api/intake/virtual/uploads/[ticketId]/route";
 import * as complete from "@/app/api/intake/virtual/uploads/[ticketId]/complete/route";
 import * as submit from "@/app/api/intake/virtual/submit/route";
+import * as tutorial from "@/app/api/intake/virtual/tutorial/route";
+import { TUTORIAL_VERSION } from "@/lib/shared/tutorial";
 import * as withdraw from "@/app/api/intake/consent/withdraw/route";
 import * as loginRequest from "@/app/api/intake/login/request/route";
 import * as loginVerify from "@/app/api/intake/login/verify/route";
@@ -33,6 +35,7 @@ async function registerVirtual() {
   const d = await db();
   const patientId = (await d.query<{ id: string }>("select id from patients where display_id = $1", [r.json.displayId])).rows[0]!.id;
   const caseId = (await d.query<{ id: string }>("select id from virtual_cases where patient_id = $1", [patientId])).rows[0]!.id;
+  await call(tutorial.POST, req("POST", "/api/intake/virtual/tutorial", { jar, body: { language: "en", version: TUTORIAL_VERSION } }));
   return { jar, displayId: r.json.displayId as string, patientId, caseId, mobile: body.mobile as string };
 }
 async function ticket(jar: Jar, view: string, data: Buffer) {
@@ -46,7 +49,7 @@ async function upload(jar: Jar, view: string, data?: Buffer) {
 }
 async function submitted() {
   const p = await registerVirtual();
-  for (const v of ["lips", "cheek_left", "cheek_right", "tongue_top", "tongue_under"]) await upload(p.jar, v);
+  for (const v of ["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]) await upload(p.jar, v);
   await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
   return p;
 }

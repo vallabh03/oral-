@@ -5,6 +5,7 @@ import {
   PATIENT_STATUSES, RECRUITMENT_SOURCES, ROLES, SCREENING_MODES,
 } from "@/lib/shared/constants";
 import { FOLLOWUP_ACTIONS, MOUTH_VIEW_VALUES, TELANGANA_DISTRICTS } from "@/lib/shared/virtual";
+import { TUTORIAL_LANG_CODES } from "@/lib/shared/tutorial";
 
 // Request schemas. `.strict()` rejects unexpected fields on every mutation (checklist §3).
 
@@ -209,6 +210,8 @@ export const virtualTicketSchema = z.object({
   capturedBy: z.enum(["patient", "caregiver"]).default("patient"),
 }).strict();
 export const virtualAssistanceSchema = z.object({ note: z.string().trim().max(500).optional() }).strict();
+// The patient finished the mandatory photo guide. Recorded for the timeline only; never consent.
+export const tutorialCompleteSchema = z.object({ language: z.enum(TUTORIAL_LANG_CODES), version: z.string().trim().min(1).max(40) }).strict();
 export const otpRequestSchema = z.object({
   displayId: z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}(-[A-Z]{2,8})?-\d{1,8}$/, "Enter your participant ID"),
   mobile,

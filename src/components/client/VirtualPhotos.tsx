@@ -6,12 +6,14 @@ import { MOUTH_VIEWS, type MouthView } from "@/lib/shared/virtual";
 import { MouthDiagram } from "@/components/MouthDiagram";
 import { getJson, postJson, sendJson, type ApiError } from "./api";
 import { checkPhoto, FLAG_MESSAGES, type ClientFlag } from "./photoQuality";
-import { TutorialClip } from "./TutorialClip";
+import { TutorialClip, TutorialGate } from "./TutorialClip";
+import { CaseTimeline, type TimelineItem } from "@/components/CaseTimeline";
 
 type CaseImage = { id: string; view: MouthView; flags: ClientFlag[]; submitted: boolean; retakeRequested: boolean; previewUrl: string };
 type CaseData = {
   status: string; statusLabel: string; round: number; canEdit: boolean; imagesConsent: boolean; assistanceRequested: boolean;
   missingRequired: MouthView[]; images: CaseImage[]; resultMessage: string | null; clinic: { name: string; phone: string };
+  tutorial: { completedAt: string | null }; timeline: TimelineItem[]; submittedMessage: string | null;
 };
 type Pending = { file: File; url: string; flags: ClientFlag[] };
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -171,13 +173,24 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
       <div ref={topRef} tabIndex={-1} className="stack" style={{ "--stack": "16px", outline: "none" } as React.CSSProperties}>
         <div className="success-state" role="status">
           <h2 style={{ marginTop: 0 }}>{data.statusLabel}</h2>
-          {data.resultMessage ? <p>{data.resultMessage}</p> : <p>Thank you. A doctor will review your photos. We will send you a WhatsApp message when the review is done{data.round > 1 ? "" : ", or if we need clearer photos"}.</p>}
+          {data.resultMessage ? <p>{data.resultMessage}</p> : <p>{data.submittedMessage ?? "Thank you. A doctor will review your photos."}</p>}
           <p className="hint" style={{ marginBottom: 0 }}>Photo screening cannot rule out oral disease. If you have an ulcer, lump, red or white patch or bleeding that lasts more than two weeks, please see a doctor in person. Do not wait for our message.</p>
         </div>
         <div className="vp-thumbs" aria-label="Photos you sent">
           {data.images.map((i) => <img key={i.id} src={i.previewUrl} alt={`Your photo: ${MOUTH_VIEWS.find((v) => v.value === i.view)?.label}`} loading="lazy" />)}
         </div>
         <p className="hint">Questions? Contact {data.clinic.name} at {data.clinic.phone}.</p>
+        <CaseTimeline events={data.timeline} title="Your progress" />
+      </div>
+    );
+  }
+
+  // Photo capture opens only after the guide has been watched to the end.
+  if (!data.tutorial.completedAt) {
+    return (
+      <div ref={topRef} tabIndex={-1} className="stack" style={{ "--stack": "20px", outline: "none" } as React.CSSProperties}>
+        <TutorialGate onDone={() => void load()} />
+        <CaseTimeline events={data.timeline} title="Your progress" />
       </div>
     );
   }
@@ -187,7 +200,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
       {data.status === "more_images_requested" && (
         <div className="callout callout-warn" role="status"><strong>The doctor needs clearer photos.</strong> Retake the areas marked below, then submit again.</div>
       )}
-      <TutorialClip step="full" label="Watch the 1-minute photo guide (English, తెలుగు, हिन्दी)" />
+      <TutorialClip step="guide" label="Watch the photo guide again (English, తెలుగు, हिन्दी)" />
       <div className="callout">
         <strong>Before you start</strong>
         <ul style={{ margin: "8px 0 0" }}>
@@ -246,7 +259,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
                         <div className="progress-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Uploading ${v.label}`}><span style={{ width: `${pct}%` }} /></div>
                       ) : (
                         <div className="cluster">
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => void upload(v.value)}>{p.flags.length ? "Use anyway" : "Save photo"}</button>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => void upload(v.value)}>{errors[v.value] ? "Try again" : p.flags.length ? "Use anyway" : "Save photo"}</button>
                           <button type="button" className="btn btn-secondary btn-sm" onClick={() => discard(v.value)}>Retake</button>
                         </div>
                       )}
@@ -276,9 +289,9 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
         <button type="button" className="btn btn-primary" disabled={submitting || !data.images.length || (data.missingRequired.length > 0 && !data.assistanceRequested)} onClick={() => void submit()}>
           {submitting ? "Submitting…" : "Submit for doctor review"}
         </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>I need help</button>
+        <button type="button" className="btn btn-secondary" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>Need help?</button>
       </div>
-      {data.missingRequired.length > 0 && !data.assistanceRequested && <p className="hint">Add all required photos to submit. If you cannot take one, choose “I need help”.</p>}
+      {data.missingRequired.length > 0 && !data.assistanceRequested && <p className="hint">Add all required photos to submit. If you cannot take one, choose “Need help?”.</p>}
       {helpOpen && (
         <div className="card stack" style={{ "--stack": "10px" } as React.CSSProperties}>
           {helpSent || data.assistanceRequested ? (
@@ -292,6 +305,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
           )}
         </div>
       )}
+      <CaseTimeline events={data.timeline} title="Your progress" />
     </div>
   );
 }

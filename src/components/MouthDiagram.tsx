@@ -3,7 +3,9 @@
 // Note: "left" means the participant's own left, which appears on the viewer's right.
 
 export function MouthDiagram({ view }: { view: string }) {
-  const on = (v: string | string[]) => ((Array.isArray(v) ? v : [v]).includes(view) ? "md-hl" : "");
+  // "Upper mouth" covers the roof of the mouth and the upper gums.
+  const active = view === "upper_mouth" ? ["palate", "upper_gums"] : [view];
+  const on = (v: string | string[]) => ((Array.isArray(v) ? v : [v]).some((x) => active.includes(x)) ? "md-hl" : "");
   return (
     <svg className="mouth-diagram" viewBox="0 0 220 160" aria-hidden="true" focusable="false">
       <rect className="md-bg" width="220" height="160" rx="14" />
@@ -14,7 +16,7 @@ export function MouthDiagram({ view }: { view: string }) {
           <circle className="md-hl" cx="130" cy="92" r="9" />
           <g className="md-lens"><circle cx="130" cy="92" r="22" /><path d="M146 108 l20 20" /></g>
         </g>
-      ) : view === "tongue_under" ? (
+      ) : view === "tongue_under" || view === "lower_mouth" ? (
         <g>
           <ellipse className={`md-lip ${on("lips")}`} cx="110" cy="82" rx="78" ry="56" />
           <ellipse className="md-inside" cx="110" cy="84" rx="62" ry="42" />

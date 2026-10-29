@@ -1,7 +1,7 @@
 // Builds one animated tutorial scene as a self-contained HTML page (1280×720). Every animation is
 // a CSS animation timed against --d (the clip length in seconds), so render.ts can step through
 // them frame by frame. Drawings are simple flat illustrations: no real patient images are used.
-import { TUTORIAL_UI, type TutorialLang, type TutorialStep } from "../../src/lib/shared/tutorial";
+import { TUTORIAL_UI, type PhotoView, type TutorialLang, type TutorialScene } from "../../src/lib/shared/tutorial";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -22,9 +22,9 @@ function mouth(view: string): string {
       return `${lips}${inside(70)}<path d="M206 66 Q258 110 206 162 Q226 112 206 66 Z" fill="#d98088"/>${tongue}${hl("M200 58 Q272 110 200 168")}${finger(1)}`;
     case "cheek_right":
       return `${lips}${inside(70)}<path d="M94 66 Q42 110 94 162 Q74 112 94 66 Z" fill="#d98088"/>${tongue}${hl("M100 58 Q28 110 100 168")}${finger(-1)}`;
-    case "tongue_top":
-      return `${lips}${inside(56)}${upperTeeth}<path d="M96 120 Q150 104 204 120 Q214 200 150 214 Q86 200 96 120 Z" fill="#e8848c"/><path d="M150 124 V200" stroke="#c9606c" stroke-width="4" stroke-linecap="round"/>${hl("M88 116 Q150 96 212 116 Q224 206 150 220 Q76 206 88 116 Z")}`;
-    case "tongue_under":
+    case "upper_mouth": // camera pointing up: roof of the mouth (palate) inside the upper teeth
+      return `${lips}${inside(74)}<path d="M62 118 Q150 22 238 118 Q150 150 62 118 Z" fill="#d97884"/><path d="M150 62 V128 M118 84 q32 10 64 0 M108 104 q42 12 84 0" stroke="#b9566a" stroke-width="3" fill="none" stroke-linecap="round"/><g fill="#fffaf2">${[70, 92, 116, 140, 164, 188, 210].map((x, i) => `<rect x="${x}" y="${116 - Math.abs(3 - i) * 12}" width="20" height="20" rx="5"/>`).join("")}</g><path d="M142 150 q8 -6 16 0 v10 q-8 8 -16 0 z" fill="#e8848c"/>${hl("M56 120 Q150 10 244 120 Q150 156 56 120 Z")}`;
+    case "lower_mouth": // camera pointing down: under the tongue, floor of the mouth, lower gums
       return `${lips}${inside(70)}<path d="M84 70 Q150 30 216 70 Q206 100 150 104 Q94 100 84 70 Z" fill="#e8848c"/><path d="M86 118 Q150 106 214 118 Q204 168 150 174 Q96 168 86 118 Z" fill="#d97884"/><path d="M150 106 V160" stroke="#b44a5a" stroke-width="4" stroke-linecap="round"/><path d="M118 124 Q126 146 120 162 M182 124 Q174 146 180 162" stroke="#7b6fb5" stroke-width="3" fill="none" stroke-linecap="round"/>${lowerTeeth}${hl("M80 112 Q150 96 220 112 Q210 182 150 186 Q90 182 80 112 Z")}`;
     default: // relaxed open mouth
       return `${lips}${inside()}${upperTeeth}${tongue}${lowerTeeth}`;
@@ -61,16 +61,22 @@ function phone(view: string): string {
   <path class="hand" d="M1050 300 q70 30 60 140 h-160 q-10 -60 20 -90 q30 -40 80 -50 z" fill="#e7ad86"/>`;
 }
 
-function arrow(side: "left" | "right"): string {
-  // Points at the participant's own side: their left appears on the viewer's right.
-  const x = side === "left" ? 560 : 70;
-  const d = side === "left" ? "M0 0 h-80 m0 0 l30 -30 m-30 30 l30 30" : "M0 0 h80 m0 0 l-30 -30 m30 30 l-30 30";
-  return `<g transform="translate(${x} 280)"><g class="bob"><path d="${d}" stroke="#f2b705" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></g>`;
+function arrow(dir: "left" | "right" | "up" | "down"): string {
+  // Left/right point at the participant's own side: their left appears on the viewer's right.
+  // Up/down show which way the camera points for the upper and lower mouth.
+  const at = { left: [560, 280], right: [70, 280], up: [560, 230], down: [560, 250] }[dir];
+  const d = {
+    left: "M0 0 h-80 m0 0 l30 -30 m-30 30 l30 30", right: "M0 0 h80 m0 0 l-30 -30 m30 30 l-30 30",
+    up: "M0 40 v-80 m0 0 l-30 30 m30 -30 l30 30", down: "M0 -40 v80 m0 0 l-30 -30 m30 30 l30 -30",
+  }[dir];
+  return `<g transform="translate(${at[0]} ${at[1]})"><g class="bob"><path d="${d}" stroke="#f2b705" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></g>`;
 }
 
-function photoScene(step: TutorialStep["id"]): string {
-  const side = step === "cheek_left" ? "left" : step === "cheek_right" ? "right" : null;
-  return `${face(step, 320, 220, 0.92)}${side ? arrow(side) : ""}${phone(step)}`;
+const ARROWS: Partial<Record<PhotoView, "left" | "right" | "up" | "down">> = { cheek_left: "left", cheek_right: "right", upper_mouth: "up", lower_mouth: "down" };
+
+function photoScene(view: PhotoView): string {
+  const dir = ARROWS[view];
+  return `${face(view, 320, 220, 0.92)}${dir ? arrow(dir) : ""}${phone(view)}`;
 }
 
 function introScene(lang: TutorialLang): string {
@@ -89,21 +95,9 @@ function introScene(lang: TutorialLang): string {
     ${i < 2 ? `<path class="pop p${i}b" d="M${420 + i * 380} 270 h40 m-14 -14 l14 14 l-14 14" stroke="#1b5e8a" stroke-width="7" fill="none" stroke-linecap="round"/>` : ""}`).join("")}`;
 }
 
-function readyScene(lang: TutorialLang): string {
-  const cards = [
-    { t: TUTORIAL_UI.clean[lang], art: `<rect x="-62" y="-50" width="56" height="96" rx="10" fill="#15202b"/><rect x="-56" y="-42" width="44" height="74" rx="6" fill="#4aa3df"/><path d="M8 50 q-6 -70 16 -84 q10 -6 14 6 l2 -14 q10 -8 16 4 l2 -6 q10 -6 14 6 q6 50 -10 88 z" fill="#e7ad86"/><g class="drip"><path d="M-30 -84 q8 14 0 22 q-8 -8 0 -22z M30 -96 q8 14 0 22 q-8 -8 0 -22z M60 -78 q7 12 0 19 q-7 -7 0 -19z" fill="#4aa3df"/></g>` },
-    { t: TUTORIAL_UI.light[lang], art: `<g class="spin"><circle r="30" fill="#f2b705"/>${Array.from({ length: 8 }, (_, k) => `<rect x="-4" y="-62" width="8" height="20" rx="4" fill="#f2b705" transform="rotate(${k * 45})"/>`).join("")}</g>` },
-    { t: TUTORIAL_UI.open[lang], art: `<g transform="translate(-75 -55) scale(0.5)"><g class="open">${mouth("open")}</g></g>` },
-  ];
-  return cards.map((c, i) => `<g transform="translate(${250 + i * 390} 210)"><g class="pop p${i}">
-    <rect x="-170" y="-170" width="340" height="340" rx="30" fill="#fff" stroke="#d6e4ef" stroke-width="3"/>
-    <g transform="translate(0 -30)">${c.art}</g>
-    <text y="130" text-anchor="middle" class="card-t">${esc(c.t)}</text></g></g>`).join("");
-}
-
 function reviewScene(lang: TutorialLang): string {
   const names = TUTORIAL_UI.thumbs[lang].split("|");
-  const views = ["lips", "cheek_left", "cheek_right", "tongue_top", "tongue_under"];
+  const views = ["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"];
   return `${views.map((v, i) => `<g transform="translate(${140 + i * 250} 40)"><g class="pop p${i}">
       <rect x="-105" y="0" width="210" height="190" rx="18" fill="#fff" stroke="#d6e4ef" stroke-width="3"/>
       <g transform="translate(-75 12) scale(0.5)">${mouth(v)}</g>
@@ -117,31 +111,9 @@ function reviewScene(lang: TutorialLang): string {
     <text x="280" y="432" class="note">${esc(TUTORIAL_UI.help[lang])}</text>`;
 }
 
-function doctorScene(lang: TutorialLang, title: string): string {
-  return `<g class="pop p0"><rect x="330" y="0" width="620" height="76" rx="38" fill="#1f9d55"/><text x="640" y="50" text-anchor="middle" class="btn-t">✓ ${esc(title)}</text></g>
-    <g transform="translate(420 270)"><g class="pop p1">
-      <circle cy="-100" r="62" fill="#e9b48f"/><circle cx="-20" cy="-100" r="6" fill="#2b2230"/><circle cx="20" cy="-100" r="6" fill="#2b2230"/><path d="M-16 -70 q16 12 32 0" stroke="#a8604a" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M-66 -120 Q-60 -186 0 -184 Q60 -186 66 -120 Q40 -150 0 -150 Q-40 -150 -66 -120Z" fill="#2b2230"/>
-      <path d="M-120 160 Q-120 -20 0 -24 Q120 -20 120 160 Z" fill="#fff" stroke="#c9d6e2" stroke-width="4"/>
-      <path d="M-30 -20 q-10 80 30 90 q40 -10 30 -90" stroke="#1b5e8a" stroke-width="7" fill="none"/><circle cx="0" cy="74" r="12" fill="#1b5e8a"/>
-    </g></g>
-    <g transform="translate(760 130)"><g class="pop p2"><rect width="340" height="230" rx="18" fill="#15202b"/>
-      ${["lips", "cheek_left", "tongue_top", "tongue_under"].map((v, i) => `<g transform="translate(${20 + (i % 2) * 160} ${16 + Math.floor(i / 2) * 106}) scale(0.48)"><rect width="300" height="200" rx="16" fill="#203040"/><g transform="translate(0 -10)">${mouth(v)}</g></g>`).join("")}
-    </g></g>
-    <g transform="translate(1160 120)"><g class="ring"><circle r="40" fill="#f2b705"/><path d="M-16 8 v-12 a16 16 0 0 1 32 0 v12 l6 6 h-44 z M-6 20 a6 6 0 0 0 12 0" fill="#fff"/></g></g>
-    <g class="endcard"><rect x="-10" y="-120" width="1300" height="900" fill="#14466a"/>
-      <text x="640" y="150" text-anchor="middle" class="end-big">DRIVE SAFE</text>
-      <text x="640" y="210" text-anchor="middle" class="end-sub">Telangana Against Oral Cancer</text>
-      <text x="640" y="300" text-anchor="middle" class="end-tag">${esc(TUTORIAL_UI.tagline[lang])}</text></g>`;
-}
-
-export function sceneHtml(step: TutorialStep, lang: TutorialLang, durationSec: number, endCardSec: number): string {
-  const body =
-    step.id === "intro" ? introScene(lang)
-    : step.id === "ready" ? readyScene(lang)
-    : step.id === "review" ? reviewScene(lang)
-    : step.id === "doctor" ? doctorScene(lang, step.title[lang])
-    : photoScene(step.id);
-  const isPhoto = !["intro", "ready", "review", "doctor"].includes(step.id);
+export function sceneHtml(scene: TutorialScene, lang: TutorialLang, durationSec: number, endCardSec = 0): string {
+  const body = scene.scene === "intro" ? introScene(lang) : scene.scene === "review" ? reviewScene(lang) : photoScene(scene.view!);
+  const isPhoto = scene.scene === "photo";
   const endStart = Math.max(0, (durationSec - endCardSec) / durationSec);
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>
   :root { --d: ${durationSec}s; }
@@ -192,7 +164,7 @@ export function sceneHtml(step: TutorialStep, lang: TutorialLang, durationSec: n
   @keyframes press { 50% { transform: scale(.82); } }
   @keyframes pop { from { transform: scale(0); opacity: 0; } 70% { transform: scale(1.12); } }
   @keyframes flash { 0% { opacity: 0; } 25% { opacity: .92; } 100% { opacity: 0; } }
-  @keyframes bob { to { transform: translateX(${step.id === "cheek_left" ? "-" : ""}22px); } }
+  @keyframes bob { to { transform: ${scene.view === "upper_mouth" ? "translateY(-22px)" : scene.view === "lower_mouth" ? "translateY(22px)" : scene.view === "cheek_left" ? "translateX(-22px)" : "translateX(22px)"}; } }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
   @keyframes fadeout { to { opacity: 0; } }
   @keyframes dash { to { stroke-dashoffset: -60; } }
@@ -202,9 +174,9 @@ export function sceneHtml(step: TutorialStep, lang: TutorialLang, durationSec: n
   @keyframes openm { from { transform: scale(.9, .7); } to { transform: scale(1); } }
   @keyframes ring { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
   </style></head><body>
-  <div class="top hide-subs"><div class="logo">DRIVE SAFE<span>Telangana Against Oral Cancer</span></div>${step.id === "intro" || step.id === "doctor" ? "" : `<div class="title">${esc(step.title[lang])}</div>`}</div>
+  <div class="top hide-subs"><div class="logo">DRIVE SAFE<span>Telangana Against Oral Cancer</span></div>${scene.scene === "intro" ? "" : `<div class="title">${esc(scene.title[lang])}</div>`}</div>
   <svg class="stage" viewBox="0 0 1280 440">${body}</svg>
-  <div class="subs hide-subs">${esc(step.say[lang])}</div>
+  <div class="subs hide-subs">${esc(scene.say[lang])}</div>
   <div class="flash"></div>
   </body></html>`;
 }

@@ -2,57 +2,40 @@
 // remotely by a doctor). Used by both server and browser code.
 
 /**
- * The standard photo set. Draft for clinical-owner approval: which views are required, and the
- * wording of each instruction. `required` views must be present (or help requested) to submit.
+ * The standard photo set (updated virtual registration requirements, 2026-10-30): five required
+ * labelled views plus an optional close-up. `required` views must be present (or help requested)
+ * to submit. Value codes are stable; the first three keep their original codes.
  */
 export const MOUTH_VIEWS = [
   {
     value: "lips",
-    label: "Lips and front teeth",
+    label: "Front view",
     required: true,
-    steps: ["Face a window or bright light.", "Smile widely so your lips and front teeth show.", "Hold the phone straight in front of your mouth, about a hand's length away."],
+    steps: ["Face a window or bright light.", "Open your mouth wide so your teeth, gums and tongue show.", "Hold the phone straight in front of your mouth, about a hand's length away."],
   },
   {
     value: "cheek_left",
-    label: "Inside of your left cheek",
+    label: "Left-side view",
     required: true,
-    steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your left cheek outwards.", "Point the camera at the inside of the cheek."],
+    steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your left cheek outwards.", "Point the camera at the inside of the cheek, teeth and gums on that side."],
   },
   {
     value: "cheek_right",
-    label: "Inside of your right cheek",
+    label: "Right-side view",
     required: true,
-    steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your right cheek outwards.", "Point the camera at the inside of the cheek."],
+    steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your right cheek outwards.", "Point the camera at the inside of the cheek, teeth and gums on that side."],
   },
   {
-    value: "tongue_top",
-    label: "Top and sides of your tongue",
+    value: "upper_mouth",
+    label: "Upper mouth view",
     required: true,
-    steps: ["Stick your tongue out as far as is comfortable.", "Take the photo straight on, then move it gently to each side if you can."],
+    steps: ["Tilt your head back and open wide.", "Point the camera upwards to show the roof of your mouth and your upper gums.", "A helper makes this easier."],
   },
   {
-    value: "tongue_under",
-    label: "Under your tongue",
+    value: "lower_mouth",
+    label: "Lower mouth view",
     required: true,
-    steps: ["Open your mouth.", "Lift the tip of your tongue to touch the roof of your mouth.", "Photograph the area under the tongue."],
-  },
-  {
-    value: "upper_gums",
-    label: "Upper lip (inside) and upper gums",
-    required: false,
-    steps: ["Gently lift your upper lip with clean fingers.", "Photograph the inside of the lip and the gums."],
-  },
-  {
-    value: "lower_gums",
-    label: "Lower lip (inside) and lower gums",
-    required: false,
-    steps: ["Gently pull your lower lip down with clean fingers.", "Photograph the inside of the lip and the gums."],
-  },
-  {
-    value: "palate",
-    label: "Roof of your mouth",
-    required: false,
-    steps: ["Tilt your head back and open wide.", "Point the camera upwards into your mouth. A helper makes this easier."],
+    steps: ["Open your mouth and lift the tip of your tongue to the roof of your mouth.", "Point the camera downwards to show under your tongue, the floor of your mouth and your lower gums.", "Only as far as is comfortable."],
   },
   {
     value: "concern",
@@ -64,23 +47,37 @@ export const MOUTH_VIEWS = [
 export type MouthView = (typeof MOUTH_VIEWS)[number]["value"];
 export const MOUTH_VIEW_VALUES = MOUTH_VIEWS.map((v) => v.value) as [MouthView, ...MouthView[]];
 export const REQUIRED_VIEWS = MOUTH_VIEWS.filter((v) => v.required).map((v) => v.value) as MouthView[];
-export const viewLabel = (v: string) => MOUTH_VIEWS.find((x) => x.value === v)?.label ?? v;
+/** Views from the earlier nine-photo set, kept so older records still show a readable label. */
+const LEGACY_VIEW_LABELS: Record<string, string> = {
+  upper_gums: "Upper lip (inside) and upper gums", lower_gums: "Lower lip (inside) and lower gums",
+  tongue_top: "Top and sides of the tongue", tongue_under: "Under the tongue", palate: "Roof of the mouth",
+};
+export const viewLabel = (v: string) => MOUTH_VIEWS.find((x) => x.value === v)?.label ?? LEGACY_VIEW_LABELS[v] ?? v;
 
 export const VIRTUAL_CASE_STATUSES = ["awaiting_images", "submitted", "in_review", "more_images_requested", "reviewed", "closed"] as const;
 export type VirtualCaseStatus = (typeof VIRTUAL_CASE_STATUSES)[number];
 export const VIRTUAL_STATUS_LABELS: Record<VirtualCaseStatus, string> = {
   awaiting_images: "Waiting for photos",
-  submitted: "Submitted — waiting for doctor review",
-  in_review: "Doctor review in progress",
-  more_images_requested: "Clearer photos requested",
+  submitted: "Pending Review",
+  in_review: "In Review",
+  more_images_requested: "New photos requested",
   reviewed: "Reviewed",
   closed: "Closed",
 };
 
+/**
+ * Review status shown to doctors and patients: a reviewed case reads "Reviewed", "Follow-up
+ * Required" or "Unable to Assess" depending on the doctor's outcome.
+ */
+export function reviewStatusLabel(status: VirtualCaseStatus, outcome: ReviewOutcome | null): string {
+  if (status === "reviewed") return outcome === "suspicious" ? "Follow-up Required" : outcome === "inconclusive" ? "Unable to Assess" : "Reviewed";
+  return VIRTUAL_STATUS_LABELS[status];
+}
+
 export const REVIEW_OUTCOMES = [
   { value: "no_suspicious", label: "No suspicious lesion identified in the submitted images" },
-  { value: "suspicious", label: "Suspicious lesion or abnormality identified" },
-  { value: "inconclusive", label: "Inconclusive — further images or an in-person examination required" },
+  { value: "suspicious", label: "Follow-up required — suspicious lesion or abnormality identified" },
+  { value: "inconclusive", label: "Unable to assess — new images or an in-person examination needed" },
 ] as const;
 export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number]["value"];
 
@@ -103,6 +100,9 @@ export const TELANGANA_DISTRICTS = [
   "Nizamabad", "Peddapalli", "Rajanna Sircilla", "Ranga Reddy", "Sangareddy", "Siddipet", "Suryapet", "Vikarabad",
   "Wanaparthy", "Warangal", "Yadadri Bhuvanagiri",
 ] as const;
+
+/** Shown to the patient once the server has confirmed the submission (updated requirements, 2026-10-30). */
+export const SUBMITTED_MESSAGE = "Thank you for registering with DRIVE SAFE. Your photographs have been submitted for doctor review. If further assessment is needed, the healthcare team may contact you.";
 
 /** Notification templates. Wording must match the templates approved by Meta (and DLT for SMS). */
 export const NOTIFICATION_TEMPLATES = {

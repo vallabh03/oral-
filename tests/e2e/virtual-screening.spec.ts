@@ -8,7 +8,7 @@ import { statePath } from "./support";
 const mouth = (bg: string) =>
   sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="1200" height="900" fill="${bg}"/><ellipse cx="600" cy="450" rx="380" ry="230" fill="#b04a4a"/><ellipse cx="600" cy="450" rx="290" ry="140" fill="#e8a0a0"/><rect x="420" y="350" width="60" height="70" fill="#fff"/><rect x="560" y="350" width="60" height="70" fill="#fff"/><circle cx="680" cy="520" r="20" fill="#f4f4f4"/></svg>`)).jpeg({ quality: 88 }).toBuffer();
 
-const REQUIRED = ["Lips and front teeth", "Inside of your left cheek", "Inside of your right cheek", "Top and sides of your tongue", "Under your tongue"];
+const REQUIRED = ["Front view", "Left-side view", "Right-side view", "Upper mouth view", "Lower mouth view"];
 const name = `Virtual Driver ${Date.now().toString(36).replace(/\d/g, "x")}`;
 const mobile = `9${Date.now().toString().slice(-9)}`;
 let displayId = "";
@@ -51,6 +51,27 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
   test("participant registers remotely, photographs each area, fixes a dark photo and submits", async ({ page }) => {
     await registerVirtually(page);
     await expect(page.getByRole("heading", { name: "Photos of your mouth" })).toBeVisible();
+
+    // The 45-second guide must play to the end before photo capture opens. The test browser has no
+    // MP4 decoder, so a 3-second WebM stands in for the guide; the gate logic is the same.
+    await page.route("**/tutorial/*/guide.mp4", (r) => r.fulfill({ path: "tests/fixtures/guide-3s.webm", contentType: "video/webm" }));
+    const gate = page.locator(".tut-gate");
+    await gate.getByRole("button", { name: "हिन्दी" }).click();
+    const startPhotos = gate.getByRole("button", { name: "Start taking photos" });
+    await expect(startPhotos).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Take photo/ })).toHaveCount(0);
+    const guide = gate.locator("video");
+    await expect(guide).toHaveAttribute("src", "/tutorial/hi/guide.mp4");
+    await expect.poll(() => guide.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(0);
+    // Skipping ahead does not count: the player returns to the last watched point.
+    await guide.evaluate((v: HTMLVideoElement) => { v.currentTime = 2.8; });
+    await expect.poll(() => guide.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(0.5);
+    await expect(startPhotos).toBeDisabled();
+    await guide.evaluate((v: HTMLVideoElement) => { v.muted = true; return v.play(); });
+    await expect(startPhotos).toBeEnabled({ timeout: 15_000 });
+    await expect(gate.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+    await startPhotos.click();
+
     const submit = page.getByRole("button", { name: "Submit for doctor review" });
     await expect(submit).toBeDisabled();
 
@@ -77,7 +98,17 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
     }
     await expect(page.getByText("5 of 5")).toBeVisible();
     await submit.click();
-    await expect(page.getByRole("heading", { name: /Photos submitted — doctor review pending/ })).toBeVisible();
+    const finalMessage = "Thank you for registering with DRIVE SAFE. Your photographs have been submitted for doctor review. If further assessment is needed, the healthcare team may contact you.";
+    await expect(page.getByRole("heading", { name: "Submitted for doctor review" })).toBeVisible();
+    await expect(page.getByText(finalMessage)).toBeVisible();
+    // The progress page shows the review status and the timeline.
+    await page.getByRole("link", { name: "View my progress" }).click();
+    await expect(page.getByRole("heading", { name: "Pending Review" })).toBeVisible();
+    await expect(page.getByText(finalMessage)).toBeVisible();
+    const timeline = page.getByRole("region", { name: "Your progress" });
+    for (const step of ["Tutorial Completed", "Five Photos Captured", "Photo Upload Completed", "Submitted for Doctor Review"]) {
+      await expect(timeline.locator("li.is-done", { hasText: step })).toBeVisible();
+    }
   });
 
   test.describe("doctor", () => {
@@ -93,8 +124,8 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
       await expect(page.getByText("Hyderabad")).toBeVisible();
 
       // Full-size image opens in a zoomable viewer.
-      await page.getByRole("button", { name: /Open full-size photo: Lips/ }).click();
-      await expect(page.getByRole("dialog").getByRole("img", { name: /Lips and front teeth — full size/ })).toBeVisible();
+      await page.getByRole("button", { name: /Open full-size photo: Front view/ }).click();
+      await expect(page.getByRole("dialog").getByRole("img", { name: /Front view — full size/ })).toBeVisible();
       await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
       for (let i = 0; i < 5; i++) {

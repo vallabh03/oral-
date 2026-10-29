@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
+import { CaseTimeline, type TimelineItem } from "@/components/CaseTimeline";
 import { PROTOCOL } from "@/lib/shared/protocol";
 import { FOLLOWUP_ACTIONS, MOUTH_VIEWS, NOTIFICATION_TEMPLATES, REVIEW_OUTCOMES, renderTemplate, type NotificationTemplate } from "@/lib/shared/virtual";
 import { getJson, postJson, type ApiError } from "./api";
@@ -23,6 +24,8 @@ export type CaseData = {
   reviews: { id: string; round: number; decision: string; inconclusive_action: string | null; notes: string | null; next_steps: string | null; created_at: string; reviewer: string }[];
   followups: { id: string; action: string; note: string | null; created_at: string; by: string }[];
   notifications: { id: string; template: string; status: string; attempts: number; last_error: string | null; created_at: string; updated_at: string }[];
+  timeline: TimelineItem[];
+  tutorial: { completedAt: string | null; language: string | null; version: string | null };
 };
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }) : "—");
@@ -189,8 +192,10 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
               <dt>Language</dt><dd>{p.language}</dd>
               <dt>Registered</dt><dd>{fmt(p.registeredAt)}</dd>
               <dt>Messages</dt><dd>{p.notificationsConsent ? "WhatsApp consented" : "No message consent — call instead"}</dd>
+              <dt>Photo guide</dt><dd>{data.tutorial.completedAt ? `Watched (${data.tutorial.language}, version ${data.tutorial.version})` : "Not watched"}</dd>
             </dl>
           </section>
+          <section className="card"><CaseTimeline events={data.timeline} title="Timeline" /></section>
           <section className="card">
             <h2 className="vr-h">Questionnaire</h2>
             {data.questionnaire.items.length === 0 ? <p className="hint">Not answered.</p> : (
