@@ -12,6 +12,20 @@
 # when the user has none; run with ROTATE=1 to issue a new one (then delete the old key in IAM).
 set -euo pipefail
 
+# No AWS CLI installed (for example on the Lightsail server itself, when CloudShell is unavailable)?
+# Use the official CLI image through Docker; credentials come from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.
+if ! command -v aws >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1; then
+    : "${AWS_ACCESS_KEY_ID:?export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY of an administrator first}"
+    : "${AWS_SECRET_ACCESS_KEY:?export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY of an administrator first}"
+    aws() { docker run --rm -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_DEFAULT_REGION -e AWS_PAGER amazon/aws-cli:2.27.0 "$@"; }
+    export -f aws
+  else
+    echo "This needs the AWS CLI (CloudShell) or Docker." >&2
+    exit 1
+  fi
+fi
+
 DOMAIN="${1:-}"
 if [[ -z "$DOMAIN" ]]; then
   echo "usage: bash s3-setup.sh <site-domain>   e.g. bash s3-setup.sh telanganaagainstoralcancer.com" >&2

@@ -120,6 +120,25 @@ those. Nothing in them is reachable from the internet; the app hands out 5-minut
    ```
    At the end it prints **8 settings lines**. Keep that window open for the next step; the
    secret key is shown only once. Never paste it into chat, email or git.
+
+   **CloudShell says "account verification is in progress"?** New accounts can be blocked for up
+   to two days. Either wait and retry, or run the same script on the server instead: in IAM create
+   an access key for your administrator user (IAM → Users → your user → Security credentials →
+   Create access key → "Command Line Interface"), then in the server terminal:
+   ```bash
+   sudo -i
+   ```
+   ```bash
+   unset HISTFILE; export AWS_ACCESS_KEY_ID=paste-the-key-id AWS_SECRET_ACCESS_KEY=paste-the-secret
+   ```
+   ```bash
+   bash ~ubuntu/oral-/deploy/lightsail/s3-setup.sh telanganaagainstoralcancer.com
+   ```
+   ```bash
+   exit
+   ```
+   Then **delete that administrator access key** in IAM; the server keeps only the restricted
+   `taoc-prod-app` key the script printed.
 2. **Give the server the settings**: in the server terminal (Lightsail → Connect using SSH):
    ```bash
    sudo nano /opt/taoc/.env
