@@ -13,6 +13,7 @@ import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "./Toaster";
 import type { Answers } from "@/lib/shared/protocol";
 import { VIRTUAL_STATUS_LABELS, type VirtualCaseStatus } from "@/lib/shared/virtual";
+import { SUBMITTED_MESSAGE } from "@/lib/shared/virtual";
 
 type Status = {
   displayId: string; firstName: string; status: PatientStatus; statusLabel: string; questionnaire: string;
@@ -98,15 +99,15 @@ function CompletionPanel({ displayId, virtual, photos }: { displayId: string; vi
   if (virtual) {
     return (
       <div className="success-state" role="status">
-        <h2>Photos submitted — doctor review pending</h2>
-        <p>Thank you. Your ID is <span className="code-chip">{displayId}</span>.</p>
+        <h2>Submitted for doctor review</h2>
+        <p>{SUBMITTED_MESSAGE}</p>
+        <p>Your registration ID is <span className="code-chip">{displayId}</span>.</p>
         <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>Next steps</h3>
         <ol>
-          <li>A doctor will review your answers and photos.</li>
-          <li>We will send you a WhatsApp message with the result, or if we need clearer photos. To come back later, use <Link href="/register/login">Log in</Link> with your participant ID and mobile number.</li>
+          <li>To check your progress later, use <Link href="/register/login">Log in</Link> with your registration ID and mobile number.</li>
           <li>Photo screening cannot rule out oral disease. If you have an ulcer, lump, red or white patch or bleeding lasting more than two weeks, see a doctor in person — do not wait for our message.</li>
         </ol>
-        <Link href="/register/status" className="btn btn-primary">View my status</Link>
+        <Link href="/register/photos" className="btn btn-primary">View my progress</Link>
       </div>
     );
   }

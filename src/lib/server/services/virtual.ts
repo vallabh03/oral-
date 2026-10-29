@@ -14,9 +14,10 @@ import { enqueueNotification, kickDispatcher, retryNotification, sendLoginCode }
 import { currentConsents, hasConsent } from "./common";
 import { loadQuestionnaire } from "./questionnaire";
 import {
-  MOUTH_VIEWS, REQUIRED_VIEWS, VIRTUAL_STATUS_LABELS, renderTemplate, viewLabel,
+  MOUTH_VIEWS, REQUIRED_VIEWS, SUBMITTED_MESSAGE, renderTemplate, reviewStatusLabel, viewLabel,
   type MouthView, type ReviewOutcome, type VirtualCaseStatus,
 } from "@/lib/shared/virtual";
+import { TUTORIAL_VERSION, type TutorialLang } from "@/lib/shared/tutorial";
 
 // Virtual screening (PRD addendum): patients (or a caregiver) photograph their own mouth and
 // submit with their questionnaire; authorised doctors review remotely and record an outcome.
@@ -37,6 +38,8 @@ type CaseRow = {
   id: string; patient_id: string; status: VirtualCaseStatus; round: number; submitted_at: string | null;
   assistance_requested_at: string | null; assistance_note: string | null; outcome: ReviewOutcome | null;
   outcome_notes: string | null; next_steps: string | null; reviewed_by: string | null; reviewed_at: string | null; created_at: string;
+  tutorial_completed_at: string | null; tutorial_language: TutorialLang | null; tutorial_version: string | null;
+  photos_captured_at: string | null; uploads_confirmed_at: string | null; review_started_at: string | null;
 };
 type ImageRow = {
   id: string; case_id: string; patient_id: string; view: MouthView; round: number; captured_by: string; object_key: string; preview_key: string;
@@ -67,6 +70,44 @@ function missingForSubmit(images: ImageRow[]): MouthView[] {
 
 const previewUrl = (imageId: string) => `/api/intake/virtual/images/${imageId}`;
 
+export type TimelineEvent = { key: string; label: string; at: string | null; optional?: boolean };
+const REQUIRED_CONSENTS = ["registration", "screening", "remote_images", "review_notifications"] as const;
+
+/**
+ * The patient timeline (updated requirements section 8), in order. Capture, upload, consent and
+ * review are separate events; "if applicable" events are listed only when they apply.
+ */
+async function caseTimeline(q: Queryable, c: CaseRow): Promise<TimelineEvent[]> {
+  const [p, consents, questionnaire, review, sent] = await Promise.all([
+    q.query<{ created_at: string }>("select created_at from patients where id = $1", [c.patient_id]),
+    currentConsents(q, c.patient_id),
+    q.query<{ completed_at: string | null }>("select max(completed_at) as completed_at from questionnaire_submissions where patient_id = $1 and status = 'completed'", [c.patient_id]),
+    q.query<{ inconclusive_action: string | null }>("select inconclusive_action from virtual_reviews where case_id = $1 order by created_at desc limit 1", [c.id]),
+    q.query<{ at: string | null }>(
+      "select max(updated_at) as at from notifications where patient_id = $1 and template = 'review_suspicious' and status in ('sent', 'delivered', 'read')", [c.patient_id]),
+  ]);
+  const consentTimes = REQUIRED_CONSENTS.map((t) => (consents[t]?.status === "granted" ? new Date(consents[t]!.at).toISOString() : null));
+  const done = c.status === "reviewed" || c.status === "closed";
+  const waiting = c.status === "awaiting_images" || c.status === "more_images_requested";
+  const followUp = done && (c.outcome === "suspicious" || (c.outcome === "inconclusive" && review.rows[0]?.inconclusive_action === "in_person"));
+  const events: TimelineEvent[] = [
+    { key: "registered", label: "Registered", at: p.rows[0]?.created_at ?? null },
+    { key: "questionnaire", label: "Questionnaire Completed", at: questionnaire.rows[0]?.completed_at ?? null },
+    { key: "consents", label: "Required Consents Recorded", at: consentTimes.every(Boolean) ? (consentTimes as string[]).sort().at(-1)! : null },
+    { key: "tutorial", label: "Tutorial Completed", at: c.tutorial_completed_at },
+    { key: "captured", label: "Five Photos Captured", at: c.photos_captured_at },
+    { key: "uploaded", label: "Photo Upload Completed", at: c.uploads_confirmed_at },
+    { key: "submitted", label: "Submitted for Doctor Review", at: waiting ? null : c.submitted_at },
+    { key: "review_started", label: "Doctor Review Started", at: waiting ? null : c.review_started_at },
+    { key: "review_completed", label: "Doctor Review Completed", at: done ? c.reviewed_at : null },
+  ];
+  if (followUp) {
+    events.push({ key: "follow_up", label: "Follow-up Required", at: c.reviewed_at, optional: true });
+    events.push({ key: "follow_up_sent", label: "Follow-up Notification Sent", at: sent.rows[0]?.at ?? null, optional: true });
+  }
+  return events;
+}
+
 // ---------------------------------------------------------------- patient side
 
 export async function patientCase(patientId: string) {
@@ -78,8 +119,12 @@ export async function patientCase(patientId: string) {
   const missing = missingForSubmit(images);
   return {
     status: c.status,
-    statusLabel: VIRTUAL_STATUS_LABELS[c.status],
+    statusLabel: reviewStatusLabel(c.status, c.outcome),
     round: c.round,
+    // Watching the guide unlocks photo capture. It is recorded for the timeline only, never as consent.
+    tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version, current: TUTORIAL_VERSION },
+    timeline: await caseTimeline(d, c),
+    submittedMessage: c.status === "submitted" || c.status === "in_review" ? SUBMITTED_MESSAGE : null,
     canEdit: EDITABLE.includes(c.status),
     imagesConsent: consents.remote_images?.status === "granted",
     assistanceRequested: !!c.assistance_requested_at,
@@ -97,7 +142,25 @@ export async function patientCase(patientId: string) {
   };
 }
 
+/** Records that the patient watched the mandatory photo guide to the end (language, version, time). */
+export async function completeTutorial(patientId: string, input: { language: TutorialLang; version: string }, correlationId: string) {
+  assertVirtualEnabled();
+  if (input.version !== TUTORIAL_VERSION) throw Errors.conflict("The photo guide has been updated. Please reload the page and watch it again.", "tutorial_outdated");
+  const d = await db();
+  return d.tx(async (q) => {
+    const c = await caseForPatient(q, patientId, true);
+    await q.query(
+      "update virtual_cases set tutorial_completed_at = now(), tutorial_language = $2, tutorial_version = $3, updated_at = now() where id = $1",
+      [c.id, input.language, input.version],
+    );
+    await audit({ actorType: "participant", action: "virtual_tutorial.complete", targetType: "patient", targetRef: patientId, outcome: "success", correlationId,
+      details: { language: input.language, version: input.version } }, q);
+    return { completed: true };
+  });
+}
+
 async function assertCanUpload(q: Queryable, patientId: string, c: CaseRow) {
+  if (!c.tutorial_completed_at) throw new AppError(409, "tutorial_required", "Please watch the photo guide to the end before taking photos.");
   if (!EDITABLE.includes(c.status)) throw Errors.gated("Your photos have been submitted. We will message you if the doctor needs new photos.");
   const consentId = await hasConsent(q, patientId, "remote_images");
   if (!consentId) throw Errors.gated("Consent to submit mouth photos is needed first.");
@@ -213,6 +276,9 @@ export async function completeUpload(patientId: string, ticketId: string, correl
       );
       const done = await q.query("update virtual_upload_tickets set completed_at = now(), image_id = $2 where id = $1 and image_id is null returning id", [t.id, imageId]);
       if (!done.rows.length) throw new AppError(409, "duplicate_completion", "Already saved.");
+      if (!missingForSubmit(await currentImages(q, c.id)).length) {
+        await q.query("update virtual_cases set photos_captured_at = coalesce(photos_captured_at, now()) where id = $1", [c.id]);
+      }
       await audit({ actorType: "participant", action: "virtual_image.upload", targetType: "patient", targetRef: patientId, outcome: "success", correlationId,
         details: { view: t.view, bytes: processed.original.length, flags: quality.flags, by: t.captured_by } }, q);
     });
@@ -267,6 +333,20 @@ export async function requestAssistance(patientId: string, note: string | undefi
 export async function submitCase(patientId: string, correlationId: string) {
   assertVirtualEnabled();
   const d = await db();
+  // The upload is confirmed only when every photo is actually readable in private storage
+  // (checked before the transaction: object storage calls must not hold the case lock).
+  const store = objectStore("clinical");
+  const pre = await caseForPatient(d, patientId);
+  const toCheck = await currentImages(d, pre.id);
+  const unreadable: string[] = [];
+  for (const i of toCheck) {
+    const ok = store.size ? (await store.size(i.object_key)) !== null : !!(await store.get(i.object_key));
+    if (!ok) unreadable.push(viewLabel(i.view));
+  }
+  if (unreadable.length) {
+    throw new AppError(409, "upload_incomplete", `These photos did not finish uploading: ${unreadable.join(", ")}. Please take them again.`);
+  }
+  const checked = toCheck.map((i) => i.id).sort();
   const r = await d.tx(async (q) => {
     const c = await caseForPatient(q, patientId, true);
     if (!EDITABLE.includes(c.status)) throw Errors.gated("Your photos have already been submitted.");
@@ -276,8 +356,11 @@ export async function submitCase(patientId: string, correlationId: string) {
     if (missing.length && !c.assistance_requested_at) {
       throw new AppError(422, "missing_views", `Please add: ${missing.map(viewLabel).join(", ")}. If you cannot take a photo, choose “I need help”.`, { images: missing.join(",") });
     }
+    if (images.map((i) => i.id).sort().join() !== checked.join()) throw Errors.conflict("Your photos changed while sending. Please submit again.", "photos_changed");
     await q.query("update virtual_images set submitted = true where id = any($1::uuid[]) and not submitted", [images.map((i) => i.id)]);
-    await q.query("update virtual_cases set status = 'submitted', submitted_at = now(), updated_at = now() where id = $1", [c.id]);
+    await q.query(
+      `update virtual_cases set status = 'submitted', submitted_at = now(), uploads_confirmed_at = now(),
+              photos_captured_at = coalesce(photos_captured_at, now()), updated_at = now() where id = $1`, [c.id]);
     await audit({ actorType: "participant", action: "virtual_case.submit", targetType: "patient", targetRef: patientId, outcome: "success", correlationId, details: { round: c.round, images: images.length, missing: missing.length } }, q);
     await enqueueNotification(q, { patientId, caseId: c.id, template: "submission_received", idempotencyKey: `vc-${c.id}-r${c.round}-received`, correlationId });
     return { status: "submitted" as const };
@@ -397,7 +480,7 @@ export async function reviewQueue(staff: StaffSession, filter: "awaiting_review"
   )).rows;
   return {
     items: rows.map((r) => ({
-      id: r.id, status: r.status, statusLabel: VIRTUAL_STATUS_LABELS[r.status], round: r.round, submittedAt: r.submitted_at, assistance: !!r.assistance_requested_at,
+      id: r.id, status: r.status, statusLabel: reviewStatusLabel(r.status, r.outcome), round: r.round, submittedAt: r.submitted_at, assistance: !!r.assistance_requested_at,
       outcome: r.outcome, reviewedAt: r.reviewed_at, displayId: r.display_id, fullName: r.full_name, age: r.age, district: r.district, retakes: r.retakes,
       thumbs: (r.image_ids ?? []).map((id) => staffImageUrl(id, "preview")),
     })),
@@ -417,7 +500,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
   let c = await loadCase(d, caseId);
   if (c.status === "submitted") {
     // First doctor to open a submitted case starts the review.
-    await d.query("update virtual_cases set status = 'in_review', updated_at = now() where id = $1 and status = 'submitted'", [c.id]);
+    await d.query("update virtual_cases set status = 'in_review', review_started_at = now(), updated_at = now() where id = $1 and status = 'submitted'", [c.id]);
     c = await loadCase(d, caseId);
   }
   const p = (await d.query<{ id: string; display_id: string; full_name: string; age: number; mobile: string | null; driver_type: string; district: string | null; mandal: string | null; pincode: string | null; address_line: string | null; preferred_language: string; status: string; created_at: string }>(
@@ -442,7 +525,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
   await audit({ actorType: "staff", actorId: staff.userId, action: "virtual_case.view", targetType: "patient", targetRef: c.patient_id, outcome: "success", correlationId });
   return {
     case: {
-      id: c.id, status: c.status, statusLabel: VIRTUAL_STATUS_LABELS[c.status], round: c.round, submittedAt: c.submitted_at,
+      id: c.id, status: c.status, statusLabel: reviewStatusLabel(c.status, c.outcome), round: c.round, submittedAt: c.submitted_at,
       assistanceRequestedAt: c.assistance_requested_at, assistanceNote: c.assistance_note, outcome: c.outcome, outcomeNotes: c.outcome_notes,
       nextSteps: c.next_steps, reviewedAt: c.reviewed_at, reviewedBy: reviewer, canDecide: REVIEWABLE.includes(c.status),
     },
@@ -463,6 +546,8 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     followups: followups.rows,
     notifications: notes.rows,
     views: MOUTH_VIEWS.map((v) => ({ value: v.value, label: v.label, required: v.required })),
+    timeline: await caseTimeline(d, c),
+    tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version },
   };
 }
 
@@ -534,7 +619,8 @@ export async function decideCase(staff: StaffSession, caseId: string, input: Dec
     if (asksForImages) {
       await q.query(
         `update virtual_cases set status = 'more_images_requested', round = round + 1, outcome = $2, outcome_notes = $3, next_steps = $4,
-                reviewed_by = $5, reviewed_at = now(), updated_at = now() where id = $1`,
+                reviewed_by = $5, reviewed_at = now(), photos_captured_at = null, uploads_confirmed_at = null, review_started_at = null,
+                updated_at = now() where id = $1`,
         [c.id, outcome, input.notes || null, nextSteps, staff.userId],
       );
     } else {

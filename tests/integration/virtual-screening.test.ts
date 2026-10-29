@@ -17,6 +17,9 @@ import * as complete from "@/app/api/intake/virtual/uploads/[ticketId]/complete/
 import * as ownImage from "@/app/api/intake/virtual/images/[imageId]/route";
 import * as assistance from "@/app/api/intake/virtual/assistance/route";
 import * as submit from "@/app/api/intake/virtual/submit/route";
+import * as tutorial from "@/app/api/intake/virtual/tutorial/route";
+import { TUTORIAL_VERSION } from "@/lib/shared/tutorial";
+import { SUBMITTED_MESSAGE } from "@/lib/shared/virtual";
 import * as loginRequest from "@/app/api/intake/login/request/route";
 import * as loginVerify from "@/app/api/intake/login/verify/route";
 import * as queue from "@/app/api/virtual/cases/route";
@@ -40,13 +43,17 @@ const mouthPhoto = async (opts: { blur?: number; dark?: boolean } = {}) => {
 
 const VIRTUAL_CONSENTS = { registration: true, screening: true, followupContact: true, whatsappReport: false, photo: false, remoteImages: true, reviewNotifications: true };
 
-async function registerVirtual(overrides: Record<string, unknown> = {}) {
+const watchGuide = (jar: Jar, body: Record<string, unknown> = { language: "te", version: TUTORIAL_VERSION }) =>
+  call(tutorial.POST, req("POST", "/api/intake/virtual/tutorial", { jar, body }));
+
+async function registerVirtual(overrides: Record<string, unknown> = {}, opts: { guide?: boolean } = {}) {
   const jar: Jar = { cookies: {} };
   const body = registration({ screeningMode: "virtual", district: "Hyderabad", mandal: "Ameerpet", pincode: "500016", addressLine: "Synthetic Street 1", consents: VIRTUAL_CONSENTS, ...overrides });
   const r = await call(register.POST, req("POST", "/api/intake/register", { body, headers: { "x-forwarded-for": randomIp() } }), {}, jar);
   if (r.status !== 201) throw new Error(`register ${r.status} ${r.text}`);
   await call(questionnaire.POST, req("POST", "/api/intake/questionnaire", { jar, body: { answers: COMPLETE_ANSWERS, complete: true, idempotencyKey: key() } }));
   const patientId = (await (await db()).query<{ id: string }>("select id from patients where display_id = $1", [r.json.displayId])).rows[0]!.id;
+  if (opts.guide !== false) expect((await watchGuide(jar)).status).toBe(200);
   return { jar, displayId: r.json.displayId as string, patientId, mobile: body.mobile as string };
 }
 
@@ -62,7 +69,7 @@ async function uploadView(jar: Jar, view: string, data: Buffer, contentType = "i
 
 async function uploadRequired(jar: Jar) {
   const img = await mouthPhoto();
-  for (const v of ["lips", "cheek_left", "cheek_right", "tongue_top", "tongue_under"]) {
+  for (const v of ["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]) {
     const r = await uploadView(jar, v, img);
     expect(r.done.status, `${v}: ${r.done.text}`).toBe(201);
   }
@@ -106,7 +113,7 @@ describe("virtual registration", () => {
     expect((await caseOf(p.patientId)).status).toBe("awaiting_images");
     const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
     expect(me.json).toMatchObject({ status: "awaiting_images", canEdit: true, imagesConsent: true });
-    expect(me.json.missingRequired).toEqual(["lips", "cheek_left", "cheek_right", "tongue_top", "tongue_under"]);
+    expect(me.json.missingRequired).toEqual(["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
   });
 });
 
@@ -175,12 +182,12 @@ describe("patient-captured images", () => {
     await uploadView(p.jar, "lips", await mouthPhoto());
     const early = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
     expect(early.status).toBe(422);
-    expect(early.json.error.message).toMatch(/Inside of your left cheek/);
+    expect(early.json.error.message).toMatch(/Left-side view/);
     const help = await call(assistance.POST, req("POST", "/api/intake/virtual/assistance", { jar: p.jar, body: { note: "I cannot photograph under my tongue" } }));
     expect(help.json.clinic.phone).toBeTruthy();
     const ok = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
     expect(ok.status).toBe(200);
-    const after = await uploadView(p.jar, "palate", await mouthPhoto());
+    const after = await uploadView(p.jar, "concern", await mouthPhoto());
     expect(after.done.status).toBe(409); // submitted photos are locked until the doctor asks for more
   });
 });
@@ -394,5 +401,94 @@ describe("feature switch", () => {
     expect((await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }))).status).toBe(503);
     expect((await call(tickets.POST, req("POST", "/api/intake/virtual/uploads", { jar: p.jar, body: { view: "lips", contentType: "image/jpeg", bytes: 10 } }))).status).toBe(503);
     expect((await call(queue.GET, req("GET", "/api/virtual/cases", { jar: c.doc }))).status).toBe(503);
+  });
+});
+
+describe("updated virtual registration flow (photo guide, upload confirmation, timeline)", () => {
+  const events = async (jar: Jar) => {
+    const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar }));
+    return Object.fromEntries((me.json.timeline as { key: string; at: string | null }[]).map((e) => [e.key, e.at]));
+  };
+
+  it("keeps photo capture closed until the guide is watched, and records language, version and time (not consent)", async () => {
+    const p = await registerVirtual({}, { guide: false });
+    const before = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
+    expect(before.json.tutorial).toMatchObject({ completedAt: null, current: TUTORIAL_VERSION });
+    const blocked = await uploadView(p.jar, "lips", await mouthPhoto());
+    expect(blocked.ticket.status).toBe(409);
+    expect(blocked.ticket.json.error.code).toBe("tutorial_required");
+
+    expect((await watchGuide(p.jar, { language: "hi", version: "old" })).json.error.code).toBe("tutorial_outdated");
+    expect((await watchGuide(p.jar, { language: "fr", version: TUTORIAL_VERSION })).status).toBe(422);
+    const consentsBefore = (await (await db()).query("select count(*)::int as n from consents where patient_id = $1", [p.patientId])).rows[0];
+    expect((await watchGuide(p.jar, { language: "hi", version: TUTORIAL_VERSION })).status).toBe(200);
+    const c = (await (await db()).query("select tutorial_language, tutorial_version, tutorial_completed_at from virtual_cases where patient_id = $1", [p.patientId])).rows[0]!;
+    expect(c).toMatchObject({ tutorial_language: "hi", tutorial_version: TUTORIAL_VERSION });
+    expect(c.tutorial_completed_at).toBeTruthy();
+    expect((await (await db()).query("select count(*)::int as n from consents where patient_id = $1", [p.patientId])).rows[0]).toEqual(consentsBefore);
+    const audited = await (await db()).query("select details from audit_events where action = 'virtual_tutorial.complete' and target_ref = $1", [p.patientId]);
+    expect(audited.rows[0]!.details).toMatchObject({ language: "hi", version: TUTORIAL_VERSION });
+    expect((await uploadView(p.jar, "lips", await mouthPhoto())).done.status).toBe(201);
+  });
+
+  it("confirms the upload only when every photo is readable in storage, and never shows a failed submit as done", async () => {
+    const p = await registerVirtual();
+    await uploadRequired(p.jar);
+    expect((await events(p.jar)).captured).toBeTruthy();
+    const d = await db();
+    const lost = (await d.query<{ object_key: string }>("select object_key from virtual_images where patient_id = $1 and view = 'upper_mouth'", [p.patientId])).rows[0]!;
+    await objectStore("clinical").delete(lost.object_key);
+    const failed = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    expect(failed.status).toBe(409);
+    expect(failed.json.error.message).toMatch(/Upper mouth view/);
+    expect((await caseOf(p.patientId)).status).toBe("awaiting_images");
+    const t = await events(p.jar);
+    expect(t.uploaded).toBeNull();
+    expect(t.submitted).toBeNull();
+    expect((await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }))).json.submittedMessage).toBeNull();
+  });
+
+  it("shows the timeline in order with the review statuses and the final patient message", async () => {
+    const p = await registerVirtual();
+    await uploadRequired(p.jar);
+    expect((await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }))).status).toBe(200);
+    const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
+    expect(me.json.statusLabel).toBe("Pending Review");
+    expect(me.json.submittedMessage).toBe(SUBMITTED_MESSAGE);
+    expect((me.json.timeline as { label: string }[]).map((e) => e.label)).toEqual([
+      "Registered", "Questionnaire Completed", "Required Consents Recorded", "Tutorial Completed", "Five Photos Captured",
+      "Photo Upload Completed", "Submitted for Doctor Review", "Doctor Review Started", "Doctor Review Completed",
+    ]);
+    const before = await events(p.jar);
+    for (const k of ["registered", "questionnaire", "consents", "tutorial", "captured", "uploaded", "submitted"]) expect(before[k], k).toBeTruthy();
+    expect(before.review_started).toBeNull();
+
+    const { jar: doc } = await staffJar("admin");
+    const caseId = (await caseOf(p.patientId)).id;
+    const opened = await call(caseRoute.GET, req("GET", `/api/virtual/cases/${caseId}`, { jar: doc }), { id: caseId });
+    expect(opened.json.case.statusLabel).toBe("In Review");
+    expect(opened.json.timeline.find((e: { key: string }) => e.key === "review_started").at).toBeTruthy();
+    expect(opened.json.tutorial.language).toBe("te");
+
+    const r = await call(decision.POST, req("POST", `/api/virtual/cases/${caseId}/decision`, { jar: doc, body: { decision: "suspicious", notes: "Synthetic", nextSteps: "Clinic visit" } }), { id: caseId });
+    expect(r.status).toBe(200);
+    await dispatchDue();
+    const after = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
+    expect(after.json.statusLabel).toBe("Follow-up Required");
+    const labels = (after.json.timeline as { label: string; at: string | null }[]);
+    expect(labels.slice(-2).map((e) => e.label)).toEqual(["Follow-up Required", "Follow-up Notification Sent"]);
+    expect(labels.every((e) => e.at)).toBe(true);
+  });
+
+  it("labels an inconclusive review as Unable to Assess", async () => {
+    const p = await registerVirtual();
+    await uploadRequired(p.jar);
+    await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    const { jar: doc } = await staffJar("admin");
+    const caseId = (await caseOf(p.patientId)).id;
+    await call(caseRoute.GET, req("GET", `/api/virtual/cases/${caseId}`, { jar: doc }), { id: caseId });
+    await call(decision.POST, req("POST", `/api/virtual/cases/${caseId}/decision`, { jar: doc, body: { decision: "inconclusive", inconclusiveAction: "in_person" } }), { id: caseId });
+    const q = await call(queue.GET, req("GET", "/api/virtual/cases?status=reviewed", { jar: doc }));
+    expect(q.json.items.find((c: { id: string }) => c.id === caseId).statusLabel).toBe("Unable to Assess");
   });
 });
