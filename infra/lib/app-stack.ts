@@ -130,11 +130,23 @@ export class AppStack extends Stack {
         minimumTLSVersion: 1.2,
         versioned: true,
         removalPolicy: RemovalPolicy.RETAIN,
-        // Retention of photos is pending the privacy owner (ADR-16); only housekeeping here.
-        lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(7) }],
+        // Retention of photos is pending the privacy owner (ADR-16); only housekeeping here:
+        // unfinished uploads are dropped, a deleted photo stays recoverable for 30 days, then is gone.
+        lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(7), noncurrentVersionExpiration: Duration.days(30), expiredObjectDeleteMarker: true }],
       });
     const photos = bucket("PhotosBucket", photosKey);
     const clinical = bucket("ClinicalImagesBucket", clinicalKey);
+    // Virtual screening: patients' browsers PUT straight to quarantine/ with presigned links (site origin only);
+    // the app deletes checked uploads within seconds, the lifecycle rule catches abandoned ones.
+    const siteHost = new URL(cfg.siteUrl).host;
+    clinical.addCorsRule({
+      allowedOrigins: [`https://${siteHost}`, ...(siteHost.startsWith("www.") ? [] : [`https://www.${siteHost}`])],
+      allowedMethods: [s3.HttpMethods.PUT],
+      allowedHeaders: ["*"],
+      exposedHeaders: ["ETag"],
+      maxAge: 600,
+    });
+    clinical.addLifecycleRule({ prefix: "quarantine/", expiration: Duration.days(1), noncurrentVersionExpiration: Duration.days(1) });
 
     const albLogs = new s3.Bucket(this, "AlbLogsBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
