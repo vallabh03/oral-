@@ -88,9 +88,10 @@ Changing a switch = edit the JSON in a pull request → merge → deploy.
 ### Virtual screening and WhatsApp (additional setup)
 
 - **Switch:** `VIRTUAL_SCREENING_ENABLED` (off until ADR-19 approvals). Uses the clinical bucket and key.
-- **Clinical bucket CORS** (browsers upload photos straight to S3 with presigned PUTs): allow
-  `PUT` from the site origin only, header `content-type`, max age 600. Add a **lifecycle rule** that
-  deletes `quarantine/` objects after 1 day (normally the app deletes them within seconds).
+- **Clinical bucket CORS** (browsers upload photos straight to S3 with presigned PUTs): `PUT` from
+  the site origin (and its `www.` variant) only, any request header, max age 600, plus a **lifecycle
+  rule** deleting `quarantine/` objects after 1 day (normally the app deletes them within seconds).
+  The CDK stack sets both; on Lightsail `deploy/lightsail/s3-setup.sh` does.
 - **CSP:** `connect-src` automatically includes the clinical bucket when `STORAGE_DRIVER=s3`.
 - **WhatsApp:** set `NOTIFY_DRIVER=whatsapp`, `WHATSAPP_TOKEN` (permanent System User token),
   `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `NOTIFY_CLINIC_NAME`, `NOTIFY_CLINIC_PHONE`

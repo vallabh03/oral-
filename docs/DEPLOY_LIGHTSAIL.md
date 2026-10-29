@@ -98,6 +98,60 @@ DNS can stay with your current provider (add the records there) or move to Light
    ```
    Certificates are issued automatically; `www` redirects to the main address.
 
+## 6. Move photos to S3 (before clinical or virtual-screening photos)
+
+Photos start on the server disk. Before `CLINICAL_IMAGES_ENABLED` or `VIRTUAL_SCREENING_ENABLED`
+can be turned on, photos must live in **private S3 buckets in Mumbai** — the app refuses to start
+otherwise. Cost: about $3–5 a month. Takes about 20 minutes; staff can keep working meanwhile.
+
+What gets created: two private buckets (identity photos; clinical images), each encrypted with its
+own KMS key, a backups bucket, and one restricted AWS user `taoc-prod-app` that can reach only
+those. Nothing in them is reachable from the internet; the app hands out 5-minute private links.
+
+1. **Create the buckets** in the AWS console: click the **CloudShell** icon (terminal symbol in the
+   top bar; make sure the region shows **Mumbai**). Paste the contents of
+   `deploy/lightsail/s3-setup.sh` into a file and run it with your domain:
+   ```bash
+   cat > s3-setup.sh
+   ```
+   (paste the whole file, then press Ctrl+D)
+   ```bash
+   bash s3-setup.sh telanganaagainstoralcancer.com
+   ```
+   At the end it prints **8 settings lines**. Keep that window open for the next step; the
+   secret key is shown only once. Never paste it into chat, email or git.
+2. **Give the server the settings**: in the server terminal (Lightsail → Connect using SSH):
+   ```bash
+   sudo nano /opt/taoc/.env
+   ```
+   Paste the 8 lines, replacing the existing `AWS_REGION=` and `BACKUP_S3_BUCKET=` lines. Leave
+   `STORAGE_DRIVER=local` for now. Save (Ctrl+O, Enter, Ctrl+X). Then type `clear` in CloudShell
+   and close it.
+3. **Copy the photos already on the server** into the buckets (nothing is deleted from the server):
+   ```bash
+   sudo ~/oral-/deploy/lightsail/s3-migrate.sh
+   ```
+4. **Switch the app to S3**: in `/opt/taoc/.env` change `STORAGE_DRIVER=local` to
+   `STORAGE_DRIVER=s3`, save, then rebuild:
+   ```bash
+   sudo ~/oral-/deploy/lightsail/update.sh
+   ```
+5. **Catch photos saved during the switch** by running the copy once more (already-copied files are
+   skipped):
+   ```bash
+   sudo ~/oral-/deploy/lightsail/s3-migrate.sh
+   ```
+6. **Check**: sign in and open a participant record that has a photo; it should display. Register a
+   test participant with a photo and open it too. From now on photos are protected by bucket
+   versioning (a deleted photo is recoverable for 30 days), and the nightly backup is also copied
+   to the backups bucket (kept 90 days).
+
+To go back to disk storage, set `STORAGE_DRIVER=local` and run `update.sh`; photos saved while on
+S3 are not shown until you switch back. To issue a new access key later (for example after a staff
+change), run the CloudShell script again with `ROTATE=1 bash s3-setup.sh <domain>`, update the two
+`AWS_*` lines in `/opt/taoc/.env`, run `update.sh`, then delete the old key in IAM → Users →
+`taoc-prod-app` → Security credentials.
+
 ## Everyday operations
 
 | Task | Command (in the server terminal) |
@@ -125,7 +179,7 @@ Edit `/opt/taoc/.env`, then run `update.sh`:
 | `INDEXING_ENABLED=true` | Clinical owner approves the public content (lets Google index the site) |
 | `GALLERY_ENABLED=true` | Programme approves the photos in `src/content/gallery.ts` (adds the Gallery page and menu link) |
 | `NOTIFY_DRIVER=whatsapp` + `WHATSAPP_*` | Meta verification and templates approved (see `DEPLOYMENT.md`) |
-| `VIRTUAL_SCREENING_ENABLED=true`, `CLINICAL_IMAGES_ENABLED=true` | Clinical, privacy and security approvals; **first** move photos to a private S3 bucket (`STORAGE_DRIVER=s3`, separate clinical bucket + KMS key) — the app refuses to start otherwise |
+| `VIRTUAL_SCREENING_ENABLED=true`, `CLINICAL_IMAGES_ENABLED=true` | Clinical, privacy and security approvals; **first** move photos to S3 (step 6) — the app refuses to start otherwise. Test one virtual-screening photo upload end to end before announcing it |
 
 ## Security notes
 
@@ -146,4 +200,4 @@ Edit `/opt/taoc/.env`, then run `update.sh`:
 | Automatic snapshots (~80 GB) | about $4 |
 | **Total** | **about $28 + 18% GST ≈ ₹2,900** |
 
-Later, when photo features are enabled: private S3 + KMS adds about $3–5 a month.
+Later, when photos move to S3 (step 6): two KMS keys ($2) plus storage and requests, about $3–5 a month in total.
