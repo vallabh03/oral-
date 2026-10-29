@@ -55,6 +55,10 @@ export async function registerParticipant(input: Omit<RegistrationInput, "screen
   if (input.screeningMode === "virtual" && config().VIRTUAL_SCREENING_ENABLED && !input.consents.remoteImages) {
     throw Errors.validation({ "consents.remoteImages": "Consent to submit mouth photos is required for virtual screening" });
   }
+  // The doctor's review reaches virtual participants only by message, so that consent is required too.
+  if (input.screeningMode === "virtual" && config().VIRTUAL_SCREENING_ENABLED && !input.consents.reviewNotifications) {
+    throw Errors.validation({ "consents.reviewNotifications": "Consent to receive review messages is required for virtual screening" });
+  }
   if (input.consents.remoteImages && input.screeningMode !== "virtual") throw Errors.validation({ "consents.remoteImages": "This consent applies to virtual screening only" });
   const d = await db();
   return d.tx(async (q) => {

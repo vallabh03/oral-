@@ -42,7 +42,7 @@ test.describe("participant self-registration with photo capture", () => {
     await expect(page.getByRole("heading", { name: "Brief questionnaire" })).toBeVisible();
     await page.getByLabel("Gutkha / tobacco-containing pan masala").check();
     await page.getByLabel("More than 10 years").check();
-    await page.getByLabel("More than 5 times a day").check();
+    await page.getByLabel("More than 3 packets a day").check();
     await page.locator("#q-symptoms").getByLabel("None of these").check();
     await page.locator("#q-alcohol").getByLabel("No", { exact: true }).check();
     await page.locator("#q-medical_history").getByLabel("None of these").check();

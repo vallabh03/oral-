@@ -10,11 +10,20 @@ export type Answers = Record<string, string | string[] | undefined>;
 export const HABIT_NONE = "none";
 
 const hasHabit = (a: Answers) => Array.isArray(a.habits) && a.habits.length > 0 && !a.habits.includes(HABIT_NONE);
+const smokesCigarettes = (a: Answers) => Array.isArray(a.habits) && a.habits.includes("cigarette");
+/** Any habit other than cigarettes, which have their own question. */
+const hasOtherHabit = (a: Answers) => hasHabit(a) && (a.habits as string[]).some((h) => h !== "cigarette");
+// Daily amount, used for cigarettes and for other products sold in packets (1.2.0).
+const PACKET_OPTIONS = [
+  { value: "occasional", label: "Occasionally / not every day" },
+  { value: "1to3_packets", label: "1–3 packets a day" },
+  { value: "gt3_packets", label: "More than 3 packets a day" },
+];
 const hasSymptoms = (a: Answers) => Array.isArray(a.symptoms) && a.symptoms.length > 0 && !a.symptoms.includes("none");
 
 export const PROTOCOL = {
   id: "drive-safe-brief",
-  version: "1.1.0",
+  version: "1.2.0",
   questions: [
     {
       id: "habits",
@@ -45,17 +54,22 @@ export const PROTOCOL = {
         { value: "gt10", label: "More than 10 years" },
       ],
     },
+    // 1.2.0: cigarettes get their own question; amounts are counted in packets.
+    {
+      id: "cigarettes",
+      type: "single",
+      text: "How many cigarettes do you smoke?",
+      required: true,
+      showIf: smokesCigarettes,
+      options: PACKET_OPTIONS,
+    },
     {
       id: "frequency",
       type: "single",
       text: "How often do you use it?",
       required: true,
-      showIf: hasHabit,
-      options: [
-        { value: "occasional", label: "Occasionally / not every day" },
-        { value: "1to5", label: "1–5 times a day" },
-        { value: "gt5", label: "More than 5 times a day" },
-      ],
+      showIf: hasOtherHabit,
+      options: PACKET_OPTIONS,
     },
     {
       id: "symptoms",

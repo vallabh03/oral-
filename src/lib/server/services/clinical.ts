@@ -3,12 +3,12 @@ import { z } from "zod";
 import { db, type Queryable } from "../db";
 import { Errors } from "../errors";
 import { audit } from "../audit";
-import { whatsappConfigured } from "../config";
+import { config, whatsappConfigured } from "../config";
 import type { StaffSession } from "../security/session";
 import type { examSchema, followUpSchema } from "../schemas";
 import { classify, CLASSIFICATION_BLOCK_MESSAGES } from "@/lib/shared/classification";
 import { CLINICAL_IMPRESSIONS } from "@/lib/shared/constants";
-import { advanceStatus, hasConsent, loadPatientForStaff } from "./common";
+import { advanceStatus, currentConsents, hasConsent, loadPatientForStaff } from "./common";
 
 type ExamInput = z.infer<typeof examSchema>;
 type FollowUpInput = z.infer<typeof followUpSchema>;
@@ -97,6 +97,16 @@ export async function verifyExam(staff: StaffSession, patientId: string, examId:
     const latestVersion = (await q.query<{ v: number }>("select max(version)::int as v from exam_records where patient_id = $1", [patientId])).rows[0]!.v;
     if (exam.version !== latestVersion) throw Errors.gated("Only the latest examination version can be verified.");
     if (exam.status === "verified") throw Errors.conflict("This examination is already verified.", "already_verified");
+    // Clinical photography is required for every recorded lesion: the participant must be asked
+    // first, and when they agree at least one image must be on the examination.
+    if (config().CLINICAL_IMAGES_ENABLED && (exam.lesion_present === "yes" || exam.lesion_present === "uncertain")) {
+      const photo = (await currentConsents(q, patientId)).clinical_photo?.status;
+      if (photo !== "granted" && photo !== "declined") throw Errors.gated("Ask the participant for clinical photography consent before verifying this examination.");
+      if (photo === "granted") {
+        const n = (await q.query<{ n: number }>("select count(*)::int as n from lesion_images where exam_record_id = $1 and deleted_at is null", [examId])).rows[0]!.n;
+        if (!n) throw Errors.gated("Add at least one lesion image before verifying this examination.");
+      }
+    }
 
     await q.query("update exam_records set status = 'verified', verified_by = $2, verified_at = now() where id = $1", [examId, staff.userId]);
     await audit({ actorType: "staff", actorId: staff.userId, action: "exam.verify", targetType: "patient", targetRef: patientId, outcome: "success", correlationId, details: { version: exam.version } }, q);

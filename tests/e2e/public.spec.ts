@@ -23,6 +23,19 @@ test.describe("public website", () => {
     });
   }
 
+  test("gallery stays hidden while switched off", async ({ page }) => {
+    expect((await page.goto("/gallery"))?.status()).toBe(404);
+    await page.goto("/");
+    await expect(page.locator('a[href="/gallery"]')).toHaveCount(0);
+  });
+
+  test("hero tagline and virtual steps", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".hero-title")).toHaveText(/^\s*Awareness\.\s*Early Screening\.\s*Better Care\.\s*$/);
+    await page.goto("/virtual-screening");
+    await expect(page.locator(".pathway li strong")).toHaveText(["Register online", "Questionnaire", "Examination if needed", "Call or video"]);
+  });
+
   test("titles are unique across pages", async ({ page }) => {
     const titles = new Set<string>();
     for (const p of PAGES) {

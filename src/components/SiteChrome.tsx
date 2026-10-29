@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MAIN_NAV, PAGES, SITE, type PageKey } from "@/content/site";
+import { galleryEnabled } from "@/content/gallery";
 import { breadcrumbJsonLd, breadcrumbTrail } from "@/lib/seo";
 import { Icon } from "./Icon";
 import { Logo } from "./Logo";
@@ -21,6 +22,9 @@ const navItems = [
 ];
 const mobileItems = [...MAIN_NAV.map((k) => ({ href: PAGES[k].path, label: PAGES[k].label }))];
 
+/** The gallery link appears only once the gallery is switched on (GALLERY_ENABLED=true). */
+const withGallery = <T extends { href: string; label: string }>(items: T[]) => (galleryEnabled() ? [...items, { href: "/gallery", label: "Gallery" }] : items);
+
 export function SiteHeader() {
   return (
     <>
@@ -36,13 +40,13 @@ export function SiteHeader() {
             <Logo priority />
           </Link>
           <nav className="nav-desktop" aria-label="Main">
-            <DesktopNavLinks items={navItems} />
+            <DesktopNavLinks items={withGallery(navItems)} />
           </nav>
           <div className="header-actions">
             <Link href="/search" className="icon-btn header-search" aria-label="Search the website"><Icon name="search" /></Link>
             <ThemeToggle />
             <Link href="/workspace/login" rel="nofollow" className="btn btn-primary btn-sm header-register"><Icon name="user" size={16} /> Staff sign-in</Link>
-            <MobileNav items={mobileItems} />
+            <MobileNav items={withGallery(mobileItems)} />
           </div>
         </div>
       </header>

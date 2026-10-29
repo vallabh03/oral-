@@ -67,6 +67,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
     if (!v.consents.screening) e["consents.screening"] = "Screening consent is required to continue";
     if ((v.consents.whatsappReport || v.consents.followupContact || v.consents.reviewNotifications) && !v.mobile) e.mobile = "Add a mobile number on the previous step to receive messages";
     if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.remoteImages) e["consents.remoteImages"] = "This consent is needed to send your mouth photos for virtual screening";
+    if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.reviewNotifications) e["consents.reviewNotifications"] = "This consent is needed so we can send you the doctor's review";
     return e;
   };
 
@@ -109,7 +110,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
         fullName: v.fullName.trim(), age: Number(v.age), mobile: v.mobile || undefined, driverType: v.driverType, workingArea: v.workingArea.trim() || undefined,
         campId: v.campId || undefined, recruitmentSource: v.recruitmentSource, contactPreference: v.contactPreference, screeningMode: v.screeningMode, language: v.language,
         district: v.district || undefined, mandal: v.mandal.trim() || undefined, pincode: v.pincode || undefined, addressLine: v.addressLine.trim() || undefined,
-        consents: { ...v.consents, remoteImages: v.screeningMode === "virtual" && v.consents.remoteImages }, idempotencyKey: key.current,
+        consents: { ...v.consents, remoteImages: v.screeningMode === "virtual" && v.consents.remoteImages, reviewNotifications: v.screeningMode === "virtual" && v.consents.reviewNotifications }, idempotencyKey: key.current,
       });
       onRegistered({ ...r, photoConsent: v.consents.photo });
     } catch (err) {
@@ -271,7 +272,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
       {step === 2 && (
         <section aria-labelledby="reg-step-heading">
           <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>Consent</h2>
-          <p className="hint" style={{ marginBottom: 12 }}>{v.screeningMode === "virtual" && virtualPhotos ? "The first three are required." : "The first two are required."} The others are optional and can be withdrawn at any time.</p>
+          <p className="hint" style={{ marginBottom: 12 }}>{v.screeningMode === "virtual" && virtualPhotos ? "The first four are required." : "The first two are required."} The others are optional and can be withdrawn at any time.</p>
           <fieldset>
             <legend>Required</legend>
             {(["registration", "screening"] as const).map((k) => (
@@ -290,14 +291,16 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
                   <span>{CONSENT_POLICIES.remote_images.text}</span>
                 </label>
                 {err("consents.remoteImages")}
+                <label className="choice" htmlFor="c-reviewNotifications">
+                  <input id="c-reviewNotifications" type="checkbox" checked={v.consents.reviewNotifications} onChange={(e) => setConsent("reviewNotifications", e.target.checked)} aria-invalid={!!errors["consents.reviewNotifications"]} aria-describedby={errors["consents.reviewNotifications"] ? "consents.reviewNotifications-err" : undefined} />
+                  <span>{CONSENT_POLICIES.review_notifications.text}</span>
+                </label>
+                {err("consents.reviewNotifications")}
               </div>
             )}
           </fieldset>
           <fieldset>
             <legend>Optional</legend>
-            {v.screeningMode === "virtual" && (
-              <label className="choice" htmlFor="c-reviewNotifications"><input id="c-reviewNotifications" type="checkbox" checked={v.consents.reviewNotifications} onChange={(e) => setConsent("reviewNotifications", e.target.checked)} /><span>{CONSENT_POLICIES.review_notifications.text}</span></label>
-            )}
             <label className="choice" htmlFor="c-photo"><input id="c-photo" type="checkbox" checked={v.consents.photo} onChange={(e) => setConsent("photo", e.target.checked)} /><span>{CONSENT_POLICIES.photo.text}</span></label>
             <label className="choice" htmlFor="c-followupContact"><input id="c-followupContact" type="checkbox" checked={v.consents.followupContact} onChange={(e) => setConsent("followupContact", e.target.checked)} /><span>{CONSENT_POLICIES.followup_contact.text}</span></label>
             <label className="choice" htmlFor="c-whatsappReport"><input id="c-whatsappReport" type="checkbox" checked={v.consents.whatsappReport} onChange={(e) => setConsent("whatsappReport", e.target.checked)} /><span>{CONSENT_POLICIES.whatsapp_report.text}</span></label>
