@@ -87,7 +87,8 @@ async function main() {
       .png({ palette: true, quality: 90, compressionLevel: 9 });
   for (const f of ["icon.svg"]) fs.rmSync(out("src", "app", f), { force: true });
   await icon(192, 6).toFile(out("src", "app", "icon.png"));
-  const frames = await Promise.all([16, 32, 48].map(async (size) => ({ size, data: await icon(size).toBuffer() })));
+  // ICO frames must be full RGBA PNGs (Next.js 16 / Turbopack rejects palette PNGs inside .ico).
+  const frames = await Promise.all([16, 32, 48].map(async (size) => ({ size, data: await icon(size).ensureAlpha().png({ palette: false }).toBuffer() })));
   fs.writeFileSync(out("src", "app", "favicon.ico"), ico(frames));
   await icon(180, 14).toFile(out("src", "app", "apple-icon.png"));
   await icon(192, 6).toFile(out("public", "icons", "icon-192.png"));

@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/server/db";
 import { call, COMPLETE_ANSWERS, key, randomIp, registerParticipant, registration, req, seedCamp, staffJar, syntheticPortrait, type Jar } from "../helpers";
-import { middleware } from "@/middleware";
+import { proxy } from "@/proxy";
 import nextConfig from "../../next.config";
 import * as patients from "@/app/api/patients/route";
 import * as patient from "@/app/api/patients/[id]/route";
@@ -196,14 +196,14 @@ describe("CSRF, origin and session controls", () => {
 });
 
 describe("security headers", () => {
-  it("middleware sets a nonce-based CSP and noindex on private routes", () => {
-    const res = middleware(new NextRequest("http://localhost:3000/workspace/admin"));
+  it("the proxy sets a nonce-based CSP and noindex on private routes", () => {
+    const res = proxy(new NextRequest("http://localhost:3000/workspace/admin"));
     const csp = res.headers.get("content-security-policy")!;
     expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(res.headers.get("x-robots-tag")).toContain("noindex");
-    const pub = middleware(new NextRequest("http://localhost:3000/faq"));
+    const pub = proxy(new NextRequest("http://localhost:3000/faq"));
     expect(pub.headers.get("x-robots-tag")).toBeNull();
   });
 
