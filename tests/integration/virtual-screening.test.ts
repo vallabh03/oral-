@@ -113,7 +113,7 @@ describe("virtual registration", () => {
     expect((await caseOf(p.patientId)).status).toBe("awaiting_images");
     const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
     expect(me.json).toMatchObject({ status: "awaiting_images", canEdit: true, imagesConsent: true });
-    expect(me.json.missingRequired).toEqual(["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
+    expect(me.json.missingRecommended).toEqual(["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
   });
 });
 
@@ -177,15 +177,16 @@ describe("patient-captured images", () => {
     expect(none.status).toBe(404);
   });
 
-  it("requires the required views (or a help request) before submitting", async () => {
+  it("accepts any clear photos: recommended views are advice, at least one photo is the only rule", async () => {
     const p = await registerVirtual();
+    const empty = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    expect(empty.status).toBe(422);
     await uploadView(p.jar, "lips", await mouthPhoto());
-    const early = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
-    expect(early.status).toBe(422);
-    expect(early.json.error.message).toMatch(/Left-side view/);
+    const before = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
+    expect(before.json.missingRecommended).toEqual(["cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
     const help = await call(assistance.POST, req("POST", "/api/intake/virtual/assistance", { jar: p.jar, body: { note: "I cannot photograph under my tongue" } }));
     expect(help.json.clinic.phone).toBeTruthy();
-    const ok = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    const ok = await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar })); // one photo is enough
     expect(ok.status).toBe(200);
     const after = await uploadView(p.jar, "concern", await mouthPhoto());
     expect(after.done.status).toBe(409); // submitted photos are locked until the doctor asks for more
@@ -228,7 +229,7 @@ describe("doctor review and patient notifications", () => {
 
     // Patient sees the retake request, replaces only that view and resubmits.
     const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
-    expect(me.json).toMatchObject({ status: "more_images_requested", canEdit: true, missingRequired: ["lips"] });
+    expect(me.json).toMatchObject({ status: "more_images_requested", canEdit: true, missingRecommended: ["lips"] });
     expect(me.json.images.find((i: { view: string }) => i.view === "lips").retakeRequested).toBe(true);
     expect((await uploadView(p.jar, "lips", await mouthPhoto())).done.status).toBe(201);
     expect((await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }))).status).toBe(200);

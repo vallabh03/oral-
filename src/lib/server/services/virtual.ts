@@ -14,7 +14,7 @@ import { enqueueNotification, kickDispatcher, retryNotification, sendLoginCode }
 import { currentConsents, hasConsent } from "./common";
 import { loadQuestionnaire } from "./questionnaire";
 import {
-  MOUTH_VIEWS, REQUIRED_VIEWS, SUBMITTED_MESSAGE, renderTemplate, reviewStatusLabel, viewLabel,
+  MOUTH_VIEWS, RECOMMENDED_VIEWS, SUBMITTED_MESSAGE, renderTemplate, reviewStatusLabel, viewLabel,
   type MouthView, type ReviewOutcome, type VirtualCaseStatus,
 } from "@/lib/shared/virtual";
 import { TUTORIAL_VERSION, type TutorialLang } from "@/lib/shared/tutorial";
@@ -37,7 +37,7 @@ export function assertVirtualEnabled() {
 type CaseRow = {
   id: string; patient_id: string; status: VirtualCaseStatus; round: number; submitted_at: string | null;
   assistance_requested_at: string | null; assistance_note: string | null; outcome: ReviewOutcome | null;
-  outcome_notes: string | null; next_steps: string | null; reviewed_by: string | null; reviewed_at: string | null; created_at: string;
+  outcome_notes: string | null; next_steps: string | null; lesion_location: string | null; reviewed_by: string | null; reviewed_at: string | null; created_at: string;
   tutorial_completed_at: string | null; tutorial_language: TutorialLang | null; tutorial_version: string | null;
   photos_captured_at: string | null; uploads_confirmed_at: string | null; review_started_at: string | null;
 };
@@ -63,9 +63,14 @@ async function currentImages(q: Queryable, caseId: string): Promise<ImageRow[]> 
   )).rows;
 }
 
-function missingForSubmit(images: ImageRow[]): MouthView[] {
+/**
+ * Recommended views not yet photographed (or marked for a retake). Guidance for the participant and
+ * the doctor; it no longer blocks submission — any reasonably clear photos can be sent and the
+ * doctor asks for more if needed.
+ */
+function missingRecommended(images: ImageRow[]): MouthView[] {
   const latest = new Map(images.filter((i) => i.view !== "concern").map((i) => [i.view, i]));
-  return REQUIRED_VIEWS.filter((v) => !latest.get(v) || latest.get(v)!.review_status === "needs_retake");
+  return RECOMMENDED_VIEWS.filter((v) => !latest.get(v) || latest.get(v)!.review_status === "needs_retake");
 }
 
 const previewUrl = (imageId: string) => `/api/intake/virtual/images/${imageId}`;
@@ -116,7 +121,7 @@ export async function patientCase(patientId: string) {
   const c = await caseForPatient(d, patientId);
   const images = await currentImages(d, c.id);
   const consents = await currentConsents(d, patientId);
-  const missing = missingForSubmit(images);
+  const missing = missingRecommended(images);
   return {
     status: c.status,
     statusLabel: reviewStatusLabel(c.status, c.outcome),
@@ -129,7 +134,7 @@ export async function patientCase(patientId: string) {
     imagesConsent: consents.remote_images?.status === "granted",
     assistanceRequested: !!c.assistance_requested_at,
     submittedAt: c.submitted_at,
-    missingRequired: missing,
+    missingRecommended: missing,
     images: images.map((i) => ({
       id: i.id, view: i.view, flags: i.quality.flags ?? [], submitted: i.submitted,
       retakeRequested: i.review_status === "needs_retake", previewUrl: previewUrl(i.id), createdAt: i.created_at,
@@ -276,9 +281,8 @@ export async function completeUpload(patientId: string, ticketId: string, correl
       );
       const done = await q.query("update virtual_upload_tickets set completed_at = now(), image_id = $2 where id = $1 and image_id is null returning id", [t.id, imageId]);
       if (!done.rows.length) throw new AppError(409, "duplicate_completion", "Already saved.");
-      if (!missingForSubmit(await currentImages(q, c.id)).length) {
-        await q.query("update virtual_cases set photos_captured_at = coalesce(photos_captured_at, now()) where id = $1", [c.id]);
-      }
+      // The first saved photo of a round marks capture as started (recommended views are advisory).
+      await q.query("update virtual_cases set photos_captured_at = coalesce(photos_captured_at, now()) where id = $1", [c.id]);
       await audit({ actorType: "participant", action: "virtual_image.upload", targetType: "patient", targetRef: patientId, outcome: "success", correlationId,
         details: { view: t.view, bytes: processed.original.length, flags: quality.flags, by: t.captured_by } }, q);
     });
@@ -351,17 +355,15 @@ export async function submitCase(patientId: string, correlationId: string) {
     const c = await caseForPatient(q, patientId, true);
     if (!EDITABLE.includes(c.status)) throw Errors.gated("Your photos have already been submitted.");
     const images = await currentImages(q, c.id);
-    const missing = missingForSubmit(images);
+    const missing = missingRecommended(images);
+    // Any reasonably clear photos may be submitted; the doctor asks for more views if needed.
     if (!images.length) throw Errors.validation({ images: "Add at least one photo before submitting." });
-    if (missing.length && !c.assistance_requested_at) {
-      throw new AppError(422, "missing_views", `Please add: ${missing.map(viewLabel).join(", ")}. If you cannot take a photo, choose “I need help”.`, { images: missing.join(",") });
-    }
     if (images.map((i) => i.id).sort().join() !== checked.join()) throw Errors.conflict("Your photos changed while sending. Please submit again.", "photos_changed");
     await q.query("update virtual_images set submitted = true where id = any($1::uuid[]) and not submitted", [images.map((i) => i.id)]);
     await q.query(
       `update virtual_cases set status = 'submitted', submitted_at = now(), uploads_confirmed_at = now(),
               photos_captured_at = coalesce(photos_captured_at, now()), updated_at = now() where id = $1`, [c.id]);
-    await audit({ actorType: "participant", action: "virtual_case.submit", targetType: "patient", targetRef: patientId, outcome: "success", correlationId, details: { round: c.round, images: images.length, missing: missing.length } }, q);
+    await audit({ actorType: "participant", action: "virtual_case.submit", targetType: "patient", targetRef: patientId, outcome: "success", correlationId, details: { round: c.round, images: images.length, missingRecommended: missing.length } }, q);
     await enqueueNotification(q, { patientId, caseId: c.id, template: "submission_received", idempotencyKey: `vc-${c.id}-r${c.round}-received`, correlationId });
     return { status: "submitted" as const };
   });
@@ -515,8 +517,8 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     d.query<ImageRow & { reviewer: string | null }>(
       `select i.*, u.display_name as reviewer from virtual_images i left join users u on u.id = i.reviewed_by
         where i.case_id = $1 and i.removed_at is null and i.submitted order by i.round desc, i.view, i.created_at desc`, [c.id]),
-    d.query<{ id: string; round: number; decision: string; inconclusive_action: string | null; notes: string | null; next_steps: string | null; created_at: string; reviewer: string }>(
-      "select r.id, r.round, r.decision, r.inconclusive_action, r.notes, r.next_steps, r.created_at, u.display_name as reviewer from virtual_reviews r join users u on u.id = r.reviewed_by where r.case_id = $1 order by r.created_at desc", [c.id]),
+    d.query<{ id: string; round: number; decision: string; inconclusive_action: string | null; notes: string | null; next_steps: string | null; lesion_location: string | null; created_at: string; reviewer: string }>(
+      "select r.id, r.round, r.decision, r.inconclusive_action, r.notes, r.next_steps, r.lesion_location, r.created_at, u.display_name as reviewer from virtual_reviews r join users u on u.id = r.reviewed_by where r.case_id = $1 order by r.created_at desc", [c.id]),
     d.query<{ id: string; action: string; note: string | null; created_at: string; by: string }>(
       "select f.id, f.action, f.note, f.created_at, u.display_name as by from virtual_followups f join users u on u.id = f.created_by where f.case_id = $1 order by f.created_at desc", [c.id]),
     d.query<{ id: string; template: string; status: string; attempts: number; last_error: string | null; created_at: string; updated_at: string }>(
@@ -533,7 +535,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     case: {
       id: c.id, status: c.status, statusLabel: reviewStatusLabel(c.status, c.outcome), round: c.round, submittedAt: c.submitted_at,
       assistanceRequestedAt: c.assistance_requested_at, assistanceNote: c.assistance_note, outcome: c.outcome, outcomeNotes: c.outcome_notes,
-      nextSteps: c.next_steps, reviewedAt: c.reviewed_at, reviewedBy: reviewer, canDecide: REVIEWABLE.includes(c.status),
+      nextSteps: c.next_steps, lesionLocation: c.lesion_location, reviewedAt: c.reviewed_at, reviewedBy: reviewer, canDecide: REVIEWABLE.includes(c.status),
     },
     patient: {
       id: p.id, displayId: p.display_id, fullName: p.full_name, age: p.age, mobile: p.mobile, driverType: p.driver_type, district: p.district, mandal: p.mandal,
@@ -551,7 +553,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     reviews: reviews.rows,
     followups: followups.rows,
     notifications: notes.rows,
-    views: MOUTH_VIEWS.map((v) => ({ value: v.value, label: v.label, required: v.required })),
+    views: MOUTH_VIEWS.map((v) => ({ value: v.value, label: v.label, recommended: v.recommended })),
     timeline: await caseTimeline(d, c),
     tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version },
     messagingAvailable: patientMessagingAvailable(),
@@ -591,8 +593,8 @@ export async function reviewImage(staff: StaffSession, imageId: string, input: {
 
 type Decision =
   | { decision: "more_images"; notes?: string }
-  | { decision: "no_suspicious" | "suspicious"; notes?: string; nextSteps?: string }
-  | { decision: "inconclusive"; inconclusiveAction: "more_images" | "in_person"; notes?: string; nextSteps?: string };
+  | { decision: "no_suspicious" | "suspicious" | "referral"; notes?: string; nextSteps?: string; lesionLocation?: string }
+  | { decision: "inconclusive"; inconclusiveAction: "more_images" | "in_person"; notes?: string; nextSteps?: string; lesionLocation?: string };
 
 /** Records the doctor's review and queues the matching patient message in the same transaction. */
 export async function decideCase(staff: StaffSession, caseId: string, input: Decision, correlationId: string) {
@@ -615,27 +617,28 @@ export async function decideCase(staff: StaffSession, caseId: string, input: Dec
     if (input.decision === "no_suspicious") {
       // "No suspicious lesion" needs every submitted image reviewed as acceptable and all required views present.
       if (images.some((i) => i.review_status !== "acceptable")) throw Errors.gated("Review every image as acceptable before recording “No suspicious lesion”.");
-      if (missingForSubmit(images).length) throw Errors.gated("Required views are missing. Ask for more images or record the review as inconclusive.");
     }
     const outcome: ReviewOutcome | null = input.decision === "more_images" ? null : input.decision;
     const nextSteps = "nextSteps" in input ? input.nextSteps || null : null;
+    const lesionLocation = "lesionLocation" in input ? input.lesionLocation || null : null;
     await q.query(
-      "insert into virtual_reviews (case_id, round, decision, inconclusive_action, notes, next_steps, reviewed_by) values ($1, $2, $3, $4, $5, $6, $7)",
-      [c.id, c.round, input.decision, input.decision === "inconclusive" ? input.inconclusiveAction : null, input.notes || null, nextSteps, staff.userId],
+      "insert into virtual_reviews (case_id, round, decision, inconclusive_action, notes, next_steps, lesion_location, reviewed_by) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [c.id, c.round, input.decision, input.decision === "inconclusive" ? input.inconclusiveAction : null, input.notes || null, nextSteps, lesionLocation, staff.userId],
     );
     if (asksForImages) {
       await q.query(
-        `update virtual_cases set status = 'more_images_requested', round = round + 1, outcome = $2, outcome_notes = $3, next_steps = $4,
+        `update virtual_cases set status = 'more_images_requested', round = round + 1, outcome = $2, outcome_notes = $3, next_steps = $4, lesion_location = $6,
                 reviewed_by = $5, reviewed_at = now(), photos_captured_at = null, uploads_confirmed_at = null, review_started_at = null,
                 updated_at = now() where id = $1`,
-        [c.id, outcome, input.notes || null, nextSteps, staff.userId],
+        [c.id, outcome, input.notes || null, nextSteps, staff.userId, lesionLocation],
       );
     } else {
       await q.query(
-        "update virtual_cases set status = 'reviewed', outcome = $2, outcome_notes = $3, next_steps = $4, reviewed_by = $5, reviewed_at = now(), updated_at = now() where id = $1",
-        [c.id, outcome, input.notes || null, nextSteps, staff.userId],
+        "update virtual_cases set status = 'reviewed', outcome = $2, outcome_notes = $3, next_steps = $4, lesion_location = $6, reviewed_by = $5, reviewed_at = now(), updated_at = now() where id = $1",
+        [c.id, outcome, input.notes || null, nextSteps, staff.userId, lesionLocation],
       );
     }
+    // "suspicious", "referral" and an in-person "inconclusive" all ask for clinical evaluation (approved wording).
     const template = asksForImages ? "review_more_images" : input.decision === "no_suspicious" ? "review_no_lesion" : "review_suspicious";
     const queued = await enqueueNotification(q, { patientId: c.patient_id, caseId: c.id, template, idempotencyKey: `vc-${c.id}-r${c.round}-${template}`, createdBy: staff.userId, correlationId });
     await audit({ actorType: "staff", actorId: staff.userId, action: "virtual_case.review", targetType: "patient", targetRef: c.patient_id, outcome: "success", correlationId,

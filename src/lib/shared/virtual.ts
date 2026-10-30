@@ -2,51 +2,52 @@
 // remotely by a doctor). Used by both server and browser code.
 
 /**
- * The standard photo set (updated virtual registration requirements, 2026-10-30): five required
- * labelled views plus an optional close-up. `required` views must be present (or help requested)
- * to submit. Value codes are stable; the first three keep their original codes.
+ * The standard photo set (updated virtual registration requirements, 2026-10-30): five recommended
+ * labelled views plus an optional close-up. Recommended views are guidance only: a participant may
+ * submit with any photos that show the mouth reasonably clearly (at least one), and the doctor
+ * decides whether more are needed. Value codes are stable; the first three keep their original codes.
  */
 export const MOUTH_VIEWS = [
   {
     value: "lips",
     label: "Front view",
-    required: true,
+    recommended: true,
     steps: ["Face a window or bright light.", "Open your mouth wide so your teeth, gums and tongue show.", "Hold the phone straight in front of your mouth, about a hand's length away."],
   },
   {
     value: "cheek_left",
     label: "Left-side view",
-    required: true,
+    recommended: true,
     steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your left cheek outwards.", "Point the camera at the inside of the cheek, teeth and gums on that side."],
   },
   {
     value: "cheek_right",
     label: "Right-side view",
-    required: true,
+    recommended: true,
     steps: ["Open your mouth wide.", "Use a clean finger or spoon to pull your right cheek outwards.", "Point the camera at the inside of the cheek, teeth and gums on that side."],
   },
   {
     value: "upper_mouth",
     label: "Upper mouth view",
-    required: true,
+    recommended: true,
     steps: ["Tilt your head back and open wide.", "Point the camera upwards to show the roof of your mouth and your upper gums.", "A helper makes this easier."],
   },
   {
     value: "lower_mouth",
     label: "Lower mouth view",
-    required: true,
+    recommended: true,
     steps: ["Open your mouth and lift the tip of your tongue to the roof of your mouth.", "Point the camera downwards to show under your tongue, the floor of your mouth and your lower gums.", "Only as far as is comfortable."],
   },
   {
     value: "concern",
     label: "Any area that worries you",
-    required: false,
+    recommended: false,
     steps: ["If you have an ulcer, patch, lump or sore anywhere in your mouth, photograph it closely.", "Keep it in focus: tap the screen on the area before taking the photo."],
   },
 ] as const;
 export type MouthView = (typeof MOUTH_VIEWS)[number]["value"];
 export const MOUTH_VIEW_VALUES = MOUTH_VIEWS.map((v) => v.value) as [MouthView, ...MouthView[]];
-export const REQUIRED_VIEWS = MOUTH_VIEWS.filter((v) => v.required).map((v) => v.value) as MouthView[];
+export const RECOMMENDED_VIEWS = MOUTH_VIEWS.filter((v) => v.recommended).map((v) => v.value) as MouthView[];
 /** Views from the earlier nine-photo set, kept so older records still show a readable label. */
 const LEGACY_VIEW_LABELS: Record<string, string> = {
   upper_gums: "Upper lip (inside) and upper gums", lower_gums: "Lower lip (inside) and lower gums",
@@ -70,14 +71,15 @@ export const VIRTUAL_STATUS_LABELS: Record<VirtualCaseStatus, string> = {
  * Required" or "Unable to Assess" depending on the doctor's outcome.
  */
 export function reviewStatusLabel(status: VirtualCaseStatus, outcome: ReviewOutcome | null): string {
-  if (status === "reviewed") return outcome === "suspicious" ? "Follow-up Required" : outcome === "inconclusive" ? "Unable to Assess" : "Reviewed";
+  if (status === "reviewed") return outcome === "suspicious" || outcome === "referral" ? "Follow-up Required" : outcome === "inconclusive" ? "Unable to Assess" : "Reviewed";
   return VIRTUAL_STATUS_LABELS[status];
 }
 
 export const REVIEW_OUTCOMES = [
-  { value: "no_suspicious", label: "No suspicious lesion identified in the submitted images" },
-  { value: "suspicious", label: "Follow-up required — suspicious lesion or abnormality identified" },
-  { value: "inconclusive", label: "Unable to assess — new images or an in-person examination needed" },
+  { value: "no_suspicious", label: "No visible suspicious lesion in the submitted images" },
+  { value: "suspicious", label: "Suspicious lesion identified — prompt clinical examination advised" },
+  { value: "referral", label: "Specialist referral required" },
+  { value: "inconclusive", label: "Unable to assess — clearer images or an in-person examination needed" },
 ] as const;
 export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number]["value"];
 

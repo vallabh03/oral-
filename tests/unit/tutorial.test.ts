@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { clipUrl, GUIDE_SCENES, GUIDE_SECONDS, TUTORIAL_LANGS, TUTORIAL_UI, VIEW_CLIP, VIEW_CLIPS } from "@/lib/shared/tutorial";
-import { REQUIRED_VIEWS } from "@/lib/shared/virtual";
+import { RECOMMENDED_VIEWS } from "@/lib/shared/virtual";
 
 /** Duration of an MP4 file from its movie header (mvhd), in seconds. */
 function mp4Seconds(file: string): number {
@@ -24,8 +24,8 @@ describe("mouth-photo tutorial", () => {
   });
 
   it("walks through the five required photos in the same order as the site", () => {
-    expect(GUIDE_SCENES.filter((s) => s.scene === "photo").map((s) => s.view)).toEqual(REQUIRED_VIEWS);
-    expect(REQUIRED_VIEWS.map((v) => VIEW_CLIP[v])).toEqual(["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
+    expect(GUIDE_SCENES.filter((s) => s.scene === "photo").map((s) => s.view)).toEqual(RECOMMENDED_VIEWS);
+    expect(RECOMMENDED_VIEWS.map((v) => VIEW_CLIP[v])).toEqual(["lips", "cheek_left", "cheek_right", "upper_mouth", "lower_mouth"]);
   });
 
   it("never suggests the photos give a diagnosis", () => {
@@ -38,7 +38,7 @@ describe("mouth-photo tutorial", () => {
       const guide = join("public", clipUrl(l.code, "guide"));
       expect(existsSync(guide), guide).toBe(true);
       expect(Math.abs(mp4Seconds(guide) - GUIDE_SECONDS), guide).toBeLessThan(0.6);
-      for (const v of REQUIRED_VIEWS) {
+      for (const v of RECOMMENDED_VIEWS) {
         const file = join("public", clipUrl(l.code, VIEW_CLIP[v]!));
         expect(existsSync(file), file).toBe(true);
         expect(statSync(file).size, file).toBeGreaterThan(20_000);

@@ -12,7 +12,7 @@ import { CaseTimeline, type TimelineItem } from "@/components/CaseTimeline";
 type CaseImage = { id: string; view: MouthView; flags: ClientFlag[]; submitted: boolean; retakeRequested: boolean; previewUrl: string };
 type CaseData = {
   status: string; statusLabel: string; round: number; canEdit: boolean; imagesConsent: boolean; assistanceRequested: boolean;
-  missingRequired: MouthView[]; images: CaseImage[]; resultMessage: string | null; clinic: { name: string; phone: string };
+  missingRecommended: MouthView[]; images: CaseImage[]; resultMessage: string | null; clinic: { name: string; phone: string };
   tutorial: { completedAt: string | null }; timeline: TimelineItem[]; submittedMessage: string | null;
 };
 type Pending = { file: File; url: string; flags: ClientFlag[] };
@@ -165,8 +165,8 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
   if (state === "error" || !data) return <div className="error-summary" role="alert"><p style={{ margin: 0 }}>We could not load your photos. Check your connection and try again.</p><button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => void load()}>Try again</button></div>;
 
   const imagesFor = (v: MouthView) => data.images.filter((i) => i.view === v);
-  const requiredDone = MOUTH_VIEWS.filter((v) => v.required).length - data.missingRequired.length;
-  const requiredTotal = MOUTH_VIEWS.filter((v) => v.required).length;
+  const recommendedTotal = MOUTH_VIEWS.filter((v) => v.recommended).length;
+  const recommendedDone = recommendedTotal - data.missingRecommended.length;
 
   if (!data.canEdit) {
     return (
@@ -217,7 +217,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
         <label><input type="radio" name="who" checked={helper} onChange={() => setHelper(true)} /> Someone is helping me (back camera, clearer)</label>
       </fieldset>
 
-      <p className="vp-progress" role="status"><strong>{requiredDone} of {requiredTotal}</strong> required photos added</p>
+      <p className="vp-progress" role="status"><strong>{recommendedDone} of {recommendedTotal}</strong> recommended photos added · {data.images.length ? "you can submit whenever your photos look clear" : "add at least one photo to submit"}</p>
 
       <ol className="vp-list">
         {MOUTH_VIEWS.map((v, idx) => {
@@ -233,7 +233,7 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
               <div className="vp-body">
                 <h3>
                   <span className="vp-num">{idx + 1}</span> {v.label}{" "}
-                  <span className={`badge ${v.required ? "badge-brand" : ""}`}>{v.required ? "Required" : "Optional"}</span>
+                  <span className={`badge ${v.recommended ? "badge-brand" : ""}`}>{v.recommended ? "Recommended" : "Optional"}</span>
                   {current && !retake && <span className="badge badge-ok">Added ✓</span>}
                 </h3>
                 {retake && <p className="vp-alert" role="alert">The doctor asked for a clearer photo of this area. Please take it again.</p>}
@@ -286,12 +286,14 @@ export function VirtualPhotos({ onSubmitted }: { onSubmitted?: () => void }) {
 
       {submitError && <div className="error-summary" role="alert"><p style={{ margin: 0 }}>{submitError}</p></div>}
       <div className="vp-actions">
-        <button type="button" className="btn btn-primary" disabled={submitting || !data.images.length || (data.missingRequired.length > 0 && !data.assistanceRequested)} onClick={() => void submit()}>
+        <button type="button" className="btn btn-primary" disabled={submitting || !data.images.length} onClick={() => void submit()}>
           {submitting ? "Submitting…" : "Submit for doctor review"}
         </button>
         <button type="button" className="btn btn-secondary" onClick={() => setHelpOpen((o) => !o)} aria-expanded={helpOpen}>Need help?</button>
       </div>
-      {data.missingRequired.length > 0 && !data.assistanceRequested && <p className="hint">Add all required photos to submit. If you cannot take one, choose “Need help?”.</p>}
+      {data.missingRecommended.length > 0 && data.images.length > 0 && !data.assistanceRequested && (
+        <p className="hint">Not added yet: {data.missingRecommended.map((v) => MOUTH_VIEWS.find((x) => x.value === v)?.label ?? v).join(", ")}. You can still submit; the doctor will ask for more photos if needed. If you cannot take one, choose “Need help?”.</p>
+      )}
       {helpOpen && (
         <div className="card stack" style={{ "--stack": "10px" } as React.CSSProperties}>
           {helpSent || data.assistanceRequested ? (
