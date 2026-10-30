@@ -38,7 +38,7 @@ jobs:
         run: |
           [[ "$STAFF_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || { echo "::error::Invalid email"; exit 1; }
           [[ "$STAFF_NAME" =~ ^[[:alpha:][:space:].\'-]{1,120}$ ]] || { echo "::error::Name may contain letters, spaces, . ' - only"; exit 1; }
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ap-south-2' }}

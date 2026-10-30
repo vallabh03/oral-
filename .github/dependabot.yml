@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 (native compiler) has no JavaScript API, which Next.js needs to load
+      # next.config.ts. Revisit when Next.js supports it; infra/ already uses TypeScript 7.
+      - dependency-name: typescript
+        versions: [">=7"]
   - package-ecosystem: npm
     directory: /infra
     schedule: { interval: weekly }

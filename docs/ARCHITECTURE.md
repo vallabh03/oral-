@@ -2,7 +2,7 @@
 
 ## Request path (PRD §7.2)
 
-Browser → Application Load Balancer (TLS, AWS WAF) → ECS Fargate container → `middleware.ts` (nonce CSP, noindex on private routes)
+Browser → Application Load Balancer (TLS, AWS WAF) → ECS Fargate container → `proxy.ts` (nonce CSP, noindex on private routes)
 → route handler wrapped by `lib/server/http.ts`:
 origin/CSRF check → session (hashed opaque token, idle 30 min / absolute 12 h, active user) →
 MFA gate → permission (`authz.ts`) → rate limit (DB-backed, works across containers) → body size +

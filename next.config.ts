@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // Static security headers. The Content-Security-Policy (with a per-request nonce)
-// is set in src/middleware.ts because it must change on every response.
+// is set in src/proxy.ts because it must change on every response.
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
