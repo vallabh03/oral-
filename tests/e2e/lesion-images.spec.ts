@@ -17,6 +17,9 @@ test.describe("clinical lesion images", () => {
 
   async function recordLesionExam(page: Page) {
     const exam = page.locator("section[aria-labelledby='e-h']");
+    // A retried attempt finds the draft from the first one; the section then shows a summary with
+    // an "Edit draft" button instead of the form.
+    if (await exam.getByText("v1 draft", { exact: true }).isVisible()) return;
     await exam.getByLabel("Mouth opening", { exact: true }).selectOption("normal");
     await exam.getByLabel("Erythroplakia / red lesion").check();
     await exam.getByLabel("Tongue").check();
@@ -30,16 +33,18 @@ test.describe("clinical lesion images", () => {
     await openParticipant(page, "Venkatesh Rao");
     await recordLesionExam(page);
     const panel = page.locator("section[aria-labelledby='li-h']");
-    await expect(panel.getByRole("status").filter({ hasText: "Photography consent not recorded" })).toBeVisible();
-
-    await panel.getByRole("button", { name: "Ask for photography consent" }).click();
-    await expect(panel.getByText(/close-up photographs being taken of the affected area/)).toBeVisible();
-    await panel.getByLabel("Participant agrees").check();
-    await expect(panel.getByRole("button", { name: "Save decision" })).toBeDisabled(); // face question must be answered
-    await panel.getByLabel("Face must stay out of photo").check();
-    await panel.getByRole("button", { name: "Save decision" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Record decision" }).click();
-    await expect(panel.getByRole("status").filter({ hasText: "Photography consented" })).toBeVisible();
+    const consented = panel.getByRole("status").filter({ hasText: "Photography consented" });
+    if (!(await consented.isVisible())) { // a retried attempt already recorded the consent
+      await expect(panel.getByRole("status").filter({ hasText: "Photography consent not recorded" })).toBeVisible();
+      await panel.getByRole("button", { name: "Ask for photography consent" }).click();
+      await expect(panel.getByText(/close-up photographs being taken of the affected area/)).toBeVisible();
+      await panel.getByLabel("Participant agrees").check();
+      await expect(panel.getByRole("button", { name: "Save decision" })).toBeDisabled(); // face question must be answered
+      await panel.getByLabel("Face must stay out of photo").check();
+      await panel.getByRole("button", { name: "Save decision" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Record decision" }).click();
+    }
+    await expect(consented).toBeVisible();
 
     await panel.getByRole("button", { name: "Add lesion image" }).click();
     await expect(panel.getByLabel("Lesion site shown")).toHaveValue("tongue");
