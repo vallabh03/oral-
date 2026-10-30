@@ -224,15 +224,17 @@ export const imageReviewSchema = z.object({
 export const caseDecisionSchema = z.discriminatedUnion("decision", [
   z.object({ decision: z.literal("more_images"), notes: z.string().trim().max(4000).optional() }).strict(),
   z.object({
-    decision: z.enum(["no_suspicious", "suspicious"]),
+    decision: z.enum(["no_suspicious", "suspicious", "referral"]),
     notes: z.string().trim().max(4000).optional(),
     nextSteps: z.string().trim().max(2000).optional(),
+    lesionLocation: z.string().trim().max(200).optional(),
   }).strict(),
   z.object({
     decision: z.literal("inconclusive"),
     inconclusiveAction: z.enum(["more_images", "in_person"]),
     notes: z.string().trim().max(4000).optional(),
     nextSteps: z.string().trim().max(2000).optional(),
+    lesionLocation: z.string().trim().max(200).optional(),
   }).strict(),
 ]);
 export const virtualFollowupSchema = z.object({

@@ -132,12 +132,12 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
         await page.locator(".vr-img").nth(i).getByRole("button", { name: "✓ Acceptable" }).click();
         await expect(page.locator(".vr-img").nth(i).getByText("Acceptable", { exact: true })).toBeVisible();
       }
-      await page.getByLabel("No suspicious lesion identified in the submitted images").check();
+      await page.getByLabel("No visible suspicious lesion in the submitted images").check();
       await page.getByLabel("Recommended next steps").fill("Routine check in 12 months");
       await page.getByRole("button", { name: "Record review" }).click();
       await expect(page.getByRole("dialog")).toContainText("No suspicious lesion was identified");
       await page.getByRole("dialog").getByRole("button", { name: "Record review" }).click();
-      await expect(page.locator("section[aria-labelledby='out-h']")).toContainText("No suspicious lesion identified");
+      await expect(page.locator("section[aria-labelledby='out-h']")).toContainText("No visible suspicious lesion");
       const messages = page.locator("section[aria-labelledby='msg-h']");
       await expect(messages).toContainText("No suspicious lesion seen");
       await expect(messages).toContainText("Submission received");

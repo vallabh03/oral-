@@ -84,6 +84,9 @@ function s3Store(kind: StoreKind): ObjectStore {
   const bucket = clinical ? c.CLINICAL_S3_BUCKET! : c.S3_BUCKET!;
   const kmsKey = clinical ? c.CLINICAL_S3_KMS_KEY_ID : c.S3_KMS_KEY_ID;
   const clientP = import("@aws-sdk/client-s3").then(({ S3Client }) => new S3Client({ region: c.AWS_REGION }));
+  // Presigned browser uploads get their own client: newer SDKs otherwise bake a checksum of an
+  // (empty) body into the URL, and S3 then rejects the real photo with a checksum mismatch.
+  const presignClientP = import("@aws-sdk/client-s3").then(({ S3Client }) => new S3Client({ region: c.AWS_REGION, requestChecksumCalculation: "WHEN_REQUIRED" }));
   return {
     driver: "s3",
     async put(key, data, contentType) {
@@ -141,9 +144,14 @@ function s3Store(kind: StoreKind): ObjectStore {
       assertKey(key);
       if (!key.startsWith("quarantine/")) throw new Error("uploads go to quarantine only");
       const [{ PutObjectCommand }, { getSignedUrl }] = await Promise.all([import("@aws-sdk/client-s3"), import("@aws-sdk/s3-request-presigner")]);
+      // No encryption parameters here on purpose: they would become *signed headers* the browser
+      // never sends (the PUT carries only the content type), and S3 would refuse the signature.
+      // The bucket's default encryption (SSE-KMS with the clinical key, set by s3-setup.sh and the
+      // CDK stack) encrypts the quarantine object instead; the validated copy is written by the
+      // app with the explicit key in put() above.
       return getSignedUrl(
-        await clientP,
-        new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType, ServerSideEncryption: kmsKey ? "aws:kms" : "AES256", SSEKMSKeyId: kmsKey || undefined }),
+        await presignClientP,
+        new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
         { expiresIn: ttlSec },
       );
     },

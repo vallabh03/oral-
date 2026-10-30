@@ -15,13 +15,13 @@ type Img = {
 };
 export type CaseData = {
   case: { id: string; status: string; statusLabel: string; round: number; submittedAt: string | null; assistanceRequestedAt: string | null; assistanceNote: string | null;
-    outcome: string | null; outcomeNotes: string | null; nextSteps: string | null; reviewedAt: string | null; reviewedBy: string | null; canDecide: boolean };
+    outcome: string | null; outcomeNotes: string | null; nextSteps: string | null; lesionLocation: string | null; reviewedAt: string | null; reviewedBy: string | null; canDecide: boolean };
   patient: { displayId: string; fullName: string; age: number; mobile: string | null; driverType: string; district: string | null; mandal: string | null; pincode: string | null;
     addressLine: string | null; language: string; registeredAt: string; notificationsConsent: boolean; withdrawn: boolean };
   questionnaire: { status: string; items: { questionId: string; questionText: string; answer: unknown }[] };
   imagesHidden: boolean;
   images: Img[];
-  reviews: { id: string; round: number; decision: string; inconclusive_action: string | null; notes: string | null; next_steps: string | null; created_at: string; reviewer: string }[];
+  reviews: { id: string; round: number; decision: string; inconclusive_action: string | null; notes: string | null; next_steps: string | null; lesion_location: string | null; created_at: string; reviewer: string }[];
   followups: { id: string; action: string; note: string | null; created_at: string; by: string }[];
   notifications: { id: string; template: string; status: string; attempts: number; last_error: string | null; created_at: string; updated_at: string }[];
   timeline: TimelineItem[];
@@ -53,6 +53,7 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
   const [inconclusiveAction, setInconclusiveAction] = useState<"more_images" | "in_person">("in_person");
   const [notes, setNotes] = useState("");
   const [nextSteps, setNextSteps] = useState("");
+  const [lesionLocation, setLesionLocation] = useState("");
   const [fu, setFu] = useState({ action: "called", note: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -100,14 +101,16 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
     setBusy(true);
     setError("");
     try {
+      const extra = { notes: notes.trim() || undefined, nextSteps: nextSteps.trim() || undefined, lesionLocation: lesionLocation.trim() || undefined };
       const body = decision === "more_images" ? { decision, notes: notes.trim() || undefined }
-        : decision === "inconclusive" ? { decision, inconclusiveAction, notes: notes.trim() || undefined, nextSteps: nextSteps.trim() || undefined }
-        : { decision, notes: notes.trim() || undefined, nextSteps: nextSteps.trim() || undefined };
+        : decision === "inconclusive" ? { decision, inconclusiveAction, ...extra }
+        : { decision, ...extra };
       const r = await postJson<{ notification: { queued?: string; skipped?: string } }>(`/api/virtual/cases/${c.id}/decision`, body);
       toast(r.notification.queued ? "Review recorded. The message is being sent." : "Review recorded. No message was sent — contact the participant directly.", "success");
       setDecision("");
       setNotes("");
       setNextSteps("");
+      setLesionLocation("");
       await reload();
     } catch (err) {
       setError((err as ApiError).message);
@@ -239,7 +242,10 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
                     <label className="choice"><input type="radio" name="inc" checked={inconclusiveAction === "more_images"} onChange={() => setInconclusiveAction("more_images")} /><span>Further photos</span></label>
                   </fieldset>
                 )}
-                <div className="field"><label htmlFor="vr-notes">Clinical notes <span className="opt">(not shared with the participant)</span></label><textarea id="vr-notes" rows={3} maxLength={4000} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+                {decision !== "more_images" && decision !== "no_suspicious" && (
+                  <div className="field"><label htmlFor="vr-loc">Location of the suspicious area <span className="opt">(e.g. left buccal mucosa, lateral tongue)</span></label><input id="vr-loc" maxLength={200} value={lesionLocation} onChange={(e) => setLesionLocation(e.target.value)} /></div>
+                )}
+                <div className="field"><label htmlFor="vr-notes">Clinical observations <span className="opt">(not shared with the participant)</span></label><textarea id="vr-notes" rows={3} maxLength={4000} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
                 {decision !== "more_images" && <div className="field"><label htmlFor="vr-next">Recommended next steps</label><textarea id="vr-next" rows={2} maxLength={2000} value={nextSteps} onChange={(e) => setNextSteps(e.target.value)} /></div>}
                 {decision && <p className="hint" style={{ margin: 0 }}>Message to the participant: <em>{NOTIFICATION_TEMPLATES[templateFor()].label}</em></p>}
                 {error && <p className="field-error" role="alert">{error}</p>}
@@ -253,7 +259,8 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
               <h2 id="out-h" className="vr-h">Review outcome</h2>
               <p style={{ margin: 0 }}><strong>{REVIEW_OUTCOMES.find((o) => o.value === c.outcome)?.label}</strong></p>
               <p className="hint">By {c.reviewedBy ?? "—"} on {fmt(c.reviewedAt)}</p>
-              {c.outcomeNotes && <p><strong>Notes:</strong> {c.outcomeNotes}</p>}
+              {c.lesionLocation && <p><strong>Location:</strong> {c.lesionLocation}</p>}
+              {c.outcomeNotes && <p><strong>Observations:</strong> {c.outcomeNotes}</p>}
               {c.nextSteps && <p><strong>Next steps:</strong> {c.nextSteps}</p>}
             </section>
           )}
@@ -293,7 +300,7 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
             <section className="card" aria-labelledby="hist-h">
               <h2 id="hist-h" className="vr-h">Review history</h2>
               <ul className="vr-list">
-                {data.reviews.map((r) => <li key={r.id}><span>Round {r.round}: {DECISIONS.find((d) => d.value === r.decision)?.label ?? r.decision}{r.inconclusive_action ? ` (${r.inconclusive_action === "in_person" ? "in-person examination" : "further photos"})` : ""}</span><span className="hint">{r.reviewer} · {fmt(r.created_at)}</span></li>)}
+                {data.reviews.map((r) => <li key={r.id}><span>Round {r.round}: {DECISIONS.find((d) => d.value === r.decision)?.label ?? r.decision}{r.inconclusive_action ? ` (${r.inconclusive_action === "in_person" ? "in-person examination" : "further photos"})` : ""}{r.lesion_location ? ` — ${r.lesion_location}` : ""}</span><span className="hint">{r.reviewer} · {fmt(r.created_at)}</span></li>)}
               </ul>
             </section>
           )}

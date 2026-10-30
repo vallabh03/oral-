@@ -62,7 +62,7 @@ export function VirtualQueue() {
                       <span className="badge">{c.statusLabel}</span>
                       {c.assistance && <span className="badge badge-warn">Help requested</span>}
                       {c.retakes > 0 && <span className="badge badge-danger">{c.retakes} retake{c.retakes === 1 ? "" : "s"}</span>}
-                      {c.outcome && <span className={`badge ${c.outcome === "suspicious" ? "badge-danger" : c.outcome === "no_suspicious" ? "badge-ok" : "badge-warn"}`}>{REVIEW_OUTCOMES.find((o) => o.value === c.outcome)?.label.split(" — ")[0]}</span>}
+                      {c.outcome && <span className={`badge ${c.outcome === "suspicious" || c.outcome === "referral" ? "badge-danger" : c.outcome === "no_suspicious" ? "badge-ok" : "badge-warn"}`}>{REVIEW_OUTCOMES.find((o) => o.value === c.outcome)?.label.split(" — ")[0]}</span>}
                     </span>
                   </span>
                 </a>

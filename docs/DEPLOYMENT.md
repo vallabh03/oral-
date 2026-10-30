@@ -99,6 +99,14 @@ Changing a switch = edit the JSON in a pull request → merge → deploy.
   rule** deleting `quarantine/` objects after 1 day (normally the app deletes them within seconds).
   The CDK stack sets both; on Lightsail `deploy/lightsail/s3-setup.sh` does.
 - **CSP:** `connect-src` automatically includes the clinical bucket when `STORAGE_DRIVER=s3`.
+- **Presigned PUTs carry no encryption parameters** (they would be signed headers the browser never
+  sends) and no body checksum. The clinical bucket **must have default encryption** (SSE-KMS with the
+  clinical key; both `s3-setup.sh` and the CDK stack set it) so quarantine objects are encrypted at
+  rest; the validated copy is written by the app with the explicit key.
+- **Capture rules (2026-10-30):** the five labelled views are recommended, not required. A
+  participant can submit any photos that look clear (minimum one); the doctor asks for more with
+  "clearer images needed". Outcomes: no visible lesion, suspicious lesion, specialist referral,
+  unable to assess (in person / more photos), each with an optional lesion location.
 - **WhatsApp:** set `NOTIFY_DRIVER=whatsapp`, `WHATSAPP_TOKEN` (permanent System User token),
   `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `NOTIFY_CLINIC_NAME`, `NOTIFY_CLINIC_PHONE`
   (secrets via Secrets Manager / the server's protected env file, never git). In Meta App → WhatsApp →

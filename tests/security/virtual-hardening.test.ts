@@ -166,4 +166,14 @@ describe("virtual screening hardening", () => {
     expect(detail.json.messagingAvailable).toBe(false);
     expect((await d.query<{ n: number }>("select count(*)::int as n from audit_events where action = 'notification.skipped' and target_ref = $1", [p.patientId])).rows[0]!.n).toBeGreaterThanOrEqual(2);
   });
+
+  it("11: a specialist-referral outcome with the lesion location is saved, shown and messaged with the evaluation wording", async () => {
+    const p = await submitted();
+    const r = await call(decision.POST, req("POST", `/api/virtual/cases/${p.caseId}/decision`, { jar: doc, body: { decision: "referral", lesionLocation: "left buccal mucosa", notes: "ulcer 1 cm", nextSteps: "ENT referral" } }), { id: p.caseId });
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ status: "reviewed", notification: { queued: "review_suspicious" } });
+    const detail = (await call(caseRoute.GET, req("GET", `/api/virtual/cases/${p.caseId}`, { jar: doc }), { id: p.caseId })).json;
+    expect(detail.case).toMatchObject({ status: "reviewed", statusLabel: "Follow-up Required", outcome: "referral", lesionLocation: "left buccal mucosa", nextSteps: "ENT referral" });
+    expect(detail.reviews[0]).toMatchObject({ decision: "referral", lesion_location: "left buccal mucosa" });
+  });
 });
