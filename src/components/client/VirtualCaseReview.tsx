@@ -26,6 +26,8 @@ export type CaseData = {
   notifications: { id: string; template: string; status: string; attempts: number; last_error: string | null; created_at: string; updated_at: string }[];
   timeline: TimelineItem[];
   tutorial: { completedAt: string | null; language: string | null; version: string | null };
+  /** False during a pilot without WhatsApp: no message can reach the participant, doctors phone instead. */
+  messagingAvailable: boolean;
 };
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }) : "—");
@@ -91,7 +93,7 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
     const message = renderTemplate(t, { name: p.fullName.split(" ")[0]!, clinic: "[clinic]", phone: "[phone]", id: p.displayId });
     const ok = await confirm({
       title: "Record this review?",
-      body: `${DECISIONS.find((d) => d.value === decision)?.label}. ${p.notificationsConsent && p.mobile ? `The participant will receive this message: “${message}”` : "No message will be sent (no consent or mobile number) — please contact the participant directly."}`,
+      body: `${DECISIONS.find((d) => d.value === decision)?.label}. ${!data.messagingAvailable ? "Messaging is not switched on yet, so no message will be sent — please phone the participant with this result and record the call below." : p.notificationsConsent && p.mobile ? `The participant will receive this message: “${message}”` : "No message will be sent (no consent or mobile number) — please contact the participant directly."}`,
       confirmLabel: "Record review",
     });
     if (!ok) return;
@@ -191,7 +193,7 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
               <dt>Address</dt><dd>{p.addressLine ?? "—"}</dd>
               <dt>Language</dt><dd>{p.language}</dd>
               <dt>Registered</dt><dd>{fmt(p.registeredAt)}</dd>
-              <dt>Messages</dt><dd>{p.notificationsConsent ? "WhatsApp consented" : "No message consent — call instead"}</dd>
+              <dt>Messages</dt><dd>{!data.messagingAvailable ? "Messaging not switched on — phone every result" : p.notificationsConsent ? "WhatsApp consented" : "No message consent — call instead"}</dd>
               <dt>Photo guide</dt><dd>{data.tutorial.completedAt ? `Watched (${data.tutorial.language}, version ${data.tutorial.version})` : "Not watched"}</dd>
             </dl>
           </section>

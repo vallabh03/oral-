@@ -198,7 +198,9 @@ Edit `/opt/taoc/.env`, then run `update.sh`:
 | `INDEXING_ENABLED=true` | Clinical owner approves the public content (lets Google index the site) |
 | `GALLERY_ENABLED=true` | Programme approves the photos in `src/content/gallery.ts` (adds the Gallery page and menu link) |
 | `NOTIFY_DRIVER=whatsapp` + `WHATSAPP_*` | Meta verification and templates approved (see `DEPLOYMENT.md`) |
-| `VIRTUAL_SCREENING_ENABLED=true`, `CLINICAL_IMAGES_ENABLED=true` | Clinical, privacy and security approvals; **first** move photos to S3 (step 6) — the app refuses to start otherwise. Test one virtual-screening photo upload end to end before announcing it |
+| `CLINICAL_IMAGES_ENABLED=true` | Clinical, privacy and security approvals; **first** move photos to S3 (step 6) — the app refuses to start otherwise |
+| `VIRTUAL_SCREENING_ENABLED=true` | Same approvals, **plus** WhatsApp (`NOTIFY_DRIVER=whatsapp` and the `WHATSAPP_*` settings, see `DEPLOYMENT.md`). Test one photo upload from a phone end to end before announcing it |
+| `VIRTUAL_SCREENING_WITHOUT_MESSAGING=true` | Pilot **before** WhatsApp is approved: virtual screening runs with no messages at all. Participants are told results come by phone call, returning participants cannot log in with a code (they use their resume link or call the helpline), and the doctor's screen asks them to phone each result. Set `NOTIFY_CLINIC_PHONE` to the helpline number. Remove this line once WhatsApp is live |
 
 ## Security notes
 

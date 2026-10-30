@@ -1,7 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { db, type Queryable } from "../db";
-import { config } from "../config";
+import { config, patientMessagingAvailable } from "../config";
 import { AppError, Errors } from "../errors";
 import { audit } from "../audit";
 import { can } from "../authz";
@@ -395,6 +395,12 @@ async function findParticipant(q: Queryable, displayId: string, mobile: string) 
 
 /** Always answers the same way whether or not the details match (no account probing). */
 export async function requestLoginCode(input: { displayId: string; mobile: string }, correlationId: string) {
+  if (!patientMessagingAvailable()) {
+    // Pilot without WhatsApp: a code could never arrive, so say so instead of pretending to send one.
+    await audit({ actorType: "anonymous", action: "intake.otp_request", outcome: "denied", correlationId, code: "no_channel" });
+    const c = config();
+    return { ok: false as const, unavailable: true as const, message: `Logging in with a code is not available yet. Please use the resume link you received when registering, or contact ${c.NOTIFY_CLINIC_NAME} at ${c.NOTIFY_CLINIC_PHONE}.` };
+  }
   const d = await db();
   // Limited by the entered details *before* the lookup, so the limit behaves the same whether or not they match.
   const { enforceRateLimit, LIMITS } = await import("../security/rateLimit");
@@ -548,6 +554,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     views: MOUTH_VIEWS.map((v) => ({ value: v.value, label: v.label, required: v.required })),
     timeline: await caseTimeline(d, c),
     tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version },
+    messagingAvailable: patientMessagingAvailable(),
   };
 }
 
