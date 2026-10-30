@@ -73,7 +73,7 @@ export function ParticipantLogin() {
     <form onSubmit={request} className="stack" style={{ "--stack": "14px" } as React.CSSProperties} noValidate>
       <div className="field">
         <label htmlFor="pid">Participant ID</label>
-        <input id="pid" autoComplete="off" placeholder="e.g. HAOC-DS-0042" maxLength={24} value={displayId} onChange={(e) => setDisplayId(e.target.value)} aria-invalid={!!fields.displayId} aria-describedby={fields.displayId ? "pid-err" : undefined} />
+        <input id="pid" type="text" autoComplete="off" placeholder="e.g. HAOC-DS-0042" maxLength={24} value={displayId} onChange={(e) => setDisplayId(e.target.value)} aria-invalid={!!fields.displayId} aria-describedby={fields.displayId ? "pid-err" : undefined} />
         {fields.displayId && <p className="field-error" id="pid-err">{fields.displayId}</p>}
       </div>
       <div className="field">

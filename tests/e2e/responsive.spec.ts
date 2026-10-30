@@ -3,13 +3,17 @@ import { statePath } from "./support";
 
 // Every screen must fit the device it is viewed on: small phones through very wide desktops.
 const VIEWPORTS = [
-  { name: "small phone", width: 320, height: 640 },
+  { name: "small phone", width: 320, height: 568 },
+  { name: "standard phone", width: 375, height: 667 },
   { name: "phone", width: 390, height: 844 },
+  { name: "large phone", width: 430, height: 932 },
   { name: "phone landscape", width: 844, height: 390 },
   { name: "tablet portrait", width: 768, height: 1024 },
-  { name: "tablet landscape", width: 1180, height: 820 },
+  { name: "tablet landscape", width: 1024, height: 768 },
+  { name: "wide tablet", width: 1180, height: 820 },
   { name: "laptop", width: 1366, height: 768 },
-  { name: "desktop", width: 1920, height: 1080 },
+  { name: "desktop", width: 1440, height: 900 },
+  { name: "large desktop", width: 1920, height: 1080 },
   { name: "ultrawide", width: 2560, height: 1440 },
 ];
 const PUBLIC = ["/", "/know-oral-cancer", "/programs/drive-safe", "/camps", "/faq", "/contact", "/register", "/cookies"];
