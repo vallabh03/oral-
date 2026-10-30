@@ -171,6 +171,26 @@ change), run the CloudShell script again with `ROTATE=1 bash s3-setup.sh <domain
 `AWS_*` lines in `/opt/taoc/.env`, run `update.sh`, then delete the old key in IAM → Users →
 `taoc-prod-app` → Security credentials.
 
+## 7. Moving to a bigger plan (for example 2 GB → 4 GB)
+
+Lightsail does not resize in place: snapshot, create a new instance from it, move the static IP.
+About 20 minutes of downtime; everything on the disk (app, database, `/opt/taoc/.env`, deploy
+key, backups, swap file) comes along.
+
+1. On the server: `sudo ~/oral-/deploy/lightsail/backup.sh`, then stop the app so the snapshot is
+   a clean copy: `cd ~/oral-/deploy/lightsail && sudo docker compose --env-file /opt/taoc/.env down`.
+2. Instance → **Snapshots** → **Create snapshot** (manual). Wait until it is available.
+3. Snapshot's menu → **Create new instance**: same region and zone, the bigger plan, a new name.
+4. New instance → **Networking** → add the **HTTPS (443)** firewall rule (new instances only have
+   22 and 80).
+5. **Static IPs** → detach the IP from the old instance, attach it to the new one. DNS follows.
+6. SSH into the new instance: `cd ~/oral-/deploy/lightsail && sudo docker compose --env-file
+   /opt/taoc/.env up -d`, wait for `Up (healthy)`, check `free -h`.
+7. Turn **automatic snapshots** on for the new instance. Keep the old one stopped for a day as a
+   fallback (it is still billed), then delete it.
+
+Fallback at any point: re-attach the IP to the old instance and run the `up -d` command there.
+
 ## Everyday operations
 
 | Task | Command (in the server terminal) |
