@@ -1,6 +1,6 @@
 import "server-only";
 import { db, type Queryable } from "./db";
-import { config } from "./config";
+import { config, patientMessagingAvailable } from "./config";
 import { audit } from "./audit";
 import { hasConsent } from "./services/common";
 import { renderTemplate, NOTIFICATION_TEMPLATES, type NotificationTemplate } from "@/lib/shared/virtual";
@@ -87,9 +87,10 @@ async function deliver(m: Outgoing): Promise<SendResult> {
 export async function enqueueNotification(
   q: Queryable,
   n: { patientId: string; caseId?: string | null; template: Exclude<NotificationTemplate, "login_code">; idempotencyKey: string; createdBy?: string | null; correlationId: string },
-): Promise<{ id: string } | { skipped: "no_mobile" | "no_consent" }> {
+): Promise<{ id: string } | { skipped: "no_mobile" | "no_consent" | "no_channel" }> {
   const p = (await q.query<{ mobile: string | null }>("select mobile from patients where id = $1", [n.patientId])).rows[0];
-  const reason = !p?.mobile ? "no_mobile" : CONSENTED.includes(n.template) && !(await hasConsent(q, n.patientId, "review_notifications")) ? "no_consent" : null;
+  // No delivery channel (pilot before WhatsApp approval): nothing is queued, the doctor phones instead.
+  const reason = !patientMessagingAvailable() ? "no_channel" : !p?.mobile ? "no_mobile" : CONSENTED.includes(n.template) && !(await hasConsent(q, n.patientId, "review_notifications")) ? "no_consent" : null;
   if (reason) {
     await audit({ actorType: n.createdBy ? "staff" : "system", actorId: n.createdBy ?? null, action: "notification.skipped", targetType: "patient", targetRef: n.patientId, outcome: "failure", correlationId: n.correlationId, code: reason, details: { template: n.template } }, q);
     return { skipped: reason };

@@ -21,7 +21,11 @@ export function ParticipantLogin() {
     setError("");
     setFields({});
     try {
-      const r = await postJson<{ message: string; devCode?: string }>("/api/intake/login/request", { displayId: displayId.trim().toUpperCase(), mobile });
+      const r = await postJson<{ message: string; devCode?: string; unavailable?: boolean }>("/api/intake/login/request", { displayId: displayId.trim().toUpperCase(), mobile });
+      if (r.unavailable) {
+        setError(r.message); // no delivery channel yet (pilot without WhatsApp): stay on this step
+        return;
+      }
       setInfo(r.message);
       setDevCode(r.devCode ?? "");
       setStep("code");

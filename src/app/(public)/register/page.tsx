@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 import { RegistrationJourney } from "@/components/client/ParticipantJourney";
 import { EmptyState } from "@/components/SiteChrome";
 import { listCamps } from "@/lib/server/services/admin";
-import { config } from "@/lib/server/config";
+import { config, patientMessagingAvailable } from "@/lib/server/config";
 
 export const metadata = pageMetadata("register");
 
@@ -17,6 +17,9 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         <span className="eyebrow">{virtual ? "Virtual screening" : "DRIVE SAFE"}</span>
         <h1>{virtual ? "Register for virtual oral health screening" : "Register for free oral health screening"}</h1>
         {virtual && <p>After you register and answer the questionnaire, the programme team will contact you by phone or video. Please give a phone number so we can reach you. If you choose a camp below, pick the one nearest to you in case an examination is needed.</p>}
+        {virtual && config().VIRTUAL_SCREENING_ENABLED && !patientMessagingAvailable() && (
+          <p className="callout">A doctor will give you the result of your photo review <strong>by phone call</strong>, not by message. Keep the resume link shown after you register: it is the way back to your photos.</p>
+        )}
         <p className="lede">About one minute to register and two minutes for the questionnaire. Already registered? Use your resume link or <Link href="/register/status">check your status</Link>.</p>
         {open ? (
           <div className="card" style={{ marginTop: 24 }}><RegistrationJourney camps={camps} screeningMode={virtual ? "virtual" : "in_person"} virtualPhotos={config().VIRTUAL_SCREENING_ENABLED} /></div>

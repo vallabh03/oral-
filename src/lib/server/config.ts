@@ -57,6 +57,10 @@ const schema = z.object({
   // stays off for live data until the photography instructions, consent wording, message
   // templates and retention policy are approved. Images use the clinical store.
   VIRTUAL_SCREENING_ENABLED: bool(false),
+  // Bridge for a pilot before WhatsApp is approved: virtual screening runs with NO patient messages.
+  // Returning participants cannot log in with a code and doctors phone every result. In
+  // development/test it also simulates the no-messaging behaviour. Explicit opt-in; see DEPLOYMENT.md.
+  VIRTUAL_SCREENING_WITHOUT_MESSAGING: bool(false),
   // Patient notifications: "console" writes to the server log/test outbox (no real messages).
   NOTIFY_DRIVER: z.enum(["console", "whatsapp"]).default("console"),
   NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
@@ -94,7 +98,9 @@ function load(): AppConfig {
       if (!c.CLINICAL_S3_BUCKET || c.CLINICAL_S3_BUCKET === c.S3_BUCKET) throw new Error("CLINICAL_S3_BUCKET must be a separate private bucket when virtual screening is enabled");
       if (!c.CLINICAL_S3_KMS_KEY_ID) throw new Error("CLINICAL_S3_KMS_KEY_ID is required when virtual screening is enabled");
       // Login codes and review messages would otherwise be marked sent but never delivered.
-      if (c.NOTIFY_DRIVER !== "whatsapp") throw new Error("Virtual screening requires NOTIFY_DRIVER=whatsapp in production");
+      if (c.NOTIFY_DRIVER !== "whatsapp" && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING) {
+        throw new Error("Virtual screening requires NOTIFY_DRIVER=whatsapp in production (or VIRTUAL_SCREENING_WITHOUT_MESSAGING=true to run a pilot where doctors phone every result)");
+      }
     }
     if (c.NOTIFY_DRIVER === "whatsapp" && !(c.WHATSAPP_TOKEN && c.WHATSAPP_PHONE_NUMBER_ID && c.WHATSAPP_APP_SECRET)) {
       throw new Error("NOTIFY_DRIVER=whatsapp requires WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_APP_SECRET");
@@ -123,6 +129,16 @@ export function config(): AppConfig {
 /** Test hook: re-read process.env. */
 export function resetConfigForTests() {
   cached = undefined;
+}
+
+/**
+ * Can login codes and review messages actually reach participants? WhatsApp always can; the console
+ * driver only pretends to in development/test, and never when the no-messaging pilot mode is on.
+ */
+export function patientMessagingAvailable(): boolean {
+  const c = config();
+  if (c.NOTIFY_DRIVER === "whatsapp") return true;
+  return !c.isProd && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING;
 }
 
 export function whatsappConfigured(): boolean {

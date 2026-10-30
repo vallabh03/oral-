@@ -145,4 +145,25 @@ describe("virtual screening hardening", () => {
     const r = await call(webhook.POST, req("POST", "/api/webhooks/whatsapp", { body: big, origin: null, headers: { "x-hub-signature-256": "sha256=00" } }));
     expect(r.status).toBe(413);
   });
+
+  it("10: pilot without messaging — no code login, nothing queued, doctors told to phone", async () => {
+    vi.stubEnv("VIRTUAL_SCREENING_WITHOUT_MESSAGING", "true");
+    resetConfigForTests();
+    const p = await submitted();
+    const d = await db();
+    // Login by code says so plainly instead of pretending to send, and no code is created.
+    const r = await requestCode(p);
+    expect(r.status).toBe(200);
+    expect(r.json.unavailable).toBe(true);
+    expect(r.json.devCode).toBeUndefined();
+    expect((await d.query<{ n: number }>("select count(*)::int as n from participant_otps where patient_id = $1", [p.patientId])).rows[0]!.n).toBe(0);
+    // Submission and review queue nothing; the doctor is told why.
+    const decided = await call(decision.POST, req("POST", `/api/virtual/cases/${p.caseId}/decision`, { jar: doc, body: { decision: "inconclusive", inconclusiveAction: "in_person" } }), { id: p.caseId });
+    expect(decided.status).toBe(200);
+    expect(decided.json.notification).toEqual({ skipped: "no_channel" });
+    expect((await d.query<{ n: number }>("select count(*)::int as n from notifications where patient_id = $1", [p.patientId])).rows[0]!.n).toBe(0);
+    const detail = await call(caseRoute.GET, req("GET", `/api/virtual/cases/${p.caseId}`, { jar: doc }), { id: p.caseId });
+    expect(detail.json.messagingAvailable).toBe(false);
+    expect((await d.query<{ n: number }>("select count(*)::int as n from audit_events where action = 'notification.skipped' and target_ref = $1", [p.patientId])).rows[0]!.n).toBeGreaterThanOrEqual(2);
+  });
 });

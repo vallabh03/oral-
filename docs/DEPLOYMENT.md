@@ -88,6 +88,12 @@ Changing a switch = edit the JSON in a pull request → merge → deploy.
 ### Virtual screening and WhatsApp (additional setup)
 
 - **Switch:** `VIRTUAL_SCREENING_ENABLED` (off until ADR-19 approvals). Uses the clinical bucket and key.
+  Production refuses it unless `NOTIFY_DRIVER=whatsapp`, because login codes and results reach
+  participants only by message. **Pilot bridge:** `VIRTUAL_SCREENING_WITHOUT_MESSAGING=true`
+  allows it with no messaging: nothing is queued (audit `notification.skipped` / `no_channel`),
+  the code login page and API say login is unavailable (use the resume link or phone the helpline),
+  the registration page says results come by phone call, and the review screen tells doctors to
+  phone each result and record the call. Remove the setting when WhatsApp goes live.
 - **Clinical bucket CORS** (browsers upload photos straight to S3 with presigned PUTs): `PUT` from
   the site origin (and its `www.` variant) only, any request header, max age 600, plus a **lifecycle
   rule** deleting `quarantine/` objects after 1 day (normally the app deletes them within seconds).
