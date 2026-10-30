@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../Icon";
 import { newKey, uploadImage, type ApiError } from "./api";
 
@@ -88,6 +88,18 @@ export function CameraCapture({ uploadUrl, onUploaded, onSkip, subjectLabel = "y
   };
   useEffect(() => () => { stop(); if (preview) URL.revokeObjectURL(preview.url); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The <video> only exists once React has committed the "live" state, which can be after the
+  // next animation frame. Attaching the stream from the ref callback runs exactly when the element
+  // mounts, so the preview can never miss the stream (the symptom was a "Starting camera…" button
+  // that never enabled).
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    video.current = el;
+    if (el && stream.current && el.srcObject !== stream.current) {
+      el.srcObject = stream.current;
+      void el.play().catch(() => {});
+    }
+  }, []);
+
   const start = async () => {
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -96,17 +108,20 @@ export function CameraCapture({ uploadUrl, onUploaded, onSkip, subjectLabel = "y
     }
     try {
       setReady(false);
-      stream.current = await navigator.mediaDevices.getUserMedia({
+      const preferred: MediaStreamConstraints = {
         video: clinical ? { facingMode: { ideal: "environment" }, width: { ideal: 2560 }, height: { ideal: 1920 } } : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false,
-      });
+      };
+      try {
+        stream.current = await navigator.mediaDevices.getUserMedia(preferred);
+      } catch (e) {
+        // A camera that cannot meet the preferred settings is better than no camera; only a
+        // permission refusal is final.
+        if ((e as DOMException)?.name === "NotAllowedError") throw e;
+        stream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       setMode("live");
-      requestAnimationFrame(() => {
-        if (video.current) {
-          video.current.srcObject = stream.current;
-          void video.current.play();
-        }
-      });
+      if (video.current) attachVideo(video.current); // already mounted (e.g. a retake)
       // Some devices don't reliably fire loadeddata; also poll for the first decoded frame.
       const started = Date.now();
       const poll = window.setInterval(() => {
@@ -181,7 +196,7 @@ export function CameraCapture({ uploadUrl, onUploaded, onSkip, subjectLabel = "y
       <div className={`camera-frame${clinical ? " camera-clinical" : ""}`} aria-live="polite">
         {mode === "live" && (
           <>
-            <video ref={video} playsInline muted aria-label={`Live camera preview of ${subjectLabel}`} onLoadedData={() => setReady(true)} />
+            <video ref={attachVideo} playsInline muted aria-label={`Live camera preview of ${subjectLabel}`} onLoadedData={() => setReady(true)} />
             {!clinical && <div className="camera-guide" aria-hidden="true" />}
           </>
         )}
