@@ -6,7 +6,8 @@ test.describe("clinician workflow", () => {
 
   test("records load with photos; exam → verify (confirm) → category → report → print", async ({ page }) => {
     await page.goto("/workspace/patients");
-    const firstCard = page.locator(".patient-card").first();
+    // The first record with a photo: a virtual participant registered by another spec has none.
+    const firstCard = page.locator(".patient-card").filter({ has: page.locator("img") }).first();
     await expect(firstCard).toBeVisible();
     const thumb = firstCard.locator("img");
     await expect(thumb).toHaveAttribute("loading", "lazy");
@@ -21,8 +22,11 @@ test.describe("clinician workflow", () => {
     const id = (await firstCard.locator(".code-chip").textContent())!.trim();
     await page.getByLabel(/^Search/).fill(id);
     await page.getByRole("button", { name: "Search", exact: true }).click();
+    const result = page.locator(".patient-card").filter({ hasText: id });
     await expect(page.locator(".patient-card")).toHaveCount(1);
-    await page.locator(".patient-card").first().click();
+    await expect(result).toBeVisible();
+    await result.click();
+    await expect(page).toHaveURL(/\/workspace\/patients\/[0-9a-f-]{36}$/); // the list re-renders after the search; wait for the record itself
 
     await expect(page.getByRole("img", { name: /Identity photo of/ })).toBeVisible();
     await page.getByRole("button", { name: "Check in" }).click();

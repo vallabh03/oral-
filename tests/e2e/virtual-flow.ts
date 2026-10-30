@@ -50,6 +50,9 @@ export async function passTutorialGate(page: Page) {
   const gate = page.locator(".tut-gate");
   const startPhotos = gate.getByRole("button", { name: "Start taking photos" });
   const guide = gate.locator("video");
+  // Switching language sets a fresh video source, so the stub (not the real, undecodable MP4) is what loads.
+  await gate.getByRole("button", { name: "తెలుగు" }).click();
+  await expect(guide).toHaveAttribute("src", "/tutorial/te/guide.mp4");
   await expect.poll(() => guide.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(0);
   await guide.evaluate((v: HTMLVideoElement) => { v.muted = true; return v.play(); });
   await expect(startPhotos).toBeEnabled({ timeout: 30_000 });
