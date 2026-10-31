@@ -26,6 +26,9 @@ export function proxy(req: NextRequest) {
   headers.set("content-security-policy", csp);
   const res = NextResponse.next({ request: { headers } });
   res.headers.set("content-security-policy", csp);
+  res.headers.set("x-content-type-options", "nosniff");
+  res.headers.set("x-frame-options", "DENY");
+  res.headers.set("referrer-policy", "strict-origin-when-cross-origin");
 
   const p = req.nextUrl.pathname;
   if (process.env.INDEXING_ENABLED !== "true") res.headers.set("x-robots-tag", "noindex, nofollow");

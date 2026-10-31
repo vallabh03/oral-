@@ -43,7 +43,7 @@ export function clientIp(req: NextRequest): string {
   // TRUSTED_PROXY_HOPS entries are trustworthy; anything to the left is client-controlled.
   const hops = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS ?? 1));
   const parts = (req.headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return (parts[parts.length - hops] || req.headers.get("x-real-ip") || "unknown").slice(0, 64);
+  return (parts[parts.length - hops] || req.headers.get("x-real-ip") || (req as unknown as { ip?: string }).ip || "unknown").slice(0, 64);
 }
 
 function originAllowed(req: NextRequest): boolean {
@@ -58,6 +58,8 @@ function originAllowed(req: NextRequest): boolean {
 export function json(data: unknown, init?: number | ResponseInit) {
   const res = NextResponse.json(data, typeof init === "number" ? { status: init } : init);
   if (!res.headers.has("cache-control")) res.headers.set("cache-control", "no-store");
+  res.headers.set("x-content-type-options", "nosniff");
+  res.headers.set("x-frame-options", "DENY");
   return res;
 }
 

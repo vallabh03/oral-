@@ -12,6 +12,7 @@ export async function purgeExpiredRecords(): Promise<{
   otpsPurged: number;
   sessionsPurged: number;
   intakeSessionsPurged: number;
+  intakeTokensPurged: number;
 }> {
   const d = await db();
 
