@@ -86,8 +86,7 @@ function introScene(lang: TutorialLang): string {
     `<path d="M0 22 V-18 M-16 -2 L0 -18 L16 -2" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
     `<path d="M-14 -20 v18 a14 14 0 0 0 28 0 v-18 M0 12 v8 a10 10 0 0 0 20 0 v-4" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="20" cy="14" r="5" fill="#fff"/>`,
   ];
-  return `<text x="640" y="70" text-anchor="middle" class="brand-big">DRIVE SAFE</text>
-  <text x="640" y="118" text-anchor="middle" class="brand-sub">Telangana Against Oral Cancer</text>
+  return `<text x="640" y="96" text-anchor="middle" class="brand-big">Telangana Against Oral Cancer</text>
   ${chips.map((c, i) => `<g transform="translate(${260 + i * 380} 270)"><g class="pop p${i}">
     <rect x="-150" y="-78" width="300" height="156" rx="26" fill="${["#1b5e8a", "#2a7f62", "#b0213a"][i]}"/>
     <g transform="translate(0 -26)">${icons[i]}</g>
@@ -125,7 +124,7 @@ export function sceneHtml(scene: TutorialScene, lang: TutorialLang, durationSec:
   .title { background: #14466a; color: #fff; font-size: 34px; font-weight: 700; padding: 8px 26px; border-radius: 40px; animation: drop .6s both; }
   svg.stage { position: absolute; left: 0; top: 108px; width: 1280px; height: 440px; overflow: visible; }
   .subs { position: absolute; left: 0; right: 0; bottom: 0; min-height: 160px; background: rgba(8, 20, 32, .9); color: #fff; font-size: ${lang === "en" ? 34 : 31}px; line-height: 1.4; padding: 18px 60px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 600; }
-  .brand-big { font-size: 84px; font-weight: 900; fill: #14466a; letter-spacing: .06em; }
+  .brand-big { font-size: 62px; font-weight: 900; fill: #14466a; letter-spacing: 0; }
   .brand-sub { font-size: 32px; fill: #b0213a; font-weight: 700; }
   .chip { font-size: ${lang === "en" ? 34 : 28}px; font-weight: 700; fill: #fff; }
   .card-t { font-size: 30px; font-weight: 700; fill: #14466a; }
@@ -174,7 +173,7 @@ export function sceneHtml(scene: TutorialScene, lang: TutorialLang, durationSec:
   @keyframes openm { from { transform: scale(.9, .7); } to { transform: scale(1); } }
   @keyframes ring { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
   </style></head><body>
-  <div class="top hide-subs"><div class="logo">DRIVE SAFE<span>Telangana Against Oral Cancer</span></div>${scene.scene === "intro" ? "" : `<div class="title">${esc(scene.title[lang])}</div>`}</div>
+  <div class="top hide-subs"><div class="logo">${scene.scene === "intro" ? "" : "Telangana Against Oral Cancer"}</div>${scene.scene === "intro" ? "" : `<div class="title">${esc(scene.title[lang])}</div>`}</div>
   <svg class="stage" viewBox="0 0 1280 440">${body}</svg>
   <div class="subs hide-subs">${esc(scene.say[lang])}</div>
   <div class="flash"></div>
