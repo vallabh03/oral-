@@ -4,6 +4,8 @@ import {
   requirePermission,
   log,
   rate,
+  rateKey,
+  hash,
   response,
   failure,
   HttpError,
@@ -14,6 +16,13 @@ export async function GET(req: Request) {
     const a = await actor(req);
     await requirePermission(a, "analytics.read");
     await rate(a);
+    // Analytics runs a LIMIT 10000 scan — apply a tighter per-actor cap of
+    // 30 requests/min so a single user cannot saturate D1 with table scans.
+    {
+      const bucket = Math.floor(Date.now() / 60000);
+      const key = `analysis:${await hash(a.id)}:${bucket}`;
+      await rateKey(key, 30, 60, "Analytics reports are rate-limited. Please wait before refreshing.");
+    }
     const url = new URL(req.url),
       camp = url.searchParams.get("camp") || "",
       group = url.searchParams.get("group") || "",
@@ -122,8 +131,13 @@ export async function GET(req: Request) {
         label,
         count,
       })),
+      // SUPER_ADMIN and ADMIN see the pseudonymous participantId so they can
+      // cross-reference the record list with the workspace. ASSISTANT users
+      // receive aggregate-only data without any linkable identifier.
       records: rows.map((r) => ({
-        participantId: r.id,
+        ...(a.role === "SUPER_ADMIN" || a.role === "ADMIN" || a.demo
+          ? { participantId: r.id }
+          : {}),
         ageBand:
           r.age == null
             ? "Unknown"
@@ -136,6 +150,8 @@ export async function GET(req: Request) {
         registrationDate: r.day,
         screened: !!r.screened,
       })),
+      // Warn callers when the result set is at the LIMIT ceiling.
+      truncated: rows.length === 10000,
       privacy:
         "Pseudonymous programme analysis only. Screened means clinician-verified assessment. Multi-select habit counts may exceed participant totals. Date trends describe registration cohorts, not incidence or causality.",
     });

@@ -429,9 +429,10 @@ export async function POST(req: Request) {
           400,
           "Live account management is unavailable in demonstration mode.",
         );
-      // A patient account is bound to exactly one existing live participant;
-      // staff accounts are never bound to a participant.
-      const linked = null;
+      // This action creates programme-level accounts (DOCTOR_ADMIN, SUPER_ADMIN, ASSISTANT).
+      // The PATIENT role is a legacy read-only role linked at D1 level, not created via this form.
+      // patient_id is therefore always null for accounts managed through this action.
+      const linked: string | null = null;
       if (
         linked !== null &&
         !(await db()

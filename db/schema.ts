@@ -65,6 +65,10 @@ export const patients = sqliteTable(
     uniqueIndex("patients_qr").on(t.qrHash),
     // Supports cursor-based pagination: WHERE tenant=? AND created_at < ?
     index("patients_tenant_created").on(t.tenant, t.createdAt),
+    // Atomic duplicate guard: patients_dedup (tenant, name COLLATE NOCASE, phone WHERE phone!='').
+    // This is a partial expression index — defined in migration 0013 via raw SQL
+    // because drizzle-orm does not yet support partial/expression indexes.
+    // Do NOT remove: it prevents concurrent registration races at the database layer.
   ],
 );
 
