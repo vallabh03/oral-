@@ -20,10 +20,8 @@ async function registerVirtually(page: Page) {
   await page.getByLabel(/Full name/).fill(name);
   await page.getByLabel(/Age in years/).fill("44");
   await page.getByLabel(/Mobile number/).fill(mobile);
-  await page.getByLabel(/Driver type/).selectOption("app_cab");
+  await page.getByLabel(/Profession/).selectOption("app_cab");
   await page.getByLabel(/How did you hear/).selectOption("whatsapp");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator(".error-summary")).toContainText("Please fix"); // district + PIN are required
   await page.getByLabel(/District/).selectOption("Hyderabad");
   await page.getByLabel(/PIN code/).fill("500016");
   await page.getByRole("button", { name: "Continue" }).click();

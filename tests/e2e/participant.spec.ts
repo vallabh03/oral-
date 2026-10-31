@@ -15,7 +15,7 @@ test.describe("participant self-registration with photo capture", () => {
     await page.getByLabel(/Full name/).fill("Playwright Driver");
     await page.getByLabel(/Age in years/).fill("41");
     await page.getByLabel(/Mobile number/).fill(`9${Date.now().toString().slice(-9)}`);
-    await page.getByLabel(/Driver type/).selectOption("auto");
+    await page.getByLabel(/Profession/).selectOption("auto");
     await page.getByLabel(/How did you hear/).selectOption("poster");
     await page.getByLabel("Contact preference").selectOption("whatsapp");
     await page.getByRole("button", { name: "Continue" }).click();

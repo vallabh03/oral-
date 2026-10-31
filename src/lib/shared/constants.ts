@@ -44,9 +44,11 @@ export const LANGUAGE_CODES = LANGUAGES.map((l) => l.code) as [LanguageCode, ...
 export const TRANSLATED_LANGUAGES: readonly LanguageCode[] = ["en"];
 
 export const DRIVER_TYPES = [
-  { value: "auto", label: "Auto-rickshaw" },
-  { value: "cab_taxi", label: "Cab / Taxi" },
-  { value: "app_cab", label: "App-based cab" },
+  { value: "auto", label: "Auto-rickshaw driver" },
+  { value: "cab_taxi", label: "Cab / Taxi driver" },
+  { value: "app_cab", label: "App-based cab driver" },
+  { value: "student", label: "Student" },
+  { value: "employee", label: "Employee" },
   { value: "other", label: "Other" },
 ] as const;
 

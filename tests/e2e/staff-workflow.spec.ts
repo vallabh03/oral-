@@ -69,7 +69,7 @@ test.describe("clinician workflow", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel(/Full name/).fill("Camp Assisted Person");
     await page.getByLabel(/Age in years/).fill("52");
-    await page.getByLabel(/Driver type/).selectOption("cab_taxi");
+    await page.getByLabel(/Profession/).selectOption("cab_taxi");
     await page.getByLabel(/Screening camp/).selectOption({ index: 1 });
     await page.getByLabel(/How did the participant hear/).selectOption("association");
     await page.getByRole("button", { name: "Continue" }).click();

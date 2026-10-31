@@ -95,11 +95,14 @@ afterEach(() => {
 });
 
 describe("virtual registration", () => {
-  it("requires district, PIN, mobile and photo consent, stores the location and opens a case", async () => {
+  it("requires mobile and photo consent, keeps district and PIN optional, stores the location and opens a case", async () => {
     const send = (body: unknown) => call(register.POST, req("POST", "/api/intake/register", { body, headers: { "x-forwarded-for": randomIp() } }));
     const missing = await send(registration({ screeningMode: "virtual", consents: { ...VIRTUAL_CONSENTS, remoteImages: false } }));
     expect(missing.status).toBe(422);
-    expect(Object.keys(missing.json.error.fields)).toEqual(expect.arrayContaining(["district", "pincode"]));
+    expect(Object.keys(missing.json.error.fields)).not.toEqual(expect.arrayContaining(["district"]));
+    expect(Object.keys(missing.json.error.fields)).not.toEqual(expect.arrayContaining(["pincode"]));
+    const noLocation = await send(registration({ screeningMode: "virtual", consents: VIRTUAL_CONSENTS }));
+    expect(noLocation.status).toBe(201);
     const noConsent = await send(registration({ screeningMode: "virtual", district: "Hyderabad", pincode: "500016", consents: { ...VIRTUAL_CONSENTS, remoteImages: false } }));
     expect(noConsent.json.error.fields).toHaveProperty(["consents.remoteImages"]);
     const wrongMode = await send(registration({ consents: { ...VIRTUAL_CONSENTS, reviewNotifications: false } }));
