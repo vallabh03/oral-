@@ -16,7 +16,7 @@ test("telemetry sanitize redacts sensitive PII and secrets", () => {
     },
   };
 
-  const clean = sanitize(sensitivePayload) as Record<string, any>;
+  const clean = sanitize(sensitivePayload) as Record<string, unknown>;
   assert.equal(clean.username, "doctor_rao");
   assert.equal(clean.password, "[REDACTED]");
   assert.equal(clean.token, "[REDACTED]");
@@ -46,4 +46,24 @@ test("migration 0012 covers all performance hardening indexes", async () => {
   assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS limits_expires"));
   assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS camps_tenant"));
   assert.ok(sql.includes("CREATE INDEX IF NOT EXISTS errors_gc"));
+});
+
+test("vector SVG QR code generates quickly and produces valid SVG markup", async () => {
+  const QRCode = (await import("qrcode")).default;
+  // warm-up JIT and module initialization
+  await QRCode.toString("HAOC-DS-WARMUP", { type: "svg" });
+
+  const start = performance.now();
+  const svg = await QRCode.toString("HAOC-DS-TEST-QR-TOKEN", {
+    type: "svg",
+    width: 220,
+    margin: 2,
+    errorCorrectionLevel: "M",
+    color: { dark: "#34383c", light: "#ffffff" },
+  });
+  const duration = performance.now() - start;
+
+  assert.ok(duration < 25, `Warm QR SVG generation took ${duration}ms, expected < 25ms`);
+  assert.ok(svg.includes("<svg"), "Must produce valid SVG markup");
+  assert.ok(svg.includes("viewBox"), "Must contain viewBox attribute");
 });

@@ -643,6 +643,21 @@ export async function POST(req: Request) {
           400,
           "Review lesion status before verifying this examination.",
         );
+      if (
+        d.completed &&
+        d.mouthOpening === "Restricted" &&
+        d.distance !== null &&
+        (d.distance <= 0 || d.distance > 80)
+      )
+        throw new HttpError(
+          400,
+          "Enter a valid mouth opening distance between 1 and 80 mm.",
+        );
+      if (d.referral !== "No" && d.destination === "Not applicable")
+        throw new HttpError(
+          400,
+          "Choose a referral destination when recommending a clinical referral.",
+        );
       if (d.followupDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.followupDate))
         throw new HttpError(400, "Choose a valid follow-up date.");
       if (!(await consent("screening")))

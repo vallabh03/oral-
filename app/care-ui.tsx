@@ -134,12 +134,21 @@ export function QRImage({
   const [src, setSrc] = useState("");
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(value, {
+    QRCode.toString(value, {
+      type: "svg",
       width: 220,
       margin: 2,
       errorCorrectionLevel: "M",
       color: { dark: "#34383c", light: "#ffffff" },
-    }).then((s) => active && setSrc(s));
+    })
+      .then((svg) => {
+        if (active) {
+          setSrc(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+        }
+      })
+      .catch(() => {
+        if (active) setSrc("");
+      });
     return () => {
       active = false;
     };

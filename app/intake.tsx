@@ -74,10 +74,11 @@ export function Registration({
           <input
             required
             type="number"
-            min="0"
+            min="18"
             max="120"
             value={d.age}
             onChange={(e) => set("age", e.target.value)}
+            placeholder="18"
           />
         </Field>
         <Field label="Screening site / event *">
@@ -132,20 +133,30 @@ export function Registration({
       ><T text={"Follow-up or contact is intended"} /></Check>
       <Field
         label={
-          d.contactIntended ? "Mobile number *" : "Mobile number (optional)"
+          d.contactIntended || d.whatsappReportConsent
+            ? "Mobile number *"
+            : "Mobile number (optional)"
         }
       >
         <input
           type="tel"
           inputMode="tel"
-          required={d.contactIntended}
+          required={d.contactIntended || d.whatsappReportConsent}
           pattern="\+?[0-9]{10,15}"
           maxLength={16}
           value={d.phone}
           onChange={(e) => set("phone", e.target.value)}
           placeholder={demo ? "0000000007" : "Mobile number"}
         />
-        <small><T text={"Required only when follow-up/contact is intended."} /></small>
+        <small>
+          <T
+            text={
+              d.whatsappReportConsent
+                ? "Required for WhatsApp report delivery."
+                : "Required only when follow-up/contact is intended."
+            }
+          />
+        </small>
       </Field>
       <section className="consent-box">
         <h3><T text={"Participation & screening consent"} /></h3>
