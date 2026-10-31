@@ -35,22 +35,23 @@ export async function GET(req: Request) {
       const result = translate(locale, source, clinical);
       return `<span lang="${result.lang}" dir="${localeInfo(result.lang).dir}">${esc(result.text)}</span>`;
     };
-    const records = (
-      await db()
+    const [recordsResult, responsesResult] = await db().batch([
+      db()
         .prepare(
-          "SELECT kind,status,at,data FROM records WHERE patient_id=? ORDER BY at DESC",
+          "SELECT kind,status,at,data FROM records WHERE patient_id=? ORDER BY at DESC LIMIT 200",
         )
-        .bind(pid)
-        .all<any>()
-    ).results.map((r) => ({ ...r, data: JSON.parse(r.data) }));
-    const responses = (
-      await db()
+        .bind(pid),
+      db()
         .prepare(
-          "SELECT question_text,answer,version,at FROM responses WHERE patient_id=? ORDER BY at",
+          "SELECT question_text,answer,version,at FROM responses WHERE patient_id=? ORDER BY at LIMIT 200",
         )
-        .bind(pid)
-        .all()
-    ).results;
+        .bind(pid),
+    ]);
+    const records = (recordsResult.results as any[]).map((r) => ({
+      ...r,
+      data: JSON.parse(r.data),
+    }));
+    const responses = responsesResult.results;
     await log(a, "Patient-specific report generated", pid);
     if (new URL(req.url).searchParams.get("format") === "html") {
       const table = (rows: any[]) =>

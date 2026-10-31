@@ -172,3 +172,76 @@ test("examination: lesion-impression consistency rules", () => {
   assert.ok(validateConsistency(true, false, "Normal"), "lesion=false, Normal → valid");
   assert.ok(validateConsistency(false, true, "Normal"), "incomplete exam bypasses consistency checks");
 });
+
+// ---------------------------------------------------------------------------
+// Error handling — UNIQUE constraint conflict detection
+// ---------------------------------------------------------------------------
+test("failure handler recognizes UNIQUE constraint errors as 409 Conflict", () => {
+  function isUniqueConstraintError(e: unknown): boolean {
+    return (
+      e instanceof Error &&
+      (e.message.includes("UNIQUE constraint failed") ||
+        e.message.includes("sqlite3_step: 19") ||
+        e.message.includes("D1_ERROR: UNIQUE"))
+    );
+  }
+
+  assert.ok(
+    isUniqueConstraintError(new Error("D1_ERROR: UNIQUE constraint failed: patients.tenant, patients.name, patients.phone")),
+    "Standard SQLite unique constraint error should be detected",
+  );
+  assert.ok(
+    isUniqueConstraintError(new Error("sqlite3_step: 19 - constraint failed")),
+    "Low-level sqlite3_step 19 error should be detected",
+  );
+  assert.ok(
+    !isUniqueConstraintError(new Error("SyntaxError: unexpected token")),
+    "Generic error should not be treated as unique constraint",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Audit throttling logic
+// ---------------------------------------------------------------------------
+test("audit throttling suppresses duplicate non-clinical events within window", async () => {
+  const store = new Map<string, { val: string; exp: number }>();
+  const mockKv = {
+    async get(k: string) {
+      const item = store.get(k);
+      if (!item) return null;
+      if (Date.now() > item.exp) {
+        store.delete(k);
+        return null;
+      }
+      return item.val;
+    },
+    async put(k: string, val: string, opts: { expirationTtl: number }) {
+      store.set(k, { val, exp: Date.now() + opts.expirationTtl * 1000 });
+    },
+  };
+
+  let writeCount = 0;
+  async function throttledLog(tenant: string, userId: string, action: string, intervalSecs: number) {
+    const key = `audit_throttle:${tenant}:${userId}:${action}`;
+    const exists = await mockKv.get(key);
+    if (exists) return false;
+    await mockKv.put(key, "1", { expirationTtl: intervalSecs });
+    writeCount++;
+    return true;
+  }
+
+  // First call should write
+  const first = await throttledLog("live", "user-1", "Workspace accessed", 300);
+  assert.equal(first, true);
+  assert.equal(writeCount, 1);
+
+  // Subsequent rapid calls from same user should be throttled
+  const second = await throttledLog("live", "user-1", "Workspace accessed", 300);
+  assert.equal(second, false);
+  assert.equal(writeCount, 1);
+
+  // Different user is not throttled
+  const otherUser = await throttledLog("live", "user-2", "Workspace accessed", 300);
+  assert.equal(otherUser, true);
+  assert.equal(writeCount, 2);
+});

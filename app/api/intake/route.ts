@@ -81,28 +81,27 @@ export async function POST(req: Request) {
     };
     if (b.action === "register") {
       const d = registration.parse(b.data);
-      const p = await db()
-        .prepare(
-          "SELECT id FROM protocols WHERE tenant='live' AND status='Approved' ORDER BY rowid DESC LIMIT 1",
-        )
-        .first<any>();
-      if (!p) throw new HttpError(503, "Screening is not currently available.");
-      if (
-        !(await db()
-          .prepare("SELECT id FROM camps WHERE id=? AND tenant='live'")
-          .bind(d.campId)
-          .first())
-      )
-        throw new HttpError(400, "Please select a screening event.");
-      if (
-        d.phone &&
-        (await db()
+      const [protoRes, campRes, dupRes] = await db().batch([
+        db()
           .prepare(
-            "SELECT id FROM patients WHERE tenant='live' AND lower(name)=lower(?) AND phone=?",
-          )
-          .bind(d.name, d.phone)
-          .first())
-      )
+            "SELECT id FROM protocols WHERE tenant='live' AND status='Approved' ORDER BY rowid DESC LIMIT 1",
+          ),
+        db()
+          .prepare("SELECT id FROM camps WHERE id=? AND tenant='live'")
+          .bind(d.campId),
+        d.phone
+          ? db()
+              .prepare(
+                "SELECT id FROM patients WHERE tenant='live' AND lower(name)=lower(?) AND phone=?",
+              )
+              .bind(d.name, d.phone)
+          : db().prepare("SELECT 1 WHERE 0"),
+      ]);
+      const p = protoRes.results[0] as any;
+      if (!p) throw new HttpError(503, "Screening is not currently available.");
+      if (!campRes.results[0])
+        throw new HttpError(400, "Please select a screening event.");
+      if (d.phone && dupRes.results[0])
         throw new HttpError(
           409,
           "Please ask the registration desk to help complete this registration.",

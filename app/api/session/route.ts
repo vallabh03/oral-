@@ -107,6 +107,7 @@ export async function DELETE(req: Request) {
 export async function GET(req: Request) {
   try {
     const a = await actor(req);
+    await rate(a);
     const s = await db()
       .prepare(
         "SELECT expires_at FROM app_sessions WHERE token_hash=? AND revoked=0",

@@ -364,6 +364,23 @@ export async function log(
   await (await auditStatement(a, action, pid)).run();
 }
 
+// Throttles high-frequency audit logs (like workspace access) to reduce D1 write
+// pressure under heavy concurrent load. Patient-specific events are never throttled.
+export async function logThrottled(
+  a: Actor,
+  action: string,
+  intervalSeconds = 300,
+) {
+  const kv = runtime().RATE_KV;
+  if (kv) {
+    const key = `audit_throttle:${a.tenant}:${a.id}:${action}`;
+    const exists = await kv.get(key);
+    if (exists) return;
+    await kv.put(key, "1", { expirationTtl: intervalSeconds });
+  }
+  await log(a, action, null);
+}
+
 // ---------------------------------------------------------------------------
 // Rate limiting
 // Strategy: prefer Cloudflare KV (atomic, no D1 write contention).
@@ -446,6 +463,18 @@ export async function failure(
       { error: "Please check the supplied fields and required values." },
       400,
     );
+
+  if (
+    e instanceof Error &&
+    (e.message.includes("UNIQUE constraint failed") ||
+      e.message.includes("sqlite3_step: 19") ||
+      e.message.includes("D1_ERROR: UNIQUE"))
+  ) {
+    return response(
+      { error: "A matching registration or record already exists." },
+      409,
+    );
+  }
 
   // Unexpected error — log and return generic message with a trackable ID.
   const rid = id("ERR");

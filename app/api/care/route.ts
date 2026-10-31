@@ -12,6 +12,7 @@ import {
   patient,
   auditStatement,
   log,
+  logThrottled,
   rate,
   response,
   failure,
@@ -206,7 +207,7 @@ export async function GET(req: Request) {
     const pagePatients = hasMore ? allPatients.slice(0, rawLimit) : allPatients;
     const nextCursor = hasMore ? pagePatients[pagePatients.length - 1].created_at : null;
 
-    await log(a, "Workspace accessed");
+    await logThrottled(a, "Workspace accessed", 300);
     return response({
       actor: { name: a.name, role: a.role, demo: a.demo },
       patients: pagePatients.map((p: any) =>
