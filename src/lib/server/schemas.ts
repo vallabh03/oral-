@@ -211,7 +211,7 @@ export const virtualTicketSchema = z.object({
 }).strict();
 export const virtualAssistanceSchema = z.object({ note: z.string().trim().max(500).optional() }).strict();
 // The patient finished the mandatory photo guide. Recorded for the timeline only; never consent.
-export const tutorialCompleteSchema = z.object({ language: z.enum(TUTORIAL_LANG_CODES), version: z.string().trim().min(1).max(40) }).strict();
+export const tutorialCompleteSchema = z.object({ language: z.enum(TUTORIAL_LANG_CODES), version: z.string().trim().min(1).max(40), skipped: z.boolean().default(false) }).strict();
 export const otpRequestSchema = z.object({
   displayId: z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}(-[A-Z]{2,8})?-\d{1,8}$/, "Enter your participant ID"),
   mobile,

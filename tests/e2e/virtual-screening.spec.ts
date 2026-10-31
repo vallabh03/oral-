@@ -60,6 +60,7 @@ test.describe.serial("virtual screening with patient-captured photos", () => {
     const startPhotos = gate.getByRole("button", { name: "Start taking photos" });
     await expect(startPhotos).toBeDisabled();
     await expect(page.getByRole("button", { name: /Take photo/ })).toHaveCount(0);
+    await expect(gate.getByRole("button", { name: "Skip video" })).toBeEnabled(); // the guide is optional
     const guide = gate.locator("video");
     await expect(guide).toHaveAttribute("src", "/tutorial/hi/guide.mp4");
     await expect.poll(() => guide.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(0);
