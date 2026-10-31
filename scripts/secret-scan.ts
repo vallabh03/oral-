@@ -17,7 +17,9 @@ const PATTERNS: [string, RegExp][] = [
   ["Slack token", /\bxox[abprs]-[0-9A-Za-z-]{10,}/],
 ];
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git", ".data", "test-results", "playwright-report", "load-results", "coverage", "cdk.out", "dist"]);
-const ALLOW = [/dev-only-insecure-secret/, /test-(audit|data)-.*key/, /example\.(org|test)/];
+// The last entry is the standard JWT header {"alg":"HS256","typ":"JWT"} used as a test value on the old
+// master branch; it is public and contains no key.
+const ALLOW = [/dev-only-insecure-secret/, /test-(audit|data)-.*key/, /example\.(org|test)/, /"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"/];
 
 const findings: string[] = [];
 function scanText(label: string, text: string) {
