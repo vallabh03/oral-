@@ -150,9 +150,21 @@ export function ParticipantStatusView() {
   useEffect(() => void load(), [load]);
 
   const showQr = async () => {
+    if (qr) return;
+    const cacheKey = s?.displayId ? `oral_qr_${s.displayId}` : null;
+    if (cacheKey && typeof window !== "undefined") {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        setQr(cached);
+        return;
+      }
+    }
     try {
       const r = await postJson<{ svg: string }>("/api/intake/qr", {});
       setQr(r.svg);
+      if (cacheKey && typeof window !== "undefined") {
+        try { sessionStorage.setItem(cacheKey, r.svg); } catch {}
+      }
     } catch (e) {
       toast((e as ApiError).message, "error");
     }

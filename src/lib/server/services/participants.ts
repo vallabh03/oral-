@@ -41,7 +41,7 @@ async function issueTokens(q: Queryable, patientId: string) {
     [patientId, hashToken(intakeToken), INTAKE_TOKEN_DAYS],
   );
   await q.query("update intake_tokens set revoked_at = now() where patient_id = $1 and kind = 'qr' and revoked_at is null", [patientId]);
-  await q.query("insert into intake_tokens (patient_id, token_hash, kind) values ($1, $2, 'qr')", [patientId, hashToken(qrToken)]);
+  await q.query("insert into intake_tokens (patient_id, token_hash, kind, expires_at) values ($1, $2, 'qr', now() + interval '7 days')", [patientId, hashToken(qrToken)]);
   return { intakeToken, qrToken };
 }
 

@@ -30,11 +30,18 @@ describe("maintenance purge worker", () => {
       [pId, hashToken("sess-expired"), hashToken("sess-active")],
     );
 
+    // Insert an expired/revoked intake token and an active one
+    await d.query(
+      "insert into intake_tokens (patient_id, token_hash, kind, expires_at) values ($1, $2, 'qr', now() - interval '25 hours'), ($1, $3, 'qr', now() + interval '7 days')",
+      [pId, hashToken("token-expired"), hashToken("token-active")],
+    );
+
     const result = await purgeExpiredRecords();
 
     expect(result.rateLimitsPurged).toBeGreaterThanOrEqual(1);
     expect(result.otpsPurged).toBeGreaterThanOrEqual(1);
     expect(result.intakeSessionsPurged).toBeGreaterThanOrEqual(1);
+    expect(result.intakeTokensPurged).toBeGreaterThanOrEqual(1);
 
     // Verify active records remain intact
     const activeRl = await d.query("select 1 from rate_limits where bucket = 'test:active'");
@@ -45,5 +52,8 @@ describe("maintenance purge worker", () => {
 
     const activeIntake = await d.query("select 1 from intake_sessions where patient_id = $1 and expires_at > now()", [pId]);
     expect(activeIntake.rows.length).toBe(1);
+
+    const activeToken = await d.query("select 1 from intake_tokens where patient_id = $1 and (expires_at is null or expires_at > now()) and revoked_at is null", [pId]);
+    expect(activeToken.rows.length).toBe(1);
   });
 });

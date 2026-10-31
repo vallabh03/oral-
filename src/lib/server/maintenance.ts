@@ -40,12 +40,18 @@ export async function purgeExpiredRecords(): Promise<{
     "with deleted as (delete from intake_sessions where expires_at < now() - interval '24 hours' returning 1) select count(*)::int as count from deleted",
   );
 
+  // Purge revoked/expired intake and qr tokens older than 24 hours
+  const intakeTokens = await d.query<{ count: number }>(
+    "with deleted as (delete from intake_tokens where (expires_at is not null and expires_at < now() - interval '24 hours') or (revoked_at is not null and revoked_at < now() - interval '24 hours') returning 1) select count(*)::int as count from deleted",
+  );
+
   return {
     rateLimitsPurged: rl.rows[0]?.count ?? 0,
     uploadTicketsPurged: ut.rows[0]?.count ?? 0,
     otpsPurged: otp.rows[0]?.count ?? 0,
     sessionsPurged: sess.rows[0]?.count ?? 0,
     intakeSessionsPurged: intake.rows[0]?.count ?? 0,
+    intakeTokensPurged: intakeTokens.rows[0]?.count ?? 0,
   };
 }
 
