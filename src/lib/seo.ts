@@ -40,7 +40,7 @@ export function organizationJsonLd() {
     image: absoluteUrl("/icons/icon-512.png"),
     description: SITE.description,
     areaServed: [{ "@type": "State", name: "Telangana" }, { "@type": "City", name: "Hyderabad" }],
-    founder: { "@type": "Person", name: SITE.founder.name, jobTitle: SITE.founder.role },
+    founder: { "@type": "Person", name: SITE.founder.name, jobTitle: SITE.founder.role, url: SITE.founder.url },
     knowsAbout: ["Oral cancer prevention", "Tobacco cessation", "Oral cancer screening", "Early detection of oral lesions"],
   };
 }
