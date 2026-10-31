@@ -14,4 +14,6 @@ compose build app
 # Migrations run (and must succeed) before the new app container starts.
 compose up -d
 docker image prune -f >/dev/null
+# Keep the build cache bounded (it grew to 11 GB after a week of deploys); 4 GB keeps rebuilds fast.
+docker builder prune -f --keep-storage 4GB >/dev/null
 compose ps

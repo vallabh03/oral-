@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <div className="container prose">
           <h2>What we collect and why</h2>
           <ul>
-            <li><strong>Registration:</strong> name, age, optional mobile number, driver type, usual working area, camp and how you heard about us — to run screening and follow-up.</li>
+            <li><strong>Registration:</strong> name, age, optional mobile number, profession, usual working area, camp and how you heard about us — to run screening and follow-up.</li>
             <li><strong>Questionnaire:</strong> tobacco/areca use and current mouth symptoms — to support the clinician&apos;s assessment.</li>
             <li><strong>Examination:</strong> findings recorded and verified by an authorised clinician.</li>
             <li><strong>Identity photo (optional, with separate consent):</strong> a photo of your face so staff can match you to the right record at screening and follow-up. Never used for anything else, never published, never analysed by AI.</li>

@@ -27,7 +27,7 @@ export const registrationSchema = z
     recruitmentSource: z.enum(vals(RECRUITMENT_SOURCES)),
     contactPreference: z.enum(vals(CONTACT_PREFERENCES)),
     screeningMode: z.enum(vals(SCREENING_MODES)).default("in_person"),
-    // Location (virtual screening): district + mandal + PIN; the full address is optional.
+    // Location (virtual screening): district, mandal, PIN and address are all optional.
     district: z.enum(TELANGANA_DISTRICTS).optional().or(z.literal("").transform(() => undefined)),
     mandal: z.string().trim().max(80).regex(/^[\p{L}\p{M}\p{N} .'/-]*$/u, "Use letters, numbers and basic punctuation").transform((v) => v || undefined).optional(),
     pincode: z.string().trim().regex(/^[1-9]\d{5}$/, "Enter a valid 6-digit PIN code").optional().or(z.literal("").transform(() => undefined)),
@@ -55,10 +55,6 @@ export const registrationSchema = z
       ctx.addIssue({ code: "custom", path: ["mobile"], message: "A mobile number is needed so the team can call you for virtual screening" });
     } else if (v.consents.reviewNotifications && !v.mobile) {
       ctx.addIssue({ code: "custom", path: ["mobile"], message: "A mobile number is needed for review messages" });
-    }
-    if (v.screeningMode === "virtual") {
-      if (!v.district) ctx.addIssue({ code: "custom", path: ["district"], message: "Choose your district" });
-      if (!v.pincode) ctx.addIssue({ code: "custom", path: ["pincode"], message: "Enter your 6-digit PIN code" });
     }
   });
 export type RegistrationInput = z.infer<typeof registrationSchema>;
