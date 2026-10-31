@@ -7,10 +7,18 @@ export type Row = Record<string, unknown>;
 export interface Queryable {
   query<T = Row>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 }
+export interface DbPoolStats {
+  kind: "pglite" | "pg";
+  totalCount: number;
+  idleCount: number;
+  waitingCount: number;
+  max: number;
+}
 export interface Db extends Queryable {
   tx<T>(fn: (q: Queryable) => Promise<T>): Promise<T>;
   close(): Promise<void>;
   kind: "pglite" | "pg";
+  getStats(): DbPoolStats;
 }
 
 // All SQL in this codebase is parameterised ($1, $2 …). Never interpolate user input.
@@ -95,6 +103,13 @@ function wrapPglite(pg: import("@electric-sql/pglite").PGlite, onClose: () => Pr
   const isRead = (sql: string) => /^\s*(select|show|explain)\b/i.test(sql);
   return {
     kind: "pglite",
+    getStats: () => ({
+      kind: "pglite",
+      totalCount: 1,
+      idleCount: 1,
+      waitingCount: 0,
+      max: 1,
+    }),
     async query<T>(sql: string, params: unknown[] = []) {
       const r = await pg.query<T>(sql, params);
       if (!isRead(sql)) markDirty();
@@ -160,12 +175,17 @@ function releaseLock(lockFile: string) {
 async function createPg(url: string, max: number): Promise<Db> {
   const { Pool, types } = await import("pg");
   types.setTypeParser(20, (v) => Number(v)); // bigint counts → number
+  const min = Math.min(2, max);
   const pool = new Pool({
     connectionString: url,
     max,
+    min,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
     statement_timeout: 15_000,
+    maxUses: 7500,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
     ssl: url.includes("sslmode=disable") ? undefined : { rejectUnauthorized: true },
   });
   pool.on("error", (err) => {
@@ -173,12 +193,20 @@ async function createPg(url: string, max: number): Promise<Db> {
   });
   return {
     kind: "pg",
+    getStats: () => ({
+      kind: "pg",
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount,
+      max,
+    }),
     async query<T>(sql: string, params: unknown[] = []) {
       const r = await pool.query(sql, params);
       return { rows: r.rows as T[] };
     },
     async tx(fn) {
       const client = await pool.connect();
+      let hasError = false;
       try {
         await client.query("begin");
         const result = await fn({
@@ -190,10 +218,12 @@ async function createPg(url: string, max: number): Promise<Db> {
         await client.query("commit");
         return result;
       } catch (e) {
+        hasError = true;
         await client.query("rollback").catch(() => {});
         throw e;
       } finally {
-        client.release();
+        // Discard damaged client on unhandled transaction error, otherwise return cleanly to pool
+        client.release(hasError ? true : undefined);
       }
     },
     close: () => pool.end(),
@@ -223,6 +253,11 @@ export function db(): Promise<Db> {
     g.__dbPromise.catch(() => (g.__dbPromise = undefined));
   }
   return g.__dbPromise;
+}
+
+export async function getDbStats(): Promise<DbPoolStats> {
+  const d = await db();
+  return d.getStats();
 }
 
 export async function closeDbForTests() {
