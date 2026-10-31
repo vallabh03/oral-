@@ -1,4 +1,4 @@
-// Narration and on-screen text for the mouth-photo tutorial (DRIVE SAFE virtual registration).
+// Narration and on-screen text for the mouth-photo tutorial (virtual registration).
 // The videos in public/tutorial/<lang>/ are generated from this file by
 // scripts/tutorial-video/render.ts — regenerate them after changing any text here.
 //   - guide.mp4: the mandatory 45-second guide shown before photo capture (TUTORIAL_VERSION)
@@ -14,7 +14,7 @@ export type TutorialLang = (typeof TUTORIAL_LANGS)[number]["code"];
 export const TUTORIAL_LANG_CODES = TUTORIAL_LANGS.map((l) => l.code) as [TutorialLang, ...TutorialLang[]];
 
 /** Version of the mandatory guide; recorded with each completion. Change it when the guide changes. */
-export const TUTORIAL_VERSION = "2026-10-30.1";
+export const TUTORIAL_VERSION = "2026-11-01.1";
 /** Target length of the mandatory guide, in seconds. */
 export const GUIDE_SECONDS = 45;
 
