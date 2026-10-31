@@ -19,7 +19,7 @@ export async function registerVirtually(page: Page, id: { name: string; mobile: 
   await page.getByLabel(/Full name/).fill(id.name);
   await page.getByLabel(/Age in years/).fill("44");
   await page.getByLabel(/Mobile number/).fill(id.mobile);
-  await page.getByLabel(/Driver type/).selectOption("app_cab");
+  await page.getByLabel(/Profession/).selectOption("app_cab");
   await page.getByLabel(/How did you hear/).selectOption("whatsapp");
   await page.getByLabel(/District/).selectOption("Hyderabad");
   await page.getByLabel(/PIN code/).fill("500016");

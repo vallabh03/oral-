@@ -51,14 +51,12 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
     const age = Number(v.age);
     if (!v.age || !Number.isInteger(age) || age < 14 || age > 110) e.age = "Enter an age between 14 and 110";
     if (v.mobile && !/^[6-9]\d{9}$/.test(v.mobile)) e.mobile = "Enter a valid 10-digit Indian mobile number";
-    if (!v.driverType) e.driverType = "Choose a driver type";
+    if (!v.driverType) e.driverType = "Choose your profession";
     if (!v.recruitmentSource) e.recruitmentSource = "Choose how you heard about us";
     if (v.contactPreference !== "none" && !v.mobile) e.mobile = "A mobile number is needed to contact you";
     else if (v.screeningMode === "virtual" && !v.mobile) e.mobile = "A mobile number is needed so the team can call for virtual screening";
-    if (v.screeningMode === "virtual") {
-      if (!v.district) e.district = "Choose your district";
-      if (!/^[1-9]\d{5}$/.test(v.pincode)) e.pincode = "Enter your 6-digit PIN code";
-    } else if (v.pincode && !/^[1-9]\d{5}$/.test(v.pincode)) e.pincode = "Enter a valid 6-digit PIN code";
+    // District and PIN code are optional (2026-11-01); a PIN, when given, must be valid.
+    if (v.pincode && !/^[1-9]\d{5}$/.test(v.pincode)) e.pincode = "Enter a valid 6-digit PIN code";
     return e;
   };
   const validateConsent = () => {
@@ -194,7 +192,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               {err("mobile")}
             </div>
             <div className="field">
-              <label htmlFor="driverType">Driver type <span className="req" aria-hidden="true">*</span></label>
+              <label htmlFor="driverType">Profession <span className="req" aria-hidden="true">*</span></label>
               <select id="driverType" value={v.driverType} onChange={(e) => set("driverType", e.target.value)} {...aria("driverType")}>
                 <option value="">Choose…</option>
                 {DRIVER_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -239,7 +237,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               <p className="hint" style={{ marginBottom: 12 }}>So we can suggest the nearest clinic or camp if an examination is needed.</p>
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor="district">District <span className="req" aria-hidden="true">*</span></label>
+                  <label htmlFor="district">District <span className="opt">(optional)</span></label>
                   <select id="district" value={v.district} onChange={(e) => set("district", e.target.value)} {...aria("district")}>
                     <option value="">Choose…</option>
                     {TELANGANA_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -254,7 +252,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               </div>
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor="pincode">PIN code <span className="req" aria-hidden="true">*</span></label>
+                  <label htmlFor="pincode">PIN code <span className="opt">(optional)</span></label>
                   <input id="pincode" type="text" inputMode="numeric" autoComplete={staffMode ? "off" : "postal-code"} maxLength={6} placeholder="6 digits" value={v.pincode} onChange={(e) => set("pincode", e.target.value.replace(/\D/g, ""))} {...aria("pincode")} />
                   {err("pincode")}
                 </div>
