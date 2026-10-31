@@ -1,6 +1,7 @@
 import {
   actor,
   db,
+  runtime,
   hash,
   securityPolicy,
   sessionToken,
@@ -26,28 +27,35 @@ export async function POST(req: Request) {
     const a = await actor(req, { skipSession: true, forceLive: true });
     await rate(a);
     const old = sessionToken(req);
-    if (old)
+    const kv = runtime().RATE_KV;
+    if (old) {
+      const oldHash = await hash(old);
+      if (kv) await kv.delete(`sess:${oldHash}`);
       await db()
         .prepare(
           "UPDATE app_sessions SET revoked=1 WHERE token_hash=? AND user_id=?",
         )
-        .bind(await hash(old), a.id)
+        .bind(oldHash, a.id)
         .run();
+    }
     const token = crypto.randomUUID() + crypto.randomUUID(),
       time = Date.now(),
       policy = await securityPolicy();
+    const tokenHash = await hash(token);
+    const expiresAt = time + policy.absoluteHours * 3600000;
     await db()
       .prepare(
         "INSERT INTO app_sessions(token_hash,user_id,created_at,last_seen,expires_at,revoked) VALUES (?,?,?,?,?,0)",
       )
-      .bind(
-        await hash(token),
-        a.id,
-        time,
-        time,
-        time + policy.absoluteHours * 3600000,
-      )
+      .bind(tokenHash, a.id, time, time, expiresAt)
       .run();
+    if (kv) {
+      await kv.put(
+        `sess:${tokenHash}`,
+        JSON.stringify({ userId: a.id, expiresAt, lastSeen: time, createdAt: time }),
+        { expirationTtl: Math.min(policy.idleMinutes * 60, 3600) },
+      );
+    }
     await log(a, "Secure application session started");
     const r = response({ path: dashboardPath(a.role), role: a.role, policy });
     r.headers.set("Set-Cookie", cookie(req, token, policy.absoluteHours * 3600));
@@ -63,6 +71,8 @@ export async function DELETE(req: Request) {
     const token = sessionToken(req);
     if (token) {
       const key = await hash(token);
+      const kv = runtime().RATE_KV;
+      if (kv) await kv.delete(`sess:${key}`);
       // Fetch the userId bound to this token so we can log the actor correctly.
       // This also acts as a pre-check that the session actually exists before
       // issuing the revocation UPDATE.

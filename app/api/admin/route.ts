@@ -190,6 +190,10 @@ export async function POST(req: Request) {
           .bind(userId),
         await auditStatement(a, "Sessions revoked: " + userId),
       ]);
+      const kv = runtime().RATE_KV;
+      if (kv) {
+        await kv.put(`revoked:${userId}`, String(Date.now()), { expirationTtl: 86400 });
+      }
       return response({ ok: true });
     }
 

@@ -691,6 +691,47 @@ export async function validateSession(req: Request, userId: string) {
   const time = Date.now();
   const policy = await securityPolicy(); // near-zero cost after cache is warm
 
+  const kv = runtime().RATE_KV;
+  const sessKey = `sess:${key}`;
+  if (kv) {
+    const revokedEpoch = Number((await kv.get(`revoked:${userId}`)) || 0);
+    const cached = await kv.get(sessKey);
+    if (cached) {
+      const s = JSON.parse(cached) as {
+        userId: string;
+        expiresAt: number;
+        lastSeen: number;
+        createdAt: number;
+      };
+      if (
+        s.userId === userId &&
+        s.expiresAt > time &&
+        time - s.lastSeen < policy.idleMinutes * 60000 &&
+        (!revokedEpoch || s.createdAt > revokedEpoch)
+      ) {
+        // Fast path: session is active, valid, and verified.
+        // Throttle write to D1: only update D1 if > 60s has passed since last write.
+        if (time - s.lastSeen > 60000) {
+          s.lastSeen = time;
+          await kv.put(sessKey, JSON.stringify(s), {
+            expirationTtl: Math.min(policy.idleMinutes * 60, 3600),
+          });
+          try {
+            await db()
+              .prepare(
+                "UPDATE app_sessions SET last_seen = ? WHERE token_hash = ? AND revoked = 0",
+              )
+              .bind(time, key)
+              .run();
+          } catch {
+            // Non-critical background sync
+          }
+        }
+        return;
+      }
+    }
+  }
+
   const row = await db()
     .prepare(
       `UPDATE app_sessions
@@ -700,7 +741,7 @@ export async function validateSession(req: Request, userId: string) {
          AND revoked    = 0
          AND expires_at > ?
          AND last_seen  > ?
-       RETURNING expires_at`,
+       RETURNING expires_at, created_at`,
     )
     .bind(
       time,
@@ -709,7 +750,7 @@ export async function validateSession(req: Request, userId: string) {
       time,
       time - policy.idleMinutes * 60000,
     )
-    .first<{ expires_at: number }>();
+    .first<{ expires_at: number; created_at: number }>();
 
   if (!row)
     throw new HttpError(401, "Your session has expired. Sign in again.");
@@ -718,4 +759,17 @@ export async function validateSession(req: Request, userId: string) {
   // without a separate SELECT.
   if (row.expires_at <= time)
     throw new HttpError(401, "Your session has expired. Sign in again.");
+
+  if (kv) {
+    await kv.put(
+      sessKey,
+      JSON.stringify({
+        userId,
+        expiresAt: row.expires_at,
+        lastSeen: time,
+        createdAt: row.created_at || time,
+      }),
+      { expirationTtl: Math.min(policy.idleMinutes * 60, 3600) },
+    );
+  }
 }

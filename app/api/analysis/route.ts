@@ -39,12 +39,12 @@ export async function GET(req: Request) {
       if (group !== "Unclassified") args.push(group);
     }
     if (from) {
-      terms.push("substr(p.created_at,1,10)>=?");
-      args.push(from);
+      terms.push("p.created_at>=?");
+      args.push(from + "T00:00:00.000Z");
     }
     if (to) {
-      terms.push("substr(p.created_at,1,10)<=?");
-      args.push(to);
+      terms.push("p.created_at<=?");
+      args.push(to + "T23:59:59.999Z");
     }
     const where = terms.join(" AND ");
     const rows = (
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
           `SELECT p.id,p.age,p.driver_type,p.recruitment,p.category,p.pathway,p.camp_id,substr(p.created_at,1,10) day,c.name camp,
  EXISTS(SELECT 1 FROM responses q WHERE q.patient_id=p.id) questionnaire,
  EXISTS(SELECT 1 FROM records r WHERE r.patient_id=p.id AND r.kind='assessment' AND r.status='Clinician verified') screened
- FROM patients p LEFT JOIN camps c ON c.id=p.camp_id WHERE ${where}`,
+ FROM patients p LEFT JOIN camps c ON c.id=p.camp_id WHERE ${where} ORDER BY p.created_at DESC LIMIT 10000`,
         )
         .bind(...args)
         .all<any>()
