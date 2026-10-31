@@ -144,6 +144,10 @@ describe("super admin governance", () => {
     expect(ev.json.events.some((e: { action: string }) => e.action === "camp.create")).toBe(true);
     const chain = await call(audit.GET, req("GET", "/api/admin/audit?verify=1", { jar: sa }));
     expect(chain.json.ok).toBe(true);
+    const diag = await call(audit.GET, req("GET", "/api/admin/audit?diagnostics=1", { jar: sa }));
+    expect(diag.status).toBe(200);
+    expect(diag.json.diagnostics.status).toBe("healthy");
+    expect(diag.json.diagnostics.database.totalCount).toBeGreaterThanOrEqual(1);
   });
 
   it("detects audit tampering", async () => {

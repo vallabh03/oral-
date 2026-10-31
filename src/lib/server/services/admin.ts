@@ -211,3 +211,37 @@ export async function recentErrors() {
   return (await d.query<{ occurred_at: string; category: string; code: string; route: string | null; correlation_id: string | null }>(
     "select occurred_at, category, code, route, correlation_id from app_errors order by id desc limit 100")).rows;
 }
+
+export async function systemDiagnostics() {
+  const d = await db();
+  const pool = d.getStats();
+  const patientCount = (await d.query<{ count: number }>("select count(*)::int as count from patients")).rows[0]?.count ?? 0;
+  const campCount = (await d.query<{ count: number }>("select count(*)::int as count from camps")).rows[0]?.count ?? 0;
+  const caseCount = (await d.query<{ count: number }>("select count(*)::int as count from virtual_cases")).rows[0]?.count ?? 0;
+  const activeUsers = (await d.query<{ count: number }>("select count(*)::int as count from users where status = 'active'")).rows[0]?.count ?? 0;
+
+  return {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+    memoryUsageMb: {
+      rss: Math.round(process.memoryUsage().rss / (1024 * 1024)),
+      heapUsed: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / (1024 * 1024)),
+    },
+    database: {
+      kind: pool.kind,
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount,
+      max: pool.max,
+    },
+    metrics: {
+      totalPatients: patientCount,
+      totalCamps: campCount,
+      totalVirtualCases: caseCount,
+      activeStaffUsers: activeUsers,
+    },
+  };
+}
