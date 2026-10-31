@@ -1,13 +1,12 @@
 name: Deploy
 
-# Staging deploys automatically after CI passes on main.
-# Production is started by hand (Actions → Deploy → Run workflow) and waits for the
-# reviewers configured on the GitHub "production" environment.
+# This workflow deploys the AWS CDK/Fargate stack (docs/DEPLOYMENT.md). Production currently runs
+# on Lightsail and is updated by hand with deploy/lightsail/update.sh, and no staging stack or
+# GitHub→AWS role exists yet, so the automatic run after CI is switched off: every merge was
+# recording a failed "staging" deployment for an environment that does not exist. Start it by hand
+# (Actions → Deploy → Run workflow) once the stack and the OIDC role are provisioned; then restore
+#   workflow_run: { workflows: [CI], types: [completed], branches: [main] }
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
