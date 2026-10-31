@@ -38,7 +38,7 @@ type CaseRow = {
   id: string; patient_id: string; status: VirtualCaseStatus; round: number; submitted_at: string | null;
   assistance_requested_at: string | null; assistance_note: string | null; outcome: ReviewOutcome | null;
   outcome_notes: string | null; next_steps: string | null; lesion_location: string | null; reviewed_by: string | null; reviewed_at: string | null; created_at: string;
-  tutorial_completed_at: string | null; tutorial_language: TutorialLang | null; tutorial_version: string | null;
+  tutorial_completed_at: string | null; tutorial_language: TutorialLang | null; tutorial_version: string | null; tutorial_skipped: boolean;
   photos_captured_at: string | null; uploads_confirmed_at: string | null; review_started_at: string | null;
 };
 type ImageRow = {
@@ -99,7 +99,7 @@ async function caseTimeline(q: Queryable, c: CaseRow): Promise<TimelineEvent[]> 
     { key: "registered", label: "Registered", at: p.rows[0]?.created_at ?? null },
     { key: "questionnaire", label: "Questionnaire Completed", at: questionnaire.rows[0]?.completed_at ?? null },
     { key: "consents", label: "Required Consents Recorded", at: consentTimes.every(Boolean) ? (consentTimes as string[]).sort().at(-1)! : null },
-    { key: "tutorial", label: "Tutorial Completed", at: c.tutorial_completed_at },
+    { key: "tutorial", label: c.tutorial_skipped ? "Tutorial Skipped" : "Tutorial Completed", at: c.tutorial_completed_at },
     { key: "captured", label: "Five Photos Captured", at: c.photos_captured_at },
     { key: "uploaded", label: "Photo Upload Completed", at: c.uploads_confirmed_at },
     { key: "submitted", label: "Submitted for Doctor Review", at: waiting ? null : c.submitted_at },
@@ -127,7 +127,7 @@ export async function patientCase(patientId: string) {
     statusLabel: reviewStatusLabel(c.status, c.outcome),
     round: c.round,
     // Watching the guide unlocks photo capture. It is recorded for the timeline only, never as consent.
-    tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version, current: TUTORIAL_VERSION },
+    tutorial: { completedAt: c.tutorial_completed_at, skipped: c.tutorial_skipped, language: c.tutorial_language, version: c.tutorial_version, current: TUTORIAL_VERSION },
     timeline: await caseTimeline(d, c),
     submittedMessage: c.status === "submitted" || c.status === "in_review" ? SUBMITTED_MESSAGE : null,
     canEdit: EDITABLE.includes(c.status),
@@ -147,25 +147,25 @@ export async function patientCase(patientId: string) {
   };
 }
 
-/** Records that the patient watched the mandatory photo guide to the end (language, version, time). */
-export async function completeTutorial(patientId: string, input: { language: TutorialLang; version: string }, correlationId: string) {
+/** Records that the patient watched the photo guide to the end, or chose to skip it (language, version, time). */
+export async function completeTutorial(patientId: string, input: { language: TutorialLang; version: string; skipped?: boolean }, correlationId: string) {
   assertVirtualEnabled();
   if (input.version !== TUTORIAL_VERSION) throw Errors.conflict("The photo guide has been updated. Please reload the page and watch it again.", "tutorial_outdated");
   const d = await db();
   return d.tx(async (q) => {
     const c = await caseForPatient(q, patientId, true);
     await q.query(
-      "update virtual_cases set tutorial_completed_at = now(), tutorial_language = $2, tutorial_version = $3, updated_at = now() where id = $1",
-      [c.id, input.language, input.version],
+      "update virtual_cases set tutorial_completed_at = now(), tutorial_language = $2, tutorial_version = $3, tutorial_skipped = $4, updated_at = now() where id = $1",
+      [c.id, input.language, input.version, !!input.skipped],
     );
-    await audit({ actorType: "participant", action: "virtual_tutorial.complete", targetType: "patient", targetRef: patientId, outcome: "success", correlationId,
+    await audit({ actorType: "participant", action: input.skipped ? "virtual_tutorial.skip" : "virtual_tutorial.complete", targetType: "patient", targetRef: patientId, outcome: "success", correlationId,
       details: { language: input.language, version: input.version } }, q);
     return { completed: true };
   });
 }
 
 async function assertCanUpload(q: Queryable, patientId: string, c: CaseRow) {
-  if (!c.tutorial_completed_at) throw new AppError(409, "tutorial_required", "Please watch the photo guide to the end before taking photos.");
+  if (!c.tutorial_completed_at) throw new AppError(409, "tutorial_required", "Please watch or skip the photo guide before taking photos.");
   if (!EDITABLE.includes(c.status)) throw Errors.gated("Your photos have been submitted. We will message you if the doctor needs new photos.");
   const consentId = await hasConsent(q, patientId, "remote_images");
   if (!consentId) throw Errors.gated("Consent to submit mouth photos is needed first.");
@@ -557,7 +557,7 @@ export async function caseDetail(staff: StaffSession, caseId: string, correlatio
     notifications: notes.rows,
     views: MOUTH_VIEWS.map((v) => ({ value: v.value, label: v.label, recommended: v.recommended })),
     timeline: await caseTimeline(d, c),
-    tutorial: { completedAt: c.tutorial_completed_at, language: c.tutorial_language, version: c.tutorial_version },
+    tutorial: { completedAt: c.tutorial_completed_at, skipped: c.tutorial_skipped, language: c.tutorial_language, version: c.tutorial_version },
     messagingAvailable: patientMessagingAvailable(),
   };
 }

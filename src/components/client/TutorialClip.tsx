@@ -64,7 +64,7 @@ export function TutorialClip({ step, label }: { step: PhotoView | "guide"; label
 }
 
 /**
- * The mandatory 45-second guide shown before photo capture. "Start taking photos" stays disabled
+ * The 45-second guide shown before photo capture. Patients can skip it; otherwise "Start taking photos" stays disabled
  * until the video has played to the end (skipping ahead is not counted); completion is then
  * recorded with the language and guide version. Watching is not consent.
  */
@@ -99,11 +99,11 @@ export function TutorialGate({ onDone }: { onDone: () => void }) {
     if (watched.current >= length - 1.5) { setEnded(true); setSeconds(Math.round(length)); }
   };
 
-  const start = async () => {
+  const start = async (skipped = false) => {
     setSaving(true);
     setError("");
     try {
-      await postJson("/api/intake/virtual/tutorial", { language: lang, version: TUTORIAL_VERSION });
+      await postJson("/api/intake/virtual/tutorial", { language: lang, version: TUTORIAL_VERSION, skipped });
       onDone();
     } catch (e) {
       setError((e as Error).message);
@@ -116,7 +116,7 @@ export function TutorialGate({ onDone }: { onDone: () => void }) {
   return (
     <section className="card stack tut-gate" style={{ "--stack": "12px" } as React.CSSProperties} aria-labelledby="tut-h">
       <h2 id="tut-h" className="vr-h">Step 1: Watch the photo guide ({GUIDE_SECONDS} seconds)</h2>
-      <p style={{ margin: 0 }}>The guide shows how to take the five photos with your own phone. Choose your language and watch it to the end to continue.</p>
+      <p style={{ margin: 0 }}>The guide shows how to take the five photos with your own phone. Choose your language and watch it, or skip it if you already know how.</p>
       <LanguagePicker lang={lang} setLang={setLang} />
       <video
         ref={video}
@@ -146,6 +146,7 @@ export function TutorialGate({ onDone }: { onDone: () => void }) {
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="cluster">
         <button type="button" className="btn btn-primary" disabled={!ended || saving} onClick={() => void start()}>{saving ? "Saving…" : "Start taking photos"}</button>
+        <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void start(true)}>Skip video</button>
       </div>
       <p className="hint" style={{ margin: 0 }}>This guide only shows how to take the photos. It is not a consent form.</p>
     </section>
