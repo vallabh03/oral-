@@ -43,12 +43,24 @@ export async function saveQuestionnaire(patientId: string, answers: Answers, com
 
     // Replace the saved answer set: hidden/cleared questions are removed.
     await q.query("delete from questionnaire_answers where submission_id = $1", [sub.id]);
+    const answersToInsert: { qId: string; text: string; answer: string }[] = [];
     for (const question of PROTOCOL.questions) {
       const a = v.answers[question.id];
       if (a === undefined) continue;
-      await q.query("insert into questionnaire_answers (submission_id, question_id, question_text, answer) values ($1, $2, $3, $4::jsonb)", [
-        sub.id, question.id, question.text, JSON.stringify(a),
-      ]);
+      answersToInsert.push({ qId: question.id, text: question.text, answer: JSON.stringify(a) });
+    }
+    if (answersToInsert.length) {
+      const valueClauses: string[] = [];
+      const params: unknown[] = [sub.id];
+      for (const item of answersToInsert) {
+        const offset = params.length;
+        params.push(item.qId, item.text, item.answer);
+        valueClauses.push(`($1, $${offset + 1}, $${offset + 2}, $${offset + 3}::jsonb)`);
+      }
+      await q.query(
+        `insert into questionnaire_answers (submission_id, question_id, question_text, answer) values ${valueClauses.join(", ")}`,
+        params,
+      );
     }
 
     if (complete) {

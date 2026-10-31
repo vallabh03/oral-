@@ -31,14 +31,26 @@ export const LIMITS = {
   notifyRetry: { name: "notify-retry", max: 60, windowSec: 60 * 60 },
 } satisfies Record<string, Limit>;
 
+const memoryBlocks = new Map<string, number>();
+
 /**
  * Fixed-window counter stored in the database so limits hold across Lambda instances.
+ * Protected by an in-memory shield so flood attacks cannot exhaust the DB connection pool.
  * Throws a 429 AppError when the limit is exceeded.
  */
 export async function enforceRateLimit(limit: Limit, key: string): Promise<void> {
   if (process.env.DISABLE_RATE_LIMITS === "1" && process.env.APP_ENV === "test") return;
-  const d = await db();
   const bucket = `${limit.name}:${key}`;
+  const now = Date.now();
+  const blockedUntil = memoryBlocks.get(bucket);
+  if (blockedUntil && now < blockedUntil) {
+    const remainingSec = Math.max(1, Math.ceil((blockedUntil - now) / 1000));
+    throw Errors.rateLimited(remainingSec);
+  } else if (blockedUntil) {
+    memoryBlocks.delete(bucket);
+  }
+
+  const d = await db();
   const r = await d.query<{ count: number; window_start: string; elapsed: number }>(
     `insert into rate_limits (bucket, window_start, count) values ($1, now(), 1)
      on conflict (bucket) do update set
@@ -49,11 +61,21 @@ export async function enforceRateLimit(limit: Limit, key: string): Promise<void>
   );
   const row = r.rows[0]!;
   if (row.count > limit.max) {
-    throw Errors.rateLimited(Math.max(1, Math.ceil(limit.windowSec - row.elapsed)));
+    const retryAfter = Math.max(1, Math.ceil(limit.windowSec - row.elapsed));
+    memoryBlocks.set(bucket, now + retryAfter * 1000);
+    // Periodically prune stale blocks if the map grows large
+    if (memoryBlocks.size > 5000) {
+      for (const [k, exp] of memoryBlocks) {
+        if (now >= exp) memoryBlocks.delete(k);
+      }
+    }
+    throw Errors.rateLimited(retryAfter);
   }
 }
 
 export async function resetRateLimit(limit: Limit, key: string) {
+  const bucket = `${limit.name}:${key}`;
+  memoryBlocks.delete(bucket);
   const d = await db();
-  await d.query("delete from rate_limits where bucket = $1", [`${limit.name}:${key}`]);
+  await d.query("delete from rate_limits where bucket = $1", [bucket]);
 }

@@ -342,11 +342,13 @@ export async function submitCase(patientId: string, correlationId: string) {
   const store = objectStore("clinical");
   const pre = await caseForPatient(d, patientId);
   const toCheck = await currentImages(d, pre.id);
-  const unreadable: string[] = [];
-  for (const i of toCheck) {
-    const ok = store.size ? (await store.size(i.object_key)) !== null : !!(await store.get(i.object_key));
-    if (!ok) unreadable.push(viewLabel(i.view));
-  }
+  const results = await Promise.all(
+    toCheck.map(async (i) => {
+      const ok = store.size ? (await store.size(i.object_key)) !== null : !!(await store.get(i.object_key));
+      return ok ? null : viewLabel(i.view);
+    }),
+  );
+  const unreadable = results.filter((v): v is string => v !== null);
   if (unreadable.length) {
     throw new AppError(409, "upload_incomplete", `These photos did not finish uploading: ${unreadable.join(", ")}. Please take them again.`);
   }

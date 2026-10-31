@@ -168,6 +168,9 @@ async function createPg(url: string, max: number): Promise<Db> {
     statement_timeout: 15_000,
     ssl: url.includes("sslmode=disable") ? undefined : { rejectUnauthorized: true },
   });
+  pool.on("error", (err) => {
+    console.error("[db:pool] unexpected idle client error", (err as Error).message);
+  });
   return {
     kind: "pg",
     async query<T>(sql: string, params: unknown[] = []) {

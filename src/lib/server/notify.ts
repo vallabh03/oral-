@@ -124,8 +124,23 @@ export async function dispatchDue(limit = 20): Promise<number> {
       returning id, patient_id, template, attempts`,
     [limit],
   )).rows;
-  for (const n of claimed) {
-    const v = await variablesFor(d, n.patient_id);
+  const patientIds = Array.from(new Set(claimed.map((n) => n.patient_id)));
+  const patientMap = new Map<string, { to: string; name: string; clinic: string; phone: string; id: string }>();
+  if (patientIds.length) {
+    const c = config();
+    const pRows = (await d.query<{ id: string; full_name: string; mobile: string | null; display_id: string }>(
+      "select id, full_name, mobile, display_id from patients where id = any($1::uuid[])",
+      [patientIds],
+    )).rows;
+    for (const p of pRows) {
+      if (p.mobile) {
+        patientMap.set(p.id, { to: `91${p.mobile}`, name: p.full_name.split(/\s+/)[0]!, clinic: c.NOTIFY_CLINIC_NAME, phone: c.NOTIFY_CLINIC_PHONE, id: p.display_id });
+      }
+    }
+  }
+
+  const sendOne = async (n: (typeof claimed)[number]) => {
+    const v = patientMap.get(n.patient_id) ?? null;
     let r: SendResult;
     if (!v) r = { ok: false, retryable: false, error: "no_mobile" };
     else if (CONSENTED.includes(n.template) && !(await hasConsent(d, n.patient_id, "review_notifications"))) r = { ok: false, retryable: false, error: "consent_withdrawn" };
@@ -142,6 +157,11 @@ export async function dispatchDue(limit = 20): Promise<number> {
       await d.query("update notifications set status = 'failed', last_error = $2, updated_at = now() where id = $1", [n.id, r.error]);
       await audit({ actorType: "system", action: "notification.failed", targetType: "patient", targetRef: n.patient_id, outcome: "failure", correlationId: crypto.randomUUID(), code: r.error.slice(0, 40), details: { template: n.template } });
     }
+  };
+
+  const CONCURRENCY = 5;
+  for (let i = 0; i < claimed.length; i += CONCURRENCY) {
+    await Promise.all(claimed.slice(i, i + CONCURRENCY).map(sendOne));
   }
   return claimed.length;
 }

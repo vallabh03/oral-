@@ -14,10 +14,13 @@ import { sha256 } from "./security/crypto";
 export type StrippedImage = { data: Buffer; type: "jpeg" | "png" | "webp"; removed: string[] };
 
 // Bounded decode cost: 40 MP covers modern phone cameras; a dedicated small gate keeps clinical
-// uploads from exhausting memory (each decode can need several hundred MB).
 const MAX_PIXELS = 40_000_000;
 const g = globalThis as unknown as { __clinicalGate?: Semaphore };
-const clinicalGate = () => (g.__clinicalGate ??= new Semaphore(2, 16));
+const clinicalGate = () =>
+  (g.__clinicalGate ??= new Semaphore(
+    Math.min(Math.max(config().photoConcurrency, 2), 8),
+    Math.max(config().PHOTO_QUEUE_LIMIT, 50),
+  ));
 
 const damaged = (kind: string) => Errors.unsupported(`That ${kind} file is damaged or incomplete. Retake the photo.`);
 

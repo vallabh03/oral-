@@ -74,23 +74,38 @@ export async function audit(e: AuditEvent, q?: Queryable): Promise<void> {
   await d.tx(run);
 }
 
-/** Recomputes the chain. Returns the first broken sequence number, or null if intact. */
+/** Recomputes the chain. Streams in chunks to avoid high-load memory exhaustion. */
 export async function verifyAuditChain(): Promise<{ ok: boolean; checked: number; brokenAt: number | null }> {
   const d = await db();
-  const rows = (
-    await d.query<{
-      seq: number; occurred_at: string; actor_type: string; actor_id: string | null; action: string; target_type: string | null; target_ref: string | null;
-      outcome: string; correlation_id: string; code: string | null; details: unknown; is_demo: boolean; prev_hmac: string; hmac: string;
-    }>(
-      `select seq, to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as occurred_at, actor_type, actor_id, action, target_type, target_ref,
-              outcome, correlation_id, code, details, is_demo, prev_hmac, hmac from audit_events order by seq`,
-    )
-  ).rows;
   let prev = GENESIS;
-  for (const r of rows) {
-    const expected = hmac(prev + "|" + canonical({ ...r, details: typeof r.details === "string" ? JSON.parse(r.details) : r.details }));
-    if (r.prev_hmac !== prev || r.hmac !== expected) return { ok: false, checked: rows.length, brokenAt: Number(r.seq) };
-    prev = r.hmac;
+  let lastSeq = 0;
+  let totalChecked = 0;
+  const CHUNK_SIZE = 1000;
+
+  while (true) {
+    const rows = (
+      await d.query<{
+        seq: number; occurred_at: string; actor_type: string; actor_id: string | null; action: string; target_type: string | null; target_ref: string | null;
+        outcome: string; correlation_id: string; code: string | null; details: unknown; is_demo: boolean; prev_hmac: string; hmac: string;
+      }>(
+        `select seq, to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as occurred_at, actor_type, actor_id, action, target_type, target_ref,
+                outcome, correlation_id, code, details, is_demo, prev_hmac, hmac from audit_events
+          where seq > $1 order by seq limit $2`,
+        [lastSeq, CHUNK_SIZE],
+      )
+    ).rows;
+
+    if (!rows.length) break;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]!;
+      const expected = hmac(prev + "|" + canonical({ ...r, details: typeof r.details === "string" ? JSON.parse(r.details) : r.details }));
+      if (r.prev_hmac !== prev || r.hmac !== expected) return { ok: false, checked: totalChecked + i + 1, brokenAt: Number(r.seq) };
+      prev = r.hmac;
+      lastSeq = Number(r.seq);
+    }
+    totalChecked += rows.length;
+    if (rows.length < CHUNK_SIZE) break;
   }
-  return { ok: true, checked: rows.length, brokenAt: null };
+  return { ok: true, checked: totalChecked, brokenAt: null };
 }
