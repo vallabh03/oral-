@@ -68,7 +68,8 @@ export function SiteFooter() {
         <div className="footer-grid">
           <div>
             <Link href="/" className="brand" style={{ marginBottom: 12 }}><Logo height={56} /></Link>
-            <p style={{ color: "var(--muted)", fontSize: "0.92rem" }}>Community awareness, screening and coordinated follow-up through DRIVE SAFE.</p>
+            <p style={{ color: "var(--muted)", fontSize: "0.92rem" }}>Community awareness, screening and coordinated follow-up.</p>
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Sharada Cancer Foundation (registration pending).</p>
             <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Founded &amp; led by {SITE.founder.name}, {SITE.founder.role}.</p>
           </div>
           <nav aria-label="Quick links">
