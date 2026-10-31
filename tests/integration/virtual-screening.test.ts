@@ -432,6 +432,19 @@ describe("updated virtual registration flow (photo guide, upload confirmation, t
     expect((await uploadView(p.jar, "lips", await mouthPhoto())).done.status).toBe(201);
   });
 
+  it("lets the patient skip the guide, records the skip and opens photo capture", async () => {
+    const p = await registerVirtual({}, { guide: false });
+    expect((await watchGuide(p.jar, { language: "te", version: TUTORIAL_VERSION, skipped: true })).status).toBe(200);
+    const c = (await (await db()).query("select tutorial_skipped, tutorial_completed_at from virtual_cases where patient_id = $1", [p.patientId])).rows[0]!;
+    expect(c.tutorial_skipped).toBe(true);
+    expect(c.tutorial_completed_at).toBeTruthy();
+    expect((await (await db()).query("select 1 from audit_events where action = 'virtual_tutorial.skip' and target_ref = $1", [p.patientId])).rows).toHaveLength(1);
+    const me = await call(vcase.GET, req("GET", "/api/intake/virtual", { jar: p.jar }));
+    expect(me.json.tutorial.skipped).toBe(true);
+    expect(me.json.timeline.find((e: { key: string }) => e.key === "tutorial").label).toBe("Tutorial Skipped");
+    expect((await uploadView(p.jar, "lips", await mouthPhoto())).done.status).toBe(201);
+  });
+
   it("confirms the upload only when every photo is readable in storage, and never shows a failed submit as done", async () => {
     const p = await registerVirtual();
     await uploadRequired(p.jar);

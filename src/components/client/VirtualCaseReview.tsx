@@ -25,7 +25,7 @@ export type CaseData = {
   followups: { id: string; action: string; note: string | null; created_at: string; by: string }[];
   notifications: { id: string; template: string; status: string; attempts: number; last_error: string | null; created_at: string; updated_at: string }[];
   timeline: TimelineItem[];
-  tutorial: { completedAt: string | null; language: string | null; version: string | null };
+  tutorial: { completedAt: string | null; skipped: boolean; language: string | null; version: string | null };
   /** False during a pilot without WhatsApp: no message can reach the participant, doctors phone instead. */
   messagingAvailable: boolean;
 };
@@ -197,7 +197,7 @@ export function VirtualCaseReview({ initial }: { initial: CaseData }) {
               <dt>Language</dt><dd>{p.language}</dd>
               <dt>Registered</dt><dd>{fmt(p.registeredAt)}</dd>
               <dt>Messages</dt><dd>{!data.messagingAvailable ? "Messaging not switched on — phone every result" : p.notificationsConsent ? "WhatsApp consented" : "No message consent — call instead"}</dd>
-              <dt>Photo guide</dt><dd>{data.tutorial.completedAt ? `Watched (${data.tutorial.language}, version ${data.tutorial.version})` : "Not watched"}</dd>
+              <dt>Photo guide</dt><dd>{!data.tutorial.completedAt ? "Not watched" : data.tutorial.skipped ? "Skipped" : `Watched (${data.tutorial.language}, version ${data.tutorial.version})`}</dd>
             </dl>
           </section>
           <section className="card"><CaseTimeline events={data.timeline} title="Timeline" /></section>
