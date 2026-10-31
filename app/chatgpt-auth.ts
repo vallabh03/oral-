@@ -18,11 +18,25 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+const USER_ID_REGEX = /^[a-zA-Z0-9_\-\.]{1,150}$/;
+
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
-  const userId = requestHeaders.get(USER_ID_HEADER);
-  const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!userId || !email) return null;
+
+  const gatewaySecret = process.env.AUTH_GATEWAY_SECRET;
+  if (gatewaySecret && requestHeaders.get("x-auth-gateway-secret") !== gatewaySecret) {
+    return null;
+  }
+
+  const rawUserId = requestHeaders.get(USER_ID_HEADER)?.trim();
+  const rawEmail = requestHeaders.get(USER_EMAIL_HEADER)?.trim().toLowerCase();
+  if (!rawUserId || !rawEmail) return null;
+
+  if (!USER_ID_REGEX.test(rawUserId) || !EMAIL_REGEX.test(rawEmail)) {
+    return null;
+  }
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =
@@ -32,9 +46,9 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
       : null;
 
   return {
-    userId,
-    displayName: fullName ?? email,
-    email,
+    userId: rawUserId,
+    displayName: fullName ?? rawEmail,
+    email: rawEmail,
     fullName,
   };
 }

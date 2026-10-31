@@ -51,7 +51,7 @@ export const registration = z
     preferredLanguage: z.string().refine(isLocale, "Choose a supported language.").default("en"),
     name: z.string().trim().min(2).max(120),
     phone: z.string().regex(/^(\+?[0-9]{10,15})?$/),
-    age: z.number().int().min(0).max(120),
+    age: z.number().int().min(18, "Participant must be at least 18 years of age.").max(120),
     campId: z.string().min(1),
     driverType: z.enum(["Auto", "Cab-Taxi", "App-based cab", "Other"]),
     workingArea: z.string().trim().min(2).max(160),
@@ -74,6 +74,11 @@ export const registration = z
       c.addIssue({
         code: "custom",
         message: "Mobile number is required for contact",
+      });
+    if (d.whatsappReportConsent && !d.phone)
+      c.addIssue({
+        code: "custom",
+        message: "Mobile number is required for WhatsApp report delivery",
       });
   });
 const value = z.union([

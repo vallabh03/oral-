@@ -82,6 +82,18 @@ test("registration rejects extra sensitive identifiers and missing consent", () 
     registration.safeParse({ ...r, phone: "", contactIntended: false }).success,
     true,
   );
+  assert.equal(
+    registration.safeParse({ ...r, age: 17 }).success,
+    false,
+  );
+  assert.equal(
+    registration.safeParse({ ...r, phone: "", contactIntended: false, whatsappReportConsent: true }).success,
+    false,
+  );
+  assert.equal(
+    registration.safeParse({ ...r, phone: "9876543210", contactIntended: false, whatsappReportConsent: true }).success,
+    true,
+  );
 });
 test("role access is assignment-scoped and patients can only view their own record", () => {
   const p = { id: "p1", doctor_id: "doc1", counsellor_id: "c1" };

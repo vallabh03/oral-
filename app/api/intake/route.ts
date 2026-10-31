@@ -25,9 +25,15 @@ function enabled() {
     !!e.CONSENT_VERSION
   );
 }
-export async function GET() {
+export async function GET(req: Request) {
   try {
     if (!enabled()) return response({ enabled: false });
+
+    const ip = req.headers.get("cf-connecting-ip") || "unavailable";
+    const minute = Math.floor(Date.now() / 60000);
+    const key = "intake-get:" + (await hash(ip + (runtime().AUDIT_KEY || "default"))) + ":" + minute;
+    await rateKey(key, 60, 60, "Too many requests. Please wait a moment.");
+
     const p = await db()
       .prepare(
         "SELECT id,definition FROM protocols WHERE tenant='live' AND status='Approved' ORDER BY rowid DESC LIMIT 1",
@@ -37,7 +43,7 @@ export async function GET() {
     const camps = await db()
       .prepare("SELECT id,name,location,date FROM camps WHERE tenant='live'")
       .all();
-    return response({
+    const res = response({
       enabled: true,
       camps: camps.results,
       protocolId: p.id,
@@ -45,6 +51,9 @@ export async function GET() {
       privacyNotice: runtime().PRIVACY_NOTICE,
       consentVersion: runtime().CONSENT_VERSION,
     });
+    // Cache at edge for 2 minutes to handle heavy registration rushes without database hammering
+    res.headers.set("Cache-Control", "public, s-maxage=120, stale-while-revalidate=60");
+    return res;
   } catch (e) {
     return failure(e);
   }
