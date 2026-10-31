@@ -91,7 +91,7 @@ export default function HomePage() {
             <p>Outreach programmes take screening to workplaces and communities where it can be hard to find time for a health check. These programmes do not suggest that any group is solely at risk.</p>
             <div className="founder">
               <span className="hint">Founded &amp; led by</span>
-              <strong>{SITE.founder.name}</strong>
+              <strong><a href={SITE.founder.url} target="_blank" rel="noopener">{SITE.founder.name}</a></strong>
               <span className="hint">{SITE.founder.role}</span>
             </div>
             <p style={{ marginTop: 16 }}><Link href="/about">More about the initiative →</Link></p>

@@ -8,7 +8,7 @@ export const SITE = {
   tagline: "Prevent. Detect Early. Act Early.",
   description:
     "A public-health initiative for oral cancer prevention, tobacco cessation support, early recognition of suspicious mouth changes and timely specialist care.",
-  founder: { name: "Dr Abhinav Thaduri", role: "Head & Neck Surgical Oncologist" },
+  founder: { name: "Dr Abhinav Thaduri", role: "Head & Neck Surgical Oncologist", url: "https://www.drabhinavthaduri.in/" },
   areaServed: ["Telangana", "Hyderabad"],
   locale: "en_IN",
   contentUpdated: "2026-10-24",

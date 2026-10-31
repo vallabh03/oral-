@@ -40,7 +40,7 @@ export default function AboutPage() {
           </div>
           <aside className="card">
             <span className="eyebrow">Founder &amp; clinical lead</span>
-            <h2 style={{ fontSize: "var(--step-2)" }}>{SITE.founder.name}</h2>
+            <h2 style={{ fontSize: "var(--step-2)" }}><a href={SITE.founder.url} target="_blank" rel="noopener">{SITE.founder.name}</a></h2>
             <p style={{ color: "var(--muted)" }}>{SITE.founder.role}</p>
             <p>Founded and clinically led by a head and neck cancer surgeon, the initiative is designed to build independent public credibility as a public-health programme rather than a hospital campaign.</p>
             <h3 style={{ fontSize: "var(--step-1)", marginTop: 20 }}>Partners</h3>
