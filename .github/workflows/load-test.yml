@@ -1,0 +1,72 @@
+name: Load test (k6 smoke)
+
+# Non-blocking performance check. Runs the k6 smoke test against a copy of the app started
+# inside the runner with a throwaway synthetic database. It never targets the live site.
+on:
+  schedule:
+    - cron: "30 1 * * 1" # Mondays 01:30 UTC (07:00 IST)
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Which k6 test to run (against the in-runner app only)"
+        type: choice
+        options: [smoke, load]
+        default: smoke
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true # informational: never blocks merges or deploys
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      APP_ENV: test
+      PGLITE_DIR: .data/e2e-k6 # must contain "e2e": e2e-prepare refuses any other directory
+      STORAGE_DRIVER: db
+      INTAKE_ENABLED: "true"
+      VIRTUAL_SCREENING_ENABLED: "true"
+      NOTIFY_DRIVER: console
+      EMAIL_DRIVER: console
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Prepare a synthetic database
+        run: npm run e2e:prepare # seeds synthetic staff into .e2e-credentials.json
+      - name: Start the app
+        run: |
+          nohup npx next start -p 3000 > app.log 2>&1 &
+          for i in $(seq 1 90); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+          curl -sf http://localhost:3000/api/health
+      - uses: grafana/setup-k6-action@v1
+      - uses: grafana/run-k6-action@v1
+        env:
+          BASE_URL: http://localhost:3000
+          CREDENTIALS_FILE: ../../.e2e-credentials.json
+          # Shared GitHub runners are slower than a real server; allow more headroom.
+          P95_MS: "1500"
+          VUS: ${{ github.event.inputs.test == 'load' && '10' || '' }}
+          HOLD: ${{ github.event.inputs.test == 'load' && '2m' || '' }}
+        with:
+          path: tests/load/${{ github.event.inputs.test || 'smoke' }}.js
+      - name: App log
+        if: always()
+        run: tail -n 100 app.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: k6-report
+          path: tests/load/reports/
+          retention-days: 14
