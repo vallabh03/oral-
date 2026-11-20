@@ -87,7 +87,7 @@ accordingly. `-e STAFF=false` skips staff traffic and `-e WRITES=false` skips re
 | `VUS` | per test (2 / 20 / 20 / 10) | Number of virtual users (stress multiplies this) |
 | `DURATION` | `30s` smoke, `1h` soak | Test length |
 | `RAMP`, `HOLD` | `1m`, `3m` | load.js ramp-up/down and steady time |
-| `PROFILE` | `stress` | stress.js: `stress` or `spike` |
+| `PROFILE` | `stress` | stress.js: `stress`, `spike`, or `capacity` (adds `STEP` users every 90 s up to `MAX`, defaults 25 / 300) |
 | `P95_MS`, `WRITE_P95_MS`, `MAX_FAIL_RATE` | 1000 smoke / 500 load+soak / 2000 stress; 800; 0.01 (stress 0.05) | Pass/fail thresholds |
 | `STAFF_EMAIL`, `STAFF_PASSWORD`, `STAFF_TOTP_SECRET` | from credentials file | Staff sign-in |
 | `STAFF_SESSION` (alias `AUTH_TOKEN`), `STAFF_CSRF`, `STAFF_COOKIE` | — | Pre-made staff session instead |

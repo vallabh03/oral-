@@ -137,7 +137,10 @@ export function participantFlow(think = [1, 3]) {
       "register 201": (r) => r.status === 201,
       "register returns displayId": (r) => r.status === 201 && !!r.json("displayId"),
     });
-    if (!ok) return;
+    if (!ok) {
+      if (reg.status !== 429) console.warn(`register HTTP ${reg.status} ${reg.error || ""} ${String(reg.body || "").slice(0, 200)}`);
+      return;
+    }
     registrations.add(1);
     pause();
 

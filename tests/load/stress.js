@@ -4,6 +4,7 @@
 //
 //   npm run test:load:stress                      # stepped stress, peak = 4 × VUS (default 80)
 //   k6 run -e PROFILE=spike tests/load/stress.js  # sudden spike to 8 × VUS, then recovery
+//   k6 run -e PROFILE=capacity -e STEP=25 -e MAX=300 tests/load/stress.js   # step up to find the limit
 import { sleep } from "k6";
 import { env, num, guardTarget, BASE_URL, WRITES } from "./config.js";
 import { healthCheck, browsePublic, participantFlow, makeSummary } from "./lib.js";
@@ -33,6 +34,15 @@ const PROFILES = {
     { duration: "1m", target: VUS },
     { duration: "20s", target: 0 },
   ],
+  // Find the limit: add STEP users every 90 s up to MAX (defaults 25 → 300). Compare each step's
+  // response times in the CSV/JSON output (k6 run --out csv=...) to see where it degrades.
+  capacity: (() => {
+    const step = num("STEP", 25);
+    const max = num("MAX", 300);
+    const s = [];
+    for (let v = step; v <= max; v += step) s.push({ duration: "30s", target: v }, { duration: "60s", target: v });
+    return s.concat({ duration: "30s", target: 0 });
+  })(),
 };
 
 export const options = {
