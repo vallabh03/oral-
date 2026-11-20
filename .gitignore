@@ -25,3 +25,7 @@ load-results.log
 dist/
 infra/cdk.out/
 infra/node_modules/
+
+# k6 load-test reports (tests/load/README.md)
+tests/load/reports/*
+!tests/load/reports/.gitkeep
