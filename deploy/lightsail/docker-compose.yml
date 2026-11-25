@@ -35,6 +35,7 @@ x-app-env: &app-env
   # LeminAi Wrapper API (used when NOTIFY_DRIVER=leminai)
   LEMINAI_API_KEY: ${LEMINAI_API_KEY:-}
   LEMINAI_BASE_URL: ${LEMINAI_BASE_URL:-}
+  LOGIN_CODES_ENABLED: ${LOGIN_CODES_ENABLED:-true}
   EMAIL_DRIVER: console
   PARTICIPANT_ID_PREFIX: ${PARTICIPANT_ID_PREFIX:-HAOC-DS}
   # Caddy is the only proxy and appends the client address to X-Forwarded-For.

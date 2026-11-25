@@ -51,6 +51,15 @@ describe("production configuration guards for virtual screening", () => {
     expect((await loadProd({ LEMINAI_API_KEY: "", LEMINAI_BASE_URL: "", VIRTUAL_SCREENING_WITHOUT_MESSAGING: "true" })).config().LEMINAI_BASE_URL).toBeUndefined();
   });
 
+  it("can switch off login codes alone while messages still go out", async () => {
+    const lemin = { NOTIFY_DRIVER: "leminai", LEMINAI_API_KEY: "test-key", LEMINAI_BASE_URL: "https://lemin.example.test" };
+    const on = await loadProd(lemin);
+    expect(on.loginCodesAvailable()).toBe(true);
+    const off = await loadProd({ ...lemin, LOGIN_CODES_ENABLED: "false" });
+    expect(off.patientMessagingAvailable()).toBe(true);
+    expect(off.loginCodesAvailable()).toBe(false);
+  });
+
   it("treats WhatsApp as a working channel", async () => {
     const { patientMessagingAvailable } = await loadProd({ NOTIFY_DRIVER: "whatsapp", WHATSAPP_TOKEN: "t", WHATSAPP_PHONE_NUMBER_ID: "1", WHATSAPP_APP_SECRET: "s" });
     expect(patientMessagingAvailable()).toBe(true);

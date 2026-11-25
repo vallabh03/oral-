@@ -441,6 +441,26 @@ describe("LeminAi delivery: same templates through the Wrapper API", () => {
   });
 });
 
+describe("login codes switched off (authentication template not approved)", () => {
+  it("still queues result messages but never sends or stores a login code", async () => {
+    const p = await registerVirtual();
+    vi.stubEnv("LOGIN_CODES_ENABLED", "false");
+    resetConfigForTests();
+    const before = consoleOutbox.length;
+    const r = await call(loginRequest.POST, req("POST", "/api/intake/login/request", { body: { displayId: p.displayId, mobile: p.mobile }, headers: { "x-forwarded-for": randomIp() } }));
+    expect(r.json).toMatchObject({ unavailable: true });
+    expect(r.json.message).toMatch(/resume link/);
+    expect(r.json.devCode).toBeUndefined();
+    const d = await db();
+    expect((await d.query<{ n: number }>("select count(*)::int as n from participant_otps where patient_id = $1", [p.patientId])).rows[0]!.n).toBe(0);
+    expect(consoleOutbox.slice(before).some((m) => m.template === "login_code")).toBe(false);
+
+    await uploadRequired(p.jar);
+    await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    expect((await d.query<{ template: string }>("select template from notifications where patient_id = $1", [p.patientId])).rows.map((x) => x.template)).toContain("submission_received");
+  });
+});
+
 describe("returning participants: WhatsApp login code", () => {
   it("logs in with participant ID + mobile + code, limits guesses and never reveals whether an account exists", async () => {
     const p = await registerVirtual();

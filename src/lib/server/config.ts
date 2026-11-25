@@ -66,6 +66,10 @@ const schema = z.object({
   // through the LeminAi Wrapper API (a WhatsApp Business Solution Provider).
   NOTIFY_DRIVER: z.enum(["console", "whatsapp", "leminai"]).default("console"),
   LEMINAI_API_KEY: z.string().optional(),
+  // WhatsApp login codes for returning participants. Turn off while the "login_code" authentication
+  // template is not approved: result messages still go out, and the login page points to the
+  // resume link and helpline instead of promising a code that cannot arrive.
+  LOGIN_CODES_ENABLED: bool(true),
   // docker-compose passes unset variables as "", which means "not set" here.
   LEMINAI_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
@@ -148,6 +152,11 @@ export function patientMessagingAvailable(): boolean {
   const c = config();
   if (c.NOTIFY_DRIVER === "whatsapp" || c.NOTIFY_DRIVER === "leminai") return true;
   return !c.isProd && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING;
+}
+
+/** Can returning participants receive a WhatsApp login code? */
+export function loginCodesAvailable(): boolean {
+  return patientMessagingAvailable() && config().LOGIN_CODES_ENABLED;
 }
 
 export function whatsappConfigured(): boolean {
