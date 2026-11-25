@@ -1,7 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { db, type Queryable } from "../db";
-import { config, patientMessagingAvailable } from "../config";
+import { config, loginCodesAvailable, patientMessagingAvailable } from "../config";
 import { AppError, Errors } from "../errors";
 import { audit } from "../audit";
 import { can } from "../authz";
@@ -399,8 +399,8 @@ async function findParticipant(q: Queryable, displayId: string, mobile: string) 
 
 /** Always answers the same way whether or not the details match (no account probing). */
 export async function requestLoginCode(input: { displayId: string; mobile: string }, correlationId: string) {
-  if (!patientMessagingAvailable()) {
-    // Pilot without WhatsApp: a code could never arrive, so say so instead of pretending to send one.
+  if (!loginCodesAvailable()) {
+    // No WhatsApp channel, or login codes switched off: a code could never arrive, so say so instead of pretending to send one.
     await audit({ actorType: "anonymous", action: "intake.otp_request", outcome: "denied", correlationId, code: "no_channel" });
     const c = config();
     return { ok: false as const, unavailable: true as const, message: `Logging in with a code is not available yet. Please use the resume link you received when registering, or contact ${c.NOTIFY_CLINIC_NAME} at ${c.NOTIFY_CLINIC_PHONE}.` };

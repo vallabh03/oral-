@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ParticipantLogin } from "@/components/client/ParticipantLogin";
-import { config, patientMessagingAvailable } from "@/lib/server/config";
+import { config, loginCodesAvailable } from "@/lib/server/config";
 
 export const metadata: Metadata = { title: "Log in to your registration", robots: { index: false, follow: false } };
 
@@ -12,7 +12,7 @@ export default function LoginPage() {
       <div className="container" style={{ maxWidth: 560 }}>
         <span className="eyebrow">Returning participants</span>
         <h1>Log in to your registration</h1>
-        {patientMessagingAvailable() ? (
+        {loginCodesAvailable() ? (
           <>
             <p className="lede">Use your participant ID and the mobile number you registered with. We will send a 6-digit code to that number on WhatsApp.</p>
             <div className="card" style={{ marginTop: 20 }}><ParticipantLogin /></div>
