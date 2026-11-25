@@ -33,11 +33,17 @@ function paramsFor(t: NotificationTemplate, v: { name: string; clinic: string; p
   }
 }
 
-async function sendWhatsApp(m: Outgoing): Promise<SendResult> {
-  const c = config();
+/** Template components in Meta's format (LeminAi passes them through unchanged). Text variables only: never media. */
+function componentsFor(m: Outgoing, buttonIndex: string | number): unknown[] {
   const components: unknown[] = [{ type: "body", parameters: m.params.map((text) => ({ type: "text", text })) }];
   // Authentication templates carry the code again on their copy-code button.
-  if (m.template === "login_code") components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: m.params[0] }] });
+  if (m.template === "login_code") components.push({ type: "button", sub_type: "url", index: buttonIndex, parameters: [{ type: "text", text: m.params[0] }] });
+  return components;
+}
+
+async function sendWhatsApp(m: Outgoing): Promise<SendResult> {
+  const c = config();
+  const components = componentsFor(m, "0");
   try {
     const res = await fetch(`https://graph.facebook.com/${c.WHATSAPP_API_VERSION}/${c.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: "POST",
@@ -52,6 +58,87 @@ async function sendWhatsApp(m: Outgoing): Promise<SendResult> {
   } catch {
     return { ok: false, retryable: true, error: "network" };
   }
+}
+
+/** Provider ids of LeminAi messages start with this, so their delivery status can be looked up later. */
+const LEMINAI_PREFIX = "leminai:";
+
+function leminaiHeaders() {
+  return { authorization: `Bearer ${config().LEMINAI_API_KEY}`, accept: "application/json", "content-type": "application/json" };
+}
+const leminaiUrl = (path: string) => `${config().LEMINAI_BASE_URL!.replace(/\/+$/, "")}${path}`;
+
+/** The send response is not documented in detail; accept the shapes the Wrapper API uses elsewhere. */
+function leminaiIds(body: unknown): { messageId?: string; wamid?: string } {
+  const pick = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
+  const first = (...v: unknown[]) => v.find((x) => (typeof x === "string" && x !== "") || typeof x === "number") as string | number | undefined;
+  const data = pick(body, "data");
+  const messageId = first(pick(body, "message_id"), pick(data, "message_id"), pick(body, "id"), pick(data, "id"));
+  const messages = pick(body, "messages");
+  const wamid = first(pick(body, "wamid"), pick(data, "wamid"), Array.isArray(messages) ? pick(messages[0], "id") : undefined);
+  return { messageId: messageId === undefined ? undefined : String(messageId), wamid: wamid === undefined ? undefined : String(wamid) };
+}
+
+/** Sends an approved template through the LeminAi Wrapper API (POST /api/v1/messages/template). */
+async function sendLeminai(m: Outgoing): Promise<SendResult> {
+  const c = config();
+  try {
+    const res = await fetch(leminaiUrl("/api/v1/messages/template"), {
+      method: "POST",
+      headers: leminaiHeaders(),
+      body: JSON.stringify({ to: m.to, template_name: m.template, language: c.WHATSAPP_TEMPLATE_LANGUAGE, components: componentsFor(m, 0) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+    if (res.ok) {
+      const { messageId, wamid } = leminaiIds(body);
+      // Accepted: never retry (that could send the message twice), even if the id is missing.
+      return { ok: true, providerId: messageId ? `${LEMINAI_PREFIX}${messageId}` : (wamid ?? `${LEMINAI_PREFIX}unknown-${crypto.randomUUID()}`) };
+    }
+    const code = typeof body.error === "string" ? `_${body.error.replace(/[^a-z0-9_]/gi, "").slice(0, 30)}` : "";
+    return { ok: false, retryable: res.status === 429 || res.status >= 500, error: `http_${res.status}${code}` };
+  } catch {
+    return { ok: false, retryable: true, error: "network" };
+  }
+}
+
+/**
+ * LeminAi does not call us back with delivery receipts, so look them up: messages sent in the last
+ * two days that are not yet read or failed, at most once every two minutes each.
+ */
+export async function pollLeminaiStatuses(limit = 30): Promise<number> {
+  if (config().NOTIFY_DRIVER !== "leminai") return 0;
+  const d = await db();
+  const rows = (await d.query<{ id: string; provider_message_id: string }>(
+    `update notifications set updated_at = now()
+      where id in (
+        select id from notifications
+         where provider_message_id like 'leminai:%' and provider_message_id not like 'leminai:unknown-%'
+           and status in ('sent', 'delivered') and created_at > now() - interval '2 days'
+           and updated_at < now() - interval '2 minutes'
+         order by updated_at limit $1 for update skip locked)
+      returning id, provider_message_id`,
+    [limit],
+  )).rows;
+  for (const r of rows) {
+    try {
+      const res = await fetch(leminaiUrl(`/api/v1/messages/${encodeURIComponent(r.provider_message_id.slice(LEMINAI_PREFIX.length))}`), { headers: leminaiHeaders(), signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) continue;
+      const body = (await res.json().catch(() => ({}))) as { status?: unknown; data?: { status?: unknown } };
+      const s = body.data?.status ?? body.status;
+      if (s !== "delivered" && s !== "read" && s !== "failed") continue;
+      // Same monotonic rule as the Meta webhook: status never moves backwards.
+      await d.query(
+        `update notifications set status = $2, last_error = case when $2 = 'failed' then 'delivery_failed' else last_error end
+          where id = $1 and status not in ('failed', 'cancelled')
+            and (array_position(array['queued','sending','sent','delivered','read'], $2) > array_position(array['queued','sending','sent','delivered','read'], status) or $2 = 'failed')`,
+        [r.id, s],
+      );
+    } catch {
+      // Try again on a later round.
+    }
+  }
+  return rows.length;
 }
 
 /** Free-form text reply (only allowed inside WhatsApp's 24-hour window after the patient writes). */
@@ -72,6 +159,7 @@ export async function sendWhatsAppText(to: string, text: string): Promise<void> 
 
 async function deliver(m: Outgoing): Promise<SendResult> {
   if (config().NOTIFY_DRIVER === "whatsapp") return sendWhatsApp(m);
+  if (config().NOTIFY_DRIVER === "leminai") return sendLeminai(m);
   if (config().isProd) return { ok: false, retryable: false, error: "no_channel" }; // console driver never "sends" in production
   consoleOutbox.push({ ...m, at: new Date().toISOString() });
   if (consoleOutbox.length > 200) consoleOutbox.shift();
@@ -203,7 +291,10 @@ let worker: NodeJS.Timeout | undefined;
 /** Background retry loop (started once per server process from instrumentation.ts). */
 export function startNotificationWorker(intervalMs = 20_000) {
   if (worker) return;
-  worker = setInterval(() => void dispatchDue().catch(() => {}), intervalMs);
+  worker = setInterval(() => {
+    void dispatchDue().catch(() => {});
+    void pollLeminaiStatuses().catch(() => {});
+  }, intervalMs);
   worker.unref();
 }
 

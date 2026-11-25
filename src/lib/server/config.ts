@@ -62,7 +62,11 @@ const schema = z.object({
   // development/test it also simulates the no-messaging behaviour. Explicit opt-in; see DEPLOYMENT.md.
   VIRTUAL_SCREENING_WITHOUT_MESSAGING: bool(false),
   // Patient notifications: "console" writes to the server log/test outbox (no real messages).
-  NOTIFY_DRIVER: z.enum(["console", "whatsapp"]).default("console"),
+  // "whatsapp" sends through Meta's Cloud API directly; "leminai" sends the same approved templates
+  // through the LeminAi Wrapper API (a WhatsApp Business Solution Provider).
+  NOTIFY_DRIVER: z.enum(["console", "whatsapp", "leminai"]).default("console"),
+  LEMINAI_API_KEY: z.string().optional(),
+  LEMINAI_BASE_URL: z.string().url().optional(),
   NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
   NOTIFY_CLINIC_PHONE: z.string().max(30).default("the programme helpline"),
   WHATSAPP_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v21.0"),
@@ -98,17 +102,21 @@ function load(): AppConfig {
       if (!c.CLINICAL_S3_BUCKET || c.CLINICAL_S3_BUCKET === c.S3_BUCKET) throw new Error("CLINICAL_S3_BUCKET must be a separate private bucket when virtual screening is enabled");
       if (!c.CLINICAL_S3_KMS_KEY_ID) throw new Error("CLINICAL_S3_KMS_KEY_ID is required when virtual screening is enabled");
       // Login codes and review messages would otherwise be marked sent but never delivered.
-      if (c.NOTIFY_DRIVER !== "whatsapp" && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING) {
-        throw new Error("Virtual screening requires NOTIFY_DRIVER=whatsapp in production (or VIRTUAL_SCREENING_WITHOUT_MESSAGING=true to run a pilot where doctors phone every result)");
+      if (c.NOTIFY_DRIVER === "console" && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING) {
+        throw new Error("Virtual screening requires NOTIFY_DRIVER=whatsapp or leminai in production (or VIRTUAL_SCREENING_WITHOUT_MESSAGING=true to run a pilot where doctors phone every result)");
       }
     }
     if (c.NOTIFY_DRIVER === "whatsapp" && !(c.WHATSAPP_TOKEN && c.WHATSAPP_PHONE_NUMBER_ID && c.WHATSAPP_APP_SECRET)) {
       throw new Error("NOTIFY_DRIVER=whatsapp requires WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_APP_SECRET");
     }
+    if (c.LEMINAI_BASE_URL && !c.LEMINAI_BASE_URL.startsWith("https://")) throw new Error("LEMINAI_BASE_URL must be https in production");
     if (!c.NEXT_PUBLIC_SITE_URL.startsWith("https://")) throw new Error("NEXT_PUBLIC_SITE_URL must be https in production");
   }
   if (process.env.NODE_ENV === "production" && !isProd && c.DATABASE_URL) {
     throw new Error("APP_ENV=development/test cannot be combined with a real DATABASE_URL in a production build");
+  }
+  if (c.NOTIFY_DRIVER === "leminai" && !(c.LEMINAI_API_KEY && c.LEMINAI_BASE_URL)) {
+    throw new Error("NOTIFY_DRIVER=leminai requires LEMINAI_API_KEY and LEMINAI_BASE_URL");
   }
   if (c.OIDC_ENABLED && !(c.OIDC_ISSUER && c.OIDC_CLIENT_ID && c.OIDC_REDIRECT_URI)) {
     throw new Error("OIDC_ENABLED requires OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_REDIRECT_URI");
@@ -137,7 +145,7 @@ export function resetConfigForTests() {
  */
 export function patientMessagingAvailable(): boolean {
   const c = config();
-  if (c.NOTIFY_DRIVER === "whatsapp") return true;
+  if (c.NOTIFY_DRIVER === "whatsapp" || c.NOTIFY_DRIVER === "leminai") return true;
   return !c.isProd && !c.VIRTUAL_SCREENING_WITHOUT_MESSAGING;
 }
 
