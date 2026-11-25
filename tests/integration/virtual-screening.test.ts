@@ -6,7 +6,7 @@ import sharp from "sharp";
 import { db } from "@/lib/server/db";
 import { objectStore } from "@/lib/server/storage";
 import { resetConfigForTests } from "@/lib/server/config";
-import { consoleOutbox, dispatchDue } from "@/lib/server/notify";
+import { consoleOutbox, dispatchDue, pollLeminaiStatuses } from "@/lib/server/notify";
 import { call, COMPLETE_ANSWERS, key, randomIp, registration, req, staffJar, type Jar } from "../helpers";
 import * as register from "@/app/api/intake/register/route";
 import * as questionnaire from "@/app/api/intake/questionnaire/route";
@@ -366,6 +366,78 @@ describe("WhatsApp delivery: retries, failures, status callbacks and STOP", () =
     await call(webhook.POST, req("POST", "/api/webhooks/whatsapp", { body: stopRaw, origin: null, headers: { "x-hub-signature-256": sign(stopRaw) } }));
     const consent = (await d.query<{ status: string }>("select status from consents where patient_id = $1 and consent_type = 'review_notifications' order by created_at desc limit 1", [p.patientId])).rows[0]!;
     expect(consent.status).toBe("withdrawn");
+  });
+});
+
+describe("LeminAi delivery: same templates through the Wrapper API", () => {
+  it("sends approved templates with text variables only, retries transient failures and looks up delivery status", async () => {
+    const p = await registerVirtual();
+    await uploadRequired(p.jar);
+    vi.stubEnv("NOTIFY_DRIVER", "leminai");
+    vi.stubEnv("LEMINAI_API_KEY", "test-leminai-key");
+    vi.stubEnv("LEMINAI_BASE_URL", "https://lemin.example.test/");
+    resetConfigForTests();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "server_error" }), { status: 502 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, message_id: 351, wamid: "wamid.LEMIN1" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await call(submit.POST, req("POST", "/api/intake/virtual/submit", { jar: p.jar }));
+    const d = await db();
+    await dispatchDue();
+    let n = (await d.query<{ id: string; status: string; last_error: string; provider_message_id: string | null }>("select id, status, last_error, provider_message_id from notifications where patient_id = $1", [p.patientId])).rows[0]!;
+    expect(n).toMatchObject({ status: "queued", last_error: "http_502_server_error" });
+    await d.query("update notifications set next_attempt_at = now() where id = $1", [n.id]);
+    await dispatchDue();
+    n = (await d.query<{ id: string; status: string; last_error: string; provider_message_id: string | null }>("select id, status, last_error, provider_message_id from notifications where id = $1", [n.id])).rows[0]!;
+    expect(n).toMatchObject({ status: "sent", provider_message_id: "leminai:351" });
+
+    const [url, init] = fetchMock.mock.calls[1]!;
+    expect(url).toBe("https://lemin.example.test/api/v1/messages/template");
+    expect(init.headers.authorization).toBe("Bearer test-leminai-key");
+    const sent = JSON.parse(init.body as string);
+    expect(sent).toEqual({
+      to: `91${p.mobile}`, template_name: "submission_received", language: "en",
+      components: [{ type: "body", parameters: [{ type: "text", text: expect.any(String) }, { type: "text", text: p.displayId }] }],
+    });
+    expect(JSON.stringify(sent)).not.toMatch(/image|jpeg|base64|link/i);
+
+    // No callback from LeminAi: the worker looks the status up (not more than every two minutes).
+    expect(await pollLeminaiStatuses()).toBe(0);
+    await d.query("update notifications set updated_at = now() - interval '5 minutes' where id = $1", [n.id]);
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 351, status: "delivered" } }), { status: 200 }));
+    expect(await pollLeminaiStatuses()).toBe(1);
+    expect(fetchMock.mock.calls.at(-1)![0]).toBe("https://lemin.example.test/api/v1/messages/351");
+    expect((await d.query<{ status: string }>("select status from notifications where id = $1", [n.id])).rows[0]!.status).toBe("delivered");
+    // Never moves backwards.
+    await d.query("update notifications set updated_at = now() - interval '5 minutes' where id = $1", [n.id]);
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ status: "sent" }), { status: 200 }));
+    await pollLeminaiStatuses();
+    expect((await d.query<{ status: string }>("select status from notifications where id = $1", [n.id])).rows[0]!.status).toBe("delivered");
+
+    // A rejected template (permanent 4xx) is marked failed, not retried.
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "template_not_found" }), { status: 422 }));
+    await decide(c.doc, (await caseOf(p.patientId)).id, { decision: "suspicious" });
+    await dispatchDue();
+    const failed = (await d.query<{ status: string; last_error: string }>("select status, last_error from notifications where patient_id = $1 and template = 'review_suspicious'", [p.patientId])).rows[0]!;
+    expect(failed).toMatchObject({ status: "failed", last_error: "http_422_template_not_found" });
+  });
+
+  it("sends the login code with the code on the button too", async () => {
+    const p = await registerVirtual();
+    vi.stubEnv("NOTIFY_DRIVER", "leminai");
+    vi.stubEnv("LEMINAI_API_KEY", "test-leminai-key");
+    vi.stubEnv("LEMINAI_BASE_URL", "https://lemin.example.test");
+    resetConfigForTests();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message_id: 9 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const r = await call(loginRequest.POST, req("POST", "/api/intake/login/request", { body: { displayId: p.displayId, mobile: p.mobile }, headers: { "x-forwarded-for": randomIp() } }));
+    expect(r.json.devCode).toBeUndefined(); // codes are only shown with the console driver
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const sent = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    const code = sent.components[0].parameters[0].text;
+    expect(code).toMatch(/^\d{6}$/);
+    expect(sent).toMatchObject({ template_name: "login_code", components: [{ type: "body" }, { type: "button", sub_type: "url", index: 0, parameters: [{ type: "text", text: code }] }] });
   });
 });
 
