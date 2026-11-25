@@ -47,6 +47,8 @@ describe("production configuration guards for virtual screening", () => {
     expect(ok.patientMessagingAvailable()).toBe(true);
     expect((await loadProd({ ...lemin, LEMINAI_API_KEY: "" })).config).toThrow(/LEMINAI_API_KEY/);
     expect((await loadProd({ ...lemin, LEMINAI_BASE_URL: "http://lemin.example.test" })).config).toThrow(/https/);
+    // Unset in docker-compose arrives as an empty string and must not break other drivers.
+    expect((await loadProd({ LEMINAI_API_KEY: "", LEMINAI_BASE_URL: "", VIRTUAL_SCREENING_WITHOUT_MESSAGING: "true" })).config().LEMINAI_BASE_URL).toBeUndefined();
   });
 
   it("treats WhatsApp as a working channel", async () => {

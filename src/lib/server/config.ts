@@ -66,7 +66,8 @@ const schema = z.object({
   // through the LeminAi Wrapper API (a WhatsApp Business Solution Provider).
   NOTIFY_DRIVER: z.enum(["console", "whatsapp", "leminai"]).default("console"),
   LEMINAI_API_KEY: z.string().optional(),
-  LEMINAI_BASE_URL: z.string().url().optional(),
+  // docker-compose passes unset variables as "", which means "not set" here.
+  LEMINAI_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
   NOTIFY_CLINIC_PHONE: z.string().max(30).default("the programme helpline"),
   WHATSAPP_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v21.0"),
