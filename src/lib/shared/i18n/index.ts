@@ -1,29 +1,43 @@
 // Participant-facing translations (registration, consent, questionnaire, completion).
-// Dictionaries are keyed by the exact English text, so anything not yet translated falls back to
-// English. Translations are DRAFTS until a native speaker and the programme approve them; they are
-// only shown for languages listed in TRANSLATIONS_ENABLED (or on the ?preview=translations page).
-// Stored data (answers, consent records, question snapshots) always stays in English codes/text.
+// Dictionaries are keyed by the exact English text, so anything not translated falls back to
+// English. Each language is loaded only when a participant chooses it.
+//
+// Two switches (server settings):
+//   TRANSLATIONS_ENABLED     approved languages, shown as normal text (e.g. "te,hi,ur").
+//   TRANSLATIONS_DRAFT_LIVE  unreviewed languages shown to participants as DRAFTS ("all" or a list):
+//                            a notice says the English text applies, and every consent statement
+//                            also shows the official English wording.
+// Reviewers see every draft at /register?preview=translations.
+// Stored data (answers, consent records, question snapshots) always stays in English.
 import type { LanguageCode } from "../constants";
-import te from "./te";
-import hi from "./hi";
-import ur from "./ur";
 
 export type Dictionary = Record<string, string>;
-export const DRAFT_TRANSLATIONS: Partial<Record<LanguageCode, Dictionary>> = { te, hi, ur };
-export const DRAFT_LANGUAGE_CODES = Object.keys(DRAFT_TRANSLATIONS) as LanguageCode[];
+type Loader = () => Promise<{ default: Dictionary }>;
+
+export const DICTIONARY_LOADERS: Partial<Record<LanguageCode, Loader>> = {
+  te: () => import("./te"),
+  hi: () => import("./hi"),
+  ur: () => import("./ur"),
+};
+export const DRAFT_LANGUAGE_CODES = Object.keys(DICTIONARY_LOADERS) as LanguageCode[];
+
+export async function loadDictionary(lang: LanguageCode): Promise<Dictionary | undefined> {
+  return (await DICTIONARY_LOADERS[lang]?.())?.default;
+}
 
 export type Translate = (english: string, vars?: Record<string, string | number>) => string;
 
-export function translator(lang: LanguageCode): Translate {
-  const dict = DRAFT_TRANSLATIONS[lang];
+export function translator(dict: Dictionary | undefined): Translate {
   return (english, vars) => {
     const text = dict?.[english] || english;
     return vars ? text.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`)) : text;
   };
 }
 
-/** Parses TRANSLATIONS_ENABLED ("te,hi,ur"): only languages that have a dictionary count. */
+/** Parses a language list setting ("te,hi" or "all"): only languages that have a dictionary count. */
 export function parseEnabledLanguages(value: string | undefined): LanguageCode[] {
-  const wanted = new Set((value ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+  const v = (value ?? "").trim().toLowerCase();
+  if (v === "all") return [...DRAFT_LANGUAGE_CODES];
+  const wanted = new Set(v.split(",").map((s) => s.trim()).filter(Boolean));
   return DRAFT_LANGUAGE_CODES.filter((c) => wanted.has(c));
 }

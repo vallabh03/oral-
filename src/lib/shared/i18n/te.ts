@@ -319,5 +319,9 @@ const d: Dictionary = {
     "తెలియని ప్రశ్న",
   "Thank you for registering with DRIVE SAFE. Your photographs have been submitted for doctor review. If further assessment is needed, the healthcare team may contact you.":
     "DRIVE SAFE‌లో నమోదు చేసుకున్నందుకు ధన్యవాదాలు. మీ ఫోటోలు డాక్టర్ పరిశీలనకు పంపబడ్డాయి. మరింత పరీక్ష అవసరమైతే, ఆరోగ్య బృందం మిమ్మల్ని సంప్రదించవచ్చు.",
+  "Draft translation — under review. If anything is unclear, the English text applies.":
+    "ముసాయిదా అనువాదం — సమీక్షలో ఉంది. ఏదైనా స్పష్టంగా లేకపోతే, ఇంగ్లీష్ పాఠమే వర్తిస్తుంది.",
+  "English (official version):":
+    "ఇంగ్లీష్ (అధికారిక పాఠం):",
 };
 export default d;

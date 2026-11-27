@@ -42,8 +42,8 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
   const started = useRef(false);
   const lang = LANGUAGES.find((l) => l.code === v.language)!;
   // Participants see their chosen language once its translation is switched on; staff always English.
-  const { t, dir, setLang, available, preview } = useLang();
-  const translated = available.includes(v.language) || v.language === "en";
+  const { t, dir, setLang, offered, preview, draft } = useLang();
+  const translated = offered(v.language);
   const steps = [t("Language"), t("Your details"), t("Consent")];
 
   const set = <K extends keyof Values>(k: K, val: Values[K]) => {
@@ -138,6 +138,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
 
   return (
     <form onSubmit={submit} noValidate dir={staffMode ? "ltr" : dir} lang={staffMode ? "en" : translated ? v.language : "en"}>
+      {draft && !preview && !staffMode && <p className="callout callout-warn" role="note">{t("Draft translation — under review. If anything is unclear, the English text applies.")}</p>}
       {preview && !staffMode && <p className="callout callout-warn" role="note">{"Draft translation for review — not yet approved. / అనువాదం సమీక్షలో ఉంది. / अनुवाद समीक्षा में है। / ترجمہ زیرِ جائزہ ہے۔"}</p>}
       <p className="step-label">{t("Step {n} of {total}: {name}", { n: step + 1, total: steps.length, name: steps[step]! })}</p>
       <ol className="steps" aria-hidden="true">{steps.map((s, i) => <li key={s} data-state={i < step ? "done" : i === step ? "current" : "todo"} />)}</ol>
@@ -285,7 +286,7 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               <div key={k}>
                 <label className="choice" htmlFor={`c-${k}`}>
                   <input id={`c-${k}`} type="checkbox" checked={v.consents[k]} onChange={(e) => setConsent(k, e.target.checked)} aria-invalid={!!errors[`consents.${k}`]} aria-describedby={errors[`consents.${k}`] ? `consents.${k}-err` : undefined} />
-                  <span>{t(CONSENT_POLICIES[k].text)}</span>
+                  <ConsentText text={CONSENT_POLICIES[k].text} />
                 </label>
                 {err(`consents.${k}`)}
               </div>
@@ -294,12 +295,12 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               <div>
                 <label className="choice" htmlFor="c-remoteImages">
                   <input id="c-remoteImages" type="checkbox" checked={v.consents.remoteImages} onChange={(e) => setConsent("remoteImages", e.target.checked)} aria-invalid={!!errors["consents.remoteImages"]} aria-describedby={errors["consents.remoteImages"] ? "consents.remoteImages-err" : undefined} />
-                  <span>{t(CONSENT_POLICIES.remote_images.text)}</span>
+                  <ConsentText text={CONSENT_POLICIES.remote_images.text} />
                 </label>
                 {err("consents.remoteImages")}
                 <label className="choice" htmlFor="c-reviewNotifications">
                   <input id="c-reviewNotifications" type="checkbox" checked={v.consents.reviewNotifications} onChange={(e) => setConsent("reviewNotifications", e.target.checked)} aria-invalid={!!errors["consents.reviewNotifications"]} aria-describedby={errors["consents.reviewNotifications"] ? "consents.reviewNotifications-err" : undefined} />
-                  <span>{t(CONSENT_POLICIES.review_notifications.text)}</span>
+                  <ConsentText text={CONSENT_POLICIES.review_notifications.text} />
                 </label>
                 {err("consents.reviewNotifications")}
               </div>
@@ -307,9 +308,9 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
           </fieldset>
           <fieldset>
             <legend>{t("Optional")}</legend>
-            <label className="choice" htmlFor="c-photo"><input id="c-photo" type="checkbox" checked={v.consents.photo} onChange={(e) => setConsent("photo", e.target.checked)} /><span>{t(CONSENT_POLICIES.photo.text)}</span></label>
-            <label className="choice" htmlFor="c-followupContact"><input id="c-followupContact" type="checkbox" checked={v.consents.followupContact} onChange={(e) => setConsent("followupContact", e.target.checked)} /><span>{t(CONSENT_POLICIES.followup_contact.text)}</span></label>
-            <label className="choice" htmlFor="c-whatsappReport"><input id="c-whatsappReport" type="checkbox" checked={v.consents.whatsappReport} onChange={(e) => setConsent("whatsappReport", e.target.checked)} /><span>{t(CONSENT_POLICIES.whatsapp_report.text)}</span></label>
+            <label className="choice" htmlFor="c-photo"><input id="c-photo" type="checkbox" checked={v.consents.photo} onChange={(e) => setConsent("photo", e.target.checked)} /><ConsentText text={CONSENT_POLICIES.photo.text} /></label>
+            <label className="choice" htmlFor="c-followupContact"><input id="c-followupContact" type="checkbox" checked={v.consents.followupContact} onChange={(e) => setConsent("followupContact", e.target.checked)} /><ConsentText text={CONSENT_POLICIES.followup_contact.text} /></label>
+            <label className="choice" htmlFor="c-whatsappReport"><input id="c-whatsappReport" type="checkbox" checked={v.consents.whatsappReport} onChange={(e) => setConsent("whatsappReport", e.target.checked)} /><ConsentText text={CONSENT_POLICIES.whatsapp_report.text} /></label>
           </fieldset>
           <p className="hint">{t("Consent wording version {version} (draft pending approval).", { version: CONSENT_POLICIES.registration.version })} <a href="/privacy" target="_blank" rel="noopener">{t("Read the privacy notice")}</a>.</p>
         </section>
@@ -322,5 +323,20 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
         </button>
       </div>
     </form>
+  );
+}
+
+/** A consent statement in the participant's language; unreviewed drafts also show the official English. */
+function ConsentText({ text }: { text: string }) {
+  const { t, draft } = useLang();
+  return (
+    <span>
+      {t(text)}
+      {draft && (
+        <small lang="en" dir="ltr" style={{ display: "block", marginTop: 6, opacity: 0.85 }}>
+          <strong>{t("English (official version):")}</strong> {text}
+        </small>
+      )}
+    </span>
   );
 }
