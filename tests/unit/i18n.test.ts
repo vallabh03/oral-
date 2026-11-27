@@ -12,9 +12,8 @@ describe("participant translations", () => {
     expect(strings.length).toBeGreaterThan(100);
   });
 
-  it("only has dictionaries for languages offered in the form", () => {
-    const offered = LANGUAGES.map((l) => l.code as string);
-    for (const c of DRAFT_LANGUAGE_CODES) expect(offered).toContain(c);
+  it("has a dictionary for every language offered except English", () => {
+    expect([...DRAFT_LANGUAGE_CODES].sort()).toEqual(LANGUAGES.map((l) => l.code as string).filter((c) => c !== "en").sort());
   });
 
   for (const lang of DRAFT_LANGUAGE_CODES) {
