@@ -5,6 +5,7 @@
 //   migrate                       → apply migrations (+ provision the app DB role)
 //   create-super-admin <email> …  → print a one-time setup link to the logs
 //   create-staff <email> <role> … → same, for any role
+//   reset-patient-data --confirm … → delete all participant data (deploy/lightsail/reset-data.sh)
 const env = process.env;
 if (!env.DATABASE_URL && env.DB_HOST) {
   // URL setters percent-encode the credentials. No sslmode in the URL: the app always connects
@@ -20,7 +21,7 @@ if (!env.DATABASE_URL && env.DB_HOST) {
 delete env.DB_PASSWORD;
 
 const [cmd, ...args] = process.argv.slice(2);
-const ops = new Set(["migrate", "create-super-admin", "create-staff"]);
+const ops = new Set(["migrate", "create-super-admin", "create-staff", "reset-patient-data"]);
 if (!cmd) {
   await import(new URL("./server.js", import.meta.url).href);
 } else if (ops.has(cmd)) {

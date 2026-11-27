@@ -8,6 +8,7 @@ await build({
     migrate: "scripts/migrate.ts",
     "create-super-admin": "scripts/create-super-admin.ts",
     "create-staff": "scripts/create-staff.ts",
+    "reset-patient-data": "scripts/reset-patient-data.ts",
   },
   outdir: "dist/ops",
   outExtension: { ".js": ".mjs" },
