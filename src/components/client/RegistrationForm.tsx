@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { CONSENT_POLICIES, CONTACT_PREFERENCES, DRIVER_TYPES, LANGUAGES, RECRUITMENT_SOURCES, SCREENING_MODES, TRANSLATED_LANGUAGES, type LanguageCode, type ScreeningMode } from "@/lib/shared/constants";
+import { CONSENT_POLICIES, CONTACT_PREFERENCES, DRIVER_TYPES, LANGUAGES, RECRUITMENT_SOURCES, SCREENING_MODES, type LanguageCode, type ScreeningMode } from "@/lib/shared/constants";
+import { useLang } from "./i18n";
 import { newKey, postJson, type ApiError } from "./api";
 import { track } from "./analytics";
 import { TELANGANA_DISTRICTS } from "@/lib/shared/virtual";
@@ -40,32 +41,38 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
   const summary = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   const lang = LANGUAGES.find((l) => l.code === v.language)!;
-  const steps = ["Language", "Your details", "Consent"];
+  // Participants see their chosen language once its translation is switched on; staff always English.
+  const { t, dir, setLang, available, preview } = useLang();
+  const translated = available.includes(v.language) || v.language === "en";
+  const steps = [t("Language"), t("Your details"), t("Consent")];
 
-  const set = <K extends keyof Values>(k: K, val: Values[K]) => setV((x) => ({ ...x, [k]: val }));
+  const set = <K extends keyof Values>(k: K, val: Values[K]) => {
+    if (k === "language") setLang?.(val as LanguageCode);
+    setV((x) => ({ ...x, [k]: val }));
+  };
   const setConsent = (k: keyof Values["consents"], val: boolean) => setV((x) => ({ ...x, consents: { ...x.consents, [k]: val } }));
 
   const validateDetails = () => {
     const e: Record<string, string> = {};
-    if (!v.fullName.trim()) e.fullName = "Enter the full name";
+    if (!v.fullName.trim()) e.fullName = t("Enter the full name");
     const age = Number(v.age);
-    if (!v.age || !Number.isInteger(age) || age < 14 || age > 110) e.age = "Enter an age between 14 and 110";
-    if (v.mobile && !/^[6-9]\d{9}$/.test(v.mobile)) e.mobile = "Enter a valid 10-digit Indian mobile number";
-    if (!v.driverType) e.driverType = "Choose your profession";
-    if (!v.recruitmentSource) e.recruitmentSource = "Choose how you heard about us";
-    if (v.contactPreference !== "none" && !v.mobile) e.mobile = "A mobile number is needed to contact you";
-    else if (v.screeningMode === "virtual" && !v.mobile) e.mobile = "A mobile number is needed so the team can call for virtual screening";
+    if (!v.age || !Number.isInteger(age) || age < 14 || age > 110) e.age = t("Enter an age between 14 and 110");
+    if (v.mobile && !/^[6-9]\d{9}$/.test(v.mobile)) e.mobile = t("Enter a valid 10-digit Indian mobile number");
+    if (!v.driverType) e.driverType = t("Choose your profession");
+    if (!v.recruitmentSource) e.recruitmentSource = t("Choose how you heard about us");
+    if (v.contactPreference !== "none" && !v.mobile) e.mobile = t("A mobile number is needed to contact you");
+    else if (v.screeningMode === "virtual" && !v.mobile) e.mobile = t("A mobile number is needed so the team can call for virtual screening");
     // District and PIN code are optional (2026-11-01); a PIN, when given, must be valid.
-    if (v.pincode && !/^[1-9]\d{5}$/.test(v.pincode)) e.pincode = "Enter a valid 6-digit PIN code";
+    if (v.pincode && !/^[1-9]\d{5}$/.test(v.pincode)) e.pincode = t("Enter a valid 6-digit PIN code");
     return e;
   };
   const validateConsent = () => {
     const e: Record<string, string> = {};
-    if (!v.consents.registration) e["consents.registration"] = "Registration consent is required to continue";
-    if (!v.consents.screening) e["consents.screening"] = "Screening consent is required to continue";
-    if ((v.consents.whatsappReport || v.consents.followupContact || v.consents.reviewNotifications) && !v.mobile) e.mobile = "Add a mobile number on the previous step to receive messages";
-    if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.remoteImages) e["consents.remoteImages"] = "This consent is needed to send your mouth photos for virtual screening";
-    if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.reviewNotifications) e["consents.reviewNotifications"] = "This consent is needed so we can send you the doctor's review";
+    if (!v.consents.registration) e["consents.registration"] = t("Registration consent is required to continue");
+    if (!v.consents.screening) e["consents.screening"] = t("Screening consent is required to continue");
+    if ((v.consents.whatsappReport || v.consents.followupContact || v.consents.reviewNotifications) && !v.mobile) e.mobile = t("Add a mobile number on the previous step to receive messages");
+    if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.remoteImages) e["consents.remoteImages"] = t("This consent is needed to send your mouth photos for virtual screening");
+    if (v.screeningMode === "virtual" && virtualPhotos && !v.consents.reviewNotifications) e["consents.reviewNotifications"] = t("This consent is needed so we can send you the doctor's review");
     return e;
   };
 
@@ -130,27 +137,28 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
   const subject = staffMode ? "the participant" : "you";
 
   return (
-    <form onSubmit={submit} noValidate dir={lang.dir} lang={v.language}>
-      <p className="step-label">Step {step + 1} of {steps.length}: {steps[step]}</p>
+    <form onSubmit={submit} noValidate dir={staffMode ? "ltr" : dir} lang={staffMode ? "en" : translated ? v.language : "en"}>
+      {preview && !staffMode && <p className="callout callout-warn" role="note">{"Draft translation for review — not yet approved. / అనువాదం సమీక్షలో ఉంది. / अनुवाद समीक्षा में है। / ترجمہ زیرِ جائزہ ہے۔"}</p>}
+      <p className="step-label">{t("Step {n} of {total}: {name}", { n: step + 1, total: steps.length, name: steps[step]! })}</p>
       <ol className="steps" aria-hidden="true">{steps.map((s, i) => <li key={s} data-state={i < step ? "done" : i === step ? "current" : "todo"} />)}</ol>
       {errList.length > 0 && (
         <div className="error-summary" ref={summary} tabIndex={-1} role="alert">
-          <h2>Please fix {errList.length === 1 ? "this" : `these ${errList.length} problems`}</h2>
+          <h2>{errList.length === 1 ? t("Please fix this") : t("Please fix these {count} problems", { count: errList.length })}</h2>
           <ul>{errList.map(([k, m]) => <li key={k}><a href={`#${k.replace("consents.", "c-")}`}>{m}</a></li>)}</ul>
         </div>
       )}
-      {failure && !errList.length && <div className="error-summary" role="alert"><h2>Registration was not completed</h2><p style={{ margin: 0 }}>{failure}</p></div>}
+      {failure && !errList.length && <div className="error-summary" role="alert"><h2>{t("Registration was not completed")}</h2><p style={{ margin: 0 }}>{failure}</p></div>}
 
       {step === 0 && (
         <section aria-labelledby="reg-step-heading">
-          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>Choose a language</h2>
+          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>{t("Choose a language")}</h2>
           <div className="field">
-            <label htmlFor="language">Preferred language</label>
+            <label htmlFor="language">{t("Preferred language")}</label>
             <select id="language" value={v.language} onChange={(e) => set("language", e.target.value as LanguageCode)}>
               {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.native}{l.native !== l.name ? ` — ${l.name}` : ""}</option>)}
             </select>
           </div>
-          {!TRANSLATED_LANGUAGES.includes(v.language) && (
+          {!staffMode && !translated && (
             <p className="callout callout-warn" role="status">A reviewed {lang.name} translation is not available yet, so the form is shown in English. Camp staff can help you.</p>
           )}
         </section>
@@ -158,8 +166,8 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
 
       {step === 1 && (
         <section aria-labelledby="reg-step-heading">
-          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>{staffMode ? "Participant details" : "Your details"}</h2>
-          <p className="hint" style={{ marginBottom: 16 }}>We only ask for what screening and follow-up need. No Aadhaar or home address.</p>
+          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>{staffMode ? "Participant details" : t("Your details")}</h2>
+          <p className="hint" style={{ marginBottom: 16 }}>{t("We only ask for what screening and follow-up need. No Aadhaar or home address.")}</p>
           {staffMode && (
             <fieldset className="field" style={{ border: 0, padding: 0, margin: "0 0 16px" }}>
               <legend style={{ fontWeight: 600, marginBottom: 6 }}>Screening type <span className="req" aria-hidden="true">*</span></legend>
@@ -175,41 +183,41 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
           )}
           <div className="form-row">
             <div className="field">
-              <label htmlFor="fullName">Full name <span className="req" aria-hidden="true">*</span></label>
+              <label htmlFor="fullName">{t("Full name")} <span className="req" aria-hidden="true">*</span></label>
               <input id="fullName" type="text" autoComplete={staffMode ? "off" : "name"} maxLength={120} value={v.fullName} onChange={(e) => set("fullName", e.target.value)} {...aria("fullName")} />
               {err("fullName")}
             </div>
             <div className="field">
-              <label htmlFor="age">Age in years <span className="req" aria-hidden="true">*</span></label>
+              <label htmlFor="age">{t("Age in years")} <span className="req" aria-hidden="true">*</span></label>
               <input id="age" type="number" inputMode="numeric" min={14} max={110} value={v.age} onChange={(e) => set("age", e.target.value)} {...aria("age")} />
               {err("age")}
             </div>
           </div>
           <div className="form-row">
             <div className="field">
-              <label htmlFor="mobile">Mobile number <span className="opt">{v.screeningMode === "virtual" ? "(needed so the team can call)" : "(optional — needed for messages)"}</span></label>
-              <input id="mobile" type="tel" inputMode="numeric" autoComplete={staffMode ? "off" : "tel-national"} maxLength={10} placeholder="10 digits" value={v.mobile} onChange={(e) => set("mobile", e.target.value.replace(/\D/g, ""))} {...aria("mobile")} />
+              <label htmlFor="mobile">{t("Mobile number")} <span className="opt">{v.screeningMode === "virtual" ? t("(needed so the team can call)") : t("(optional — needed for messages)")}</span></label>
+              <input id="mobile" type="tel" inputMode="numeric" autoComplete={staffMode ? "off" : "tel-national"} maxLength={10} placeholder={t("10 digits")} value={v.mobile} onChange={(e) => set("mobile", e.target.value.replace(/\D/g, ""))} {...aria("mobile")} />
               {err("mobile")}
             </div>
             <div className="field">
-              <label htmlFor="driverType">Profession <span className="req" aria-hidden="true">*</span></label>
+              <label htmlFor="driverType">{t("Profession")} <span className="req" aria-hidden="true">*</span></label>
               <select id="driverType" value={v.driverType} onChange={(e) => set("driverType", e.target.value)} {...aria("driverType")}>
-                <option value="">Choose…</option>
-                {DRIVER_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <option value="">{t("Choose…")}</option>
+                {DRIVER_TYPES.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
               </select>
               {err("driverType")}
             </div>
           </div>
           <div className="form-row">
             <div className="field">
-              <label htmlFor="workingArea">Usual working area <span className="opt">(optional)</span></label>
-              <input id="workingArea" type="text" maxLength={120} placeholder="e.g. Ameerpet" value={v.workingArea} onChange={(e) => set("workingArea", e.target.value)} {...aria("workingArea")} />
+              <label htmlFor="workingArea">{t("Usual working area")} <span className="opt">{t("(optional)")}</span></label>
+              <input id="workingArea" type="text" maxLength={120} placeholder={t("e.g. Ameerpet")} value={v.workingArea} onChange={(e) => set("workingArea", e.target.value)} {...aria("workingArea")} />
               {err("workingArea")}
             </div>
             <div className="field">
-              <label htmlFor="campId">Screening camp <span className="opt">{staffMode ? "" : "(if you know it)"}</span></label>
+              <label htmlFor="campId">{t("Screening camp")} <span className="opt">{staffMode ? "" : t("(if you know it)")}</span></label>
               <select id="campId" value={v.campId} onChange={(e) => set("campId", e.target.value)} {...aria("campId")}>
-                <option value="">{staffMode ? "Choose a camp…" : "Not sure yet"}</option>
+                <option value="">{staffMode ? "Choose a camp…" : t("Not sure yet")}</option>
                 {camps.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.working_area}</option>)}
               </select>
               {err("campId")}
@@ -217,47 +225,47 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
           </div>
           <div className="form-row">
             <div className="field">
-              <label htmlFor="recruitmentSource">How did {subject} hear about us? <span className="req" aria-hidden="true">*</span></label>
+              <label htmlFor="recruitmentSource">{staffMode ? `How did ${subject} hear about us?` : t("How did you hear about us?")} <span className="req" aria-hidden="true">*</span></label>
               <select id="recruitmentSource" value={v.recruitmentSource} onChange={(e) => set("recruitmentSource", e.target.value)} {...aria("recruitmentSource")}>
-                <option value="">Choose…</option>
-                {RECRUITMENT_SOURCES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <option value="">{t("Choose…")}</option>
+                {RECRUITMENT_SOURCES.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
               </select>
               {err("recruitmentSource")}
             </div>
             <div className="field">
-              <label htmlFor="contactPreference">Contact preference</label>
+              <label htmlFor="contactPreference">{t("Contact preference")}</label>
               <select id="contactPreference" value={v.contactPreference} onChange={(e) => set("contactPreference", e.target.value)}>
-                {CONTACT_PREFERENCES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {CONTACT_PREFERENCES.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
               </select>
             </div>
           </div>
           {v.screeningMode === "virtual" && (
             <>
-              <h3 style={{ fontSize: "1.05rem", margin: "8px 0 4px" }}>Where you live</h3>
-              <p className="hint" style={{ marginBottom: 12 }}>So we can suggest the nearest clinic or camp if an examination is needed.</p>
+              <h3 style={{ fontSize: "1.05rem", margin: "8px 0 4px" }}>{t("Where you live")}</h3>
+              <p className="hint" style={{ marginBottom: 12 }}>{t("So we can suggest the nearest clinic or camp if an examination is needed.")}</p>
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor="district">District <span className="opt">(optional)</span></label>
+                  <label htmlFor="district">{t("District")} <span className="opt">{t("(optional)")}</span></label>
                   <select id="district" value={v.district} onChange={(e) => set("district", e.target.value)} {...aria("district")}>
-                    <option value="">Choose…</option>
+                    <option value="">{t("Choose…")}</option>
                     {TELANGANA_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                   {err("district")}
                 </div>
                 <div className="field">
-                  <label htmlFor="mandal">Mandal / area <span className="opt">(optional)</span></label>
+                  <label htmlFor="mandal">{t("Mandal / area")} <span className="opt">{t("(optional)")}</span></label>
                   <input id="mandal" type="text" maxLength={80} value={v.mandal} onChange={(e) => set("mandal", e.target.value)} {...aria("mandal")} />
                   {err("mandal")}
                 </div>
               </div>
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor="pincode">PIN code <span className="opt">(optional)</span></label>
-                  <input id="pincode" type="text" inputMode="numeric" autoComplete={staffMode ? "off" : "postal-code"} maxLength={6} placeholder="6 digits" value={v.pincode} onChange={(e) => set("pincode", e.target.value.replace(/\D/g, ""))} {...aria("pincode")} />
+                  <label htmlFor="pincode">{t("PIN code")} <span className="opt">{t("(optional)")}</span></label>
+                  <input id="pincode" type="text" inputMode="numeric" autoComplete={staffMode ? "off" : "postal-code"} maxLength={6} placeholder={t("6 digits")} value={v.pincode} onChange={(e) => set("pincode", e.target.value.replace(/\D/g, ""))} {...aria("pincode")} />
                   {err("pincode")}
                 </div>
                 <div className="field">
-                  <label htmlFor="addressLine">Full address <span className="opt">(optional)</span></label>
+                  <label htmlFor="addressLine">{t("Full address")} <span className="opt">{t("(optional)")}</span></label>
                   <input id="addressLine" type="text" maxLength={300} autoComplete={staffMode ? "off" : "street-address"} value={v.addressLine} onChange={(e) => set("addressLine", e.target.value)} {...aria("addressLine")} />
                   {err("addressLine")}
                 </div>
@@ -269,15 +277,15 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
 
       {step === 2 && (
         <section aria-labelledby="reg-step-heading">
-          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>Consent</h2>
-          <p className="hint" style={{ marginBottom: 12 }}>{v.screeningMode === "virtual" && virtualPhotos ? "The first four are required." : "The first two are required."} The others are optional and can be withdrawn at any time.</p>
+          <h2 id="reg-step-heading" tabIndex={-1} style={{ fontSize: "var(--step-2)" }}>{t("Consent")}</h2>
+          <p className="hint" style={{ marginBottom: 12 }}>{v.screeningMode === "virtual" && virtualPhotos ? t("The first four are required.") : t("The first two are required.")} {t("The others are optional and can be withdrawn at any time.")}</p>
           <fieldset>
-            <legend>Required</legend>
+            <legend>{t("Required")}</legend>
             {(["registration", "screening"] as const).map((k) => (
               <div key={k}>
                 <label className="choice" htmlFor={`c-${k}`}>
                   <input id={`c-${k}`} type="checkbox" checked={v.consents[k]} onChange={(e) => setConsent(k, e.target.checked)} aria-invalid={!!errors[`consents.${k}`]} aria-describedby={errors[`consents.${k}`] ? `consents.${k}-err` : undefined} />
-                  <span>{CONSENT_POLICIES[k].text}</span>
+                  <span>{t(CONSENT_POLICIES[k].text)}</span>
                 </label>
                 {err(`consents.${k}`)}
               </div>
@@ -286,31 +294,31 @@ export function RegistrationForm({ endpoint, camps, staffMode = false, screening
               <div>
                 <label className="choice" htmlFor="c-remoteImages">
                   <input id="c-remoteImages" type="checkbox" checked={v.consents.remoteImages} onChange={(e) => setConsent("remoteImages", e.target.checked)} aria-invalid={!!errors["consents.remoteImages"]} aria-describedby={errors["consents.remoteImages"] ? "consents.remoteImages-err" : undefined} />
-                  <span>{CONSENT_POLICIES.remote_images.text}</span>
+                  <span>{t(CONSENT_POLICIES.remote_images.text)}</span>
                 </label>
                 {err("consents.remoteImages")}
                 <label className="choice" htmlFor="c-reviewNotifications">
                   <input id="c-reviewNotifications" type="checkbox" checked={v.consents.reviewNotifications} onChange={(e) => setConsent("reviewNotifications", e.target.checked)} aria-invalid={!!errors["consents.reviewNotifications"]} aria-describedby={errors["consents.reviewNotifications"] ? "consents.reviewNotifications-err" : undefined} />
-                  <span>{CONSENT_POLICIES.review_notifications.text}</span>
+                  <span>{t(CONSENT_POLICIES.review_notifications.text)}</span>
                 </label>
                 {err("consents.reviewNotifications")}
               </div>
             )}
           </fieldset>
           <fieldset>
-            <legend>Optional</legend>
-            <label className="choice" htmlFor="c-photo"><input id="c-photo" type="checkbox" checked={v.consents.photo} onChange={(e) => setConsent("photo", e.target.checked)} /><span>{CONSENT_POLICIES.photo.text}</span></label>
-            <label className="choice" htmlFor="c-followupContact"><input id="c-followupContact" type="checkbox" checked={v.consents.followupContact} onChange={(e) => setConsent("followupContact", e.target.checked)} /><span>{CONSENT_POLICIES.followup_contact.text}</span></label>
-            <label className="choice" htmlFor="c-whatsappReport"><input id="c-whatsappReport" type="checkbox" checked={v.consents.whatsappReport} onChange={(e) => setConsent("whatsappReport", e.target.checked)} /><span>{CONSENT_POLICIES.whatsapp_report.text}</span></label>
+            <legend>{t("Optional")}</legend>
+            <label className="choice" htmlFor="c-photo"><input id="c-photo" type="checkbox" checked={v.consents.photo} onChange={(e) => setConsent("photo", e.target.checked)} /><span>{t(CONSENT_POLICIES.photo.text)}</span></label>
+            <label className="choice" htmlFor="c-followupContact"><input id="c-followupContact" type="checkbox" checked={v.consents.followupContact} onChange={(e) => setConsent("followupContact", e.target.checked)} /><span>{t(CONSENT_POLICIES.followup_contact.text)}</span></label>
+            <label className="choice" htmlFor="c-whatsappReport"><input id="c-whatsappReport" type="checkbox" checked={v.consents.whatsappReport} onChange={(e) => setConsent("whatsappReport", e.target.checked)} /><span>{t(CONSENT_POLICIES.whatsapp_report.text)}</span></label>
           </fieldset>
-          <p className="hint">Consent wording version {CONSENT_POLICIES.registration.version} (draft pending approval). Read the <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.</p>
+          <p className="hint">{t("Consent wording version {version} (draft pending approval).", { version: CONSENT_POLICIES.registration.version })} <a href="/privacy" target="_blank" rel="noopener">{t("Read the privacy notice")}</a>.</p>
         </section>
       )}
 
       <div className="cluster" style={{ marginTop: 8 }}>
-        {step > 0 && <button type="button" className="btn btn-ghost" onClick={() => goto(step - 1)} disabled={busy}>Back</button>}
+        {step > 0 && <button type="button" className="btn btn-ghost" onClick={() => goto(step - 1)} disabled={busy}>{t("Back")}</button>}
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {step < 2 ? "Continue" : busy ? <><span className="spinner" aria-hidden="true" /> Registering…</> : staffMode ? "Register participant" : "Register"}
+          {step < 2 ? t("Continue") : busy ? <><span className="spinner" aria-hidden="true" /> {t("Registering…")}</> : staffMode ? "Register participant" : t("Register")}
         </button>
       </div>
     </form>

@@ -70,6 +70,9 @@ const schema = z.object({
   // template is not approved: result messages still go out, and the login page points to the
   // resume link and helpline instead of promising a code that cannot arrive.
   LOGIN_CODES_ENABLED: bool(true),
+  // Participant translations switched on, e.g. "te,hi,ur". Only after a native speaker and the
+  // programme have approved them; until then participants see English (reviewers use ?preview=translations).
+  TRANSLATIONS_ENABLED: z.string().max(100).default(""),
   // docker-compose passes unset variables as "", which means "not set" here.
   LEMINAI_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   NOTIFY_CLINIC_NAME: z.string().max(60).default("Telangana Against Oral Cancer"),
