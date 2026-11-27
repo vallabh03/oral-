@@ -319,5 +319,9 @@ const d: Dictionary = {
     "अनजान सवाल",
   "Thank you for registering with DRIVE SAFE. Your photographs have been submitted for doctor review. If further assessment is needed, the healthcare team may contact you.":
     "DRIVE SAFE में रजिस्टर करने के लिए धन्यवाद। आपकी फ़ोटो डॉक्टर के देखने के लिए भेज दी गई हैं। अगर आगे और जाँच की ज़रूरत हुई, तो स्वास्थ्य टीम आपसे संपर्क कर सकती है।",
+  "Draft translation — under review. If anything is unclear, the English text applies.":
+    "ड्राफ़्ट अनुवाद — समीक्षा जारी है। कुछ भी साफ़ न हो तो अंग्रेज़ी पाठ ही मान्य है।",
+  "English (official version):":
+    "अंग्रेज़ी (आधिकारिक पाठ):",
 };
 export default d;

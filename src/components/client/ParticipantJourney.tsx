@@ -23,15 +23,15 @@ type Status = {
   screeningMode: "in_person" | "virtual"; virtualStatus: VirtualCaseStatus | null;
 };
 
-type JourneyProps = { camps: CampOption[]; screeningMode?: "in_person" | "virtual"; virtualPhotos?: boolean; languages?: readonly LanguageCode[]; preview?: boolean };
+type JourneyProps = { camps: CampOption[]; screeningMode?: "in_person" | "virtual"; virtualPhotos?: boolean; approved?: readonly LanguageCode[]; drafts?: readonly LanguageCode[]; preview?: boolean };
 
-/** Languages: translations switched on for participants (TRANSLATIONS_ENABLED), or all drafts in review preview. */
-export function RegistrationJourney({ languages = [], preview = false, ...props }: JourneyProps) {
-  return <LangProvider available={languages} preview={preview}><Journey {...props} /></LangProvider>;
+/** Languages: approved (TRANSLATIONS_ENABLED) and drafts shown with safeguards (TRANSLATIONS_DRAFT_LIVE or review preview). */
+export function RegistrationJourney({ approved = [], drafts = [], preview = false, ...props }: JourneyProps) {
+  return <LangProvider approved={approved} drafts={drafts} preview={preview}><Journey {...props} /></LangProvider>;
 }
 
 function Journey({ camps, screeningMode = "in_person", virtualPhotos = false }: JourneyProps) {
-  const { t, dir, lang } = useLang();
+  const { t, dir, lang, draft } = useLang();
   const [phase, setPhase] = useState<"form" | "photo" | "questionnaire" | "mouth" | "done">("form");
   const [displayId, setDisplayId] = useState("");
   const [resumeLink, setResumeLink] = useState("");
@@ -56,6 +56,7 @@ function Journey({ camps, screeningMode = "in_person", virtualPhotos = false }: 
           }}
         />
       )}
+      {phase !== "form" && draft && <p className="callout callout-warn" role="note">{t("Draft translation — under review. If anything is unclear, the English text applies.")}</p>}
       {phase !== "form" && (
         <div className="callout" style={{ marginBottom: 20 }}>
           <p style={{ margin: 0 }}>{t("Your participant ID is")} <span className="code-chip">{displayId}</span></p>

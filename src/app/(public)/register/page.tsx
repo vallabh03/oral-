@@ -13,7 +13,8 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const virtual = sp.mode === "virtual";
   // Reviewers see every draft translation (clearly marked); participants only the approved ones.
   const preview = sp.preview === "translations";
-  const languages = preview ? DRAFT_LANGUAGE_CODES : parseEnabledLanguages(config().TRANSLATIONS_ENABLED);
+  const approved = parseEnabledLanguages(config().TRANSLATIONS_ENABLED);
+  const drafts = (preview ? DRAFT_LANGUAGE_CODES : parseEnabledLanguages(config().TRANSLATIONS_DRAFT_LIVE)).filter((l) => !approved.includes(l));
   const open = config().INTAKE_ENABLED;
   const camps = open ? (await listCamps({ publicOnly: true }).catch(() => [])).filter((c) => c.status !== "cancelled").map((c) => ({ id: c.id, name: c.name, working_area: c.working_area })) : [];
   return (
@@ -27,7 +28,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         )}
         <p className="lede">About one minute to register and two minutes for the questionnaire. Already registered? Use your resume link or <Link href="/register/status">check your status</Link>.</p>
         {open ? (
-          <div className="card" style={{ marginTop: 24 }}><RegistrationJourney camps={camps} screeningMode={virtual ? "virtual" : "in_person"} virtualPhotos={config().VIRTUAL_SCREENING_ENABLED} languages={languages} preview={preview} /></div>
+          <div className="card" style={{ marginTop: 24 }}><RegistrationJourney camps={camps} screeningMode={virtual ? "virtual" : "in_person"} virtualPhotos={config().VIRTUAL_SCREENING_ENABLED} approved={approved} drafts={drafts} preview={preview} /></div>
         ) : (
           <EmptyState title="Registration opens soon" icon="inbox">
             <p>Participant registration will open once programme approvals are complete. <Link href="/contact">Contact us</Link> to be notified.</p>
