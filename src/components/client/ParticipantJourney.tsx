@@ -14,6 +14,8 @@ import { useToast } from "./Toaster";
 import type { Answers } from "@/lib/shared/protocol";
 import { VIRTUAL_STATUS_LABELS, type VirtualCaseStatus } from "@/lib/shared/virtual";
 import { SUBMITTED_MESSAGE } from "@/lib/shared/virtual";
+import type { LanguageCode } from "@/lib/shared/constants";
+import { LangProvider, useLang } from "./i18n";
 
 type Status = {
   displayId: string; firstName: string; status: PatientStatus; statusLabel: string; questionnaire: string;
@@ -21,7 +23,15 @@ type Status = {
   screeningMode: "in_person" | "virtual"; virtualStatus: VirtualCaseStatus | null;
 };
 
-export function RegistrationJourney({ camps, screeningMode = "in_person", virtualPhotos = false }: { camps: CampOption[]; screeningMode?: "in_person" | "virtual"; virtualPhotos?: boolean }) {
+type JourneyProps = { camps: CampOption[]; screeningMode?: "in_person" | "virtual"; virtualPhotos?: boolean; languages?: readonly LanguageCode[]; preview?: boolean };
+
+/** Languages: translations switched on for participants (TRANSLATIONS_ENABLED), or all drafts in review preview. */
+export function RegistrationJourney({ languages = [], preview = false, ...props }: JourneyProps) {
+  return <LangProvider available={languages} preview={preview}><Journey {...props} /></LangProvider>;
+}
+
+function Journey({ camps, screeningMode = "in_person", virtualPhotos = false }: JourneyProps) {
+  const { t, dir, lang } = useLang();
   const [phase, setPhase] = useState<"form" | "photo" | "questionnaire" | "mouth" | "done">("form");
   const [displayId, setDisplayId] = useState("");
   const [resumeLink, setResumeLink] = useState("");
@@ -31,7 +41,7 @@ export function RegistrationJourney({ camps, screeningMode = "in_person", virtua
   }, [phase]);
 
   return (
-    <div id="journey-top" tabIndex={-1} style={{ outline: "none" }}>
+    <div id="journey-top" tabIndex={-1} style={{ outline: "none" }} dir={phase === "form" ? undefined : dir} lang={phase === "form" ? undefined : lang}>
       {phase === "form" && (
         <RegistrationForm
           endpoint="/api/intake/register"
@@ -48,32 +58,32 @@ export function RegistrationJourney({ camps, screeningMode = "in_person", virtua
       )}
       {phase !== "form" && (
         <div className="callout" style={{ marginBottom: 20 }}>
-          <p style={{ margin: 0 }}>Your participant ID is <span className="code-chip">{displayId}</span></p>
+          <p style={{ margin: 0 }}>{t("Your participant ID is")} <span className="code-chip">{displayId}</span></p>
           <div className="copy-row" style={{ marginTop: 8 }}>
             <CopyButton value={displayId} what="Participant ID" />
-            <CopyButton value={resumeLink} label="Copy resume link" what="Resume link" />
+            <CopyButton value={resumeLink} label={t("Copy resume link")} what="Resume link" />
           </div>
-          <p className="hint" style={{ marginTop: 8 }}>Keep the resume link private — it lets you continue on this or another device for 7 days.</p>
+          <p className="hint" style={{ marginTop: 8 }}>{t("Keep the resume link private — it lets you continue on this or another device for 7 days.")}</p>
         </div>
       )}
       {phase === "photo" && (
         <section aria-labelledby="photo-h">
-          <h2 id="photo-h" style={{ fontSize: "var(--step-2)" }}>Identity photo</h2>
-          <p>So staff can find the right record at the camp, take a clear photo of your face. It is stored privately.</p>
+          <h2 id="photo-h" style={{ fontSize: "var(--step-2)" }}>{t("Identity photo")}</h2>
+          <p>{t("So staff can find the right record at the camp, take a clear photo of your face. It is stored privately.")}</p>
           <CameraCapture uploadUrl="/api/intake/photo" onUploaded={() => setPhase("questionnaire")} onSkip={() => setPhase("questionnaire")} />
         </section>
       )}
       {phase === "questionnaire" && (
         <section aria-labelledby="q-h">
-          <h2 id="q-h" style={{ fontSize: "var(--step-2)" }}>Brief questionnaire</h2>
-          <p>About two minutes. Your answers are private and help the clinician.</p>
+          <h2 id="q-h" style={{ fontSize: "var(--step-2)" }}>{t("Brief questionnaire")}</h2>
+          <p>{t("About two minutes. Your answers are private and help the clinician.")}</p>
           <Questionnaire endpoint="/api/intake/questionnaire" onCompleted={() => { track("registration_completed"); setPhase(screeningMode === "virtual" && virtualPhotos ? "mouth" : "done"); }} />
         </section>
       )}
       {phase === "mouth" && (
         <section aria-labelledby="mouth-h">
-          <h2 id="mouth-h" style={{ fontSize: "var(--step-2)" }}>Photos of your mouth</h2>
-          <p>Take a photo of each area below, or choose photos you already have. A doctor will review them. This usually takes about 5 minutes.</p>
+          <h2 id="mouth-h" style={{ fontSize: "var(--step-2)" }}>{t("Photos of your mouth")}</h2>
+          <p>{t("Take a photo of each area below, or choose photos you already have. A doctor will review them. This usually takes about 5 minutes.")}</p>
           <VirtualPhotos onSubmitted={() => setPhase("done")} />
         </section>
       )}
@@ -83,15 +93,16 @@ export function RegistrationJourney({ camps, screeningMode = "in_person", virtua
 }
 
 function CompletionPanel({ displayId, virtual, photos }: { displayId: string; virtual: boolean; photos: boolean }) {
+  const { t } = useLang();
   if (virtual && !photos) {
     return (
       <div className="success-state" role="status">
-        <h2>Questionnaire completed — virtual screening pending</h2>
-        <p>Thank you. Your ID is <span className="code-chip">{displayId}</span>.</p>
+        <h2>{t("Questionnaire completed — virtual screening pending")}</h2>
+        <p>{t("Thank you. Your ID is")} <span className="code-chip">{displayId}</span>.</p>
         <ol>
-          <li>The programme team will call you on the mobile number you gave to talk through your answers.</li>
-          <li>If anything needs a closer look, they will book you an examination at a camp or clinic.</li>
-          <li>If anything worries you before then, see a doctor — do not wait.</li>
+          <li>{t("The programme team will call you on the mobile number you gave to talk through your answers.")}</li>
+          <li>{t("If anything needs a closer look, they will book you an examination at a camp or clinic.")}</li>
+          <li>{t("If anything worries you before then, see a doctor — do not wait.")}</li>
         </ol>
       </div>
     );
@@ -99,29 +110,29 @@ function CompletionPanel({ displayId, virtual, photos }: { displayId: string; vi
   if (virtual) {
     return (
       <div className="success-state" role="status">
-        <h2>Submitted for doctor review</h2>
-        <p>{SUBMITTED_MESSAGE}</p>
-        <p>Your registration ID is <span className="code-chip">{displayId}</span>.</p>
-        <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>Next steps</h3>
+        <h2>{t("Submitted for doctor review")}</h2>
+        <p>{t(SUBMITTED_MESSAGE)}</p>
+        <p>{t("Your registration ID is")} <span className="code-chip">{displayId}</span>.</p>
+        <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>{t("Next steps")}</h3>
         <ol>
-          <li>To check your progress later, use <Link href="/register/login">Log in</Link> with your registration ID and mobile number.</li>
-          <li>Photo screening cannot rule out oral disease. If you have an ulcer, lump, red or white patch or bleeding lasting more than two weeks, see a doctor in person — do not wait for our message.</li>
+          <li>{t("To check your progress later, open your resume link, or use Log in with your registration ID and mobile number.")} <Link href="/register/login">{t("Log in")}</Link></li>
+          <li>{t("Photo screening cannot rule out oral disease. If you have an ulcer, lump, red or white patch or bleeding lasting more than two weeks, see a doctor in person — do not wait for our message.")}</li>
         </ol>
-        <Link href="/register/photos" className="btn btn-primary">View my progress</Link>
+        <Link href="/register/photos" className="btn btn-primary">{t("View my progress")}</Link>
       </div>
     );
   }
   return (
     <div className="success-state" role="status">
-      <h2>Questionnaire completed — clinician screening pending</h2>
-      <p>Thank you. Your ID is <span className="code-chip">{displayId}</span>. Show your check-in QR code to camp staff.</p>
-      <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>Next steps</h3>
+      <h2>{t("Questionnaire completed — clinician screening pending")}</h2>
+      <p>{t("Thank you. Your ID is")} <span className="code-chip">{displayId}</span>. {t("Show your check-in QR code to camp staff.")}</p>
+      <h3 style={{ fontSize: "var(--step-1)", marginTop: 16 }}>{t("Next steps")}</h3>
       <ol>
-        <li>Attend your screening camp (see <Link href="/camps">camps</Link>).</li>
-        <li>A clinician will examine your mouth and explain the result.</li>
-        <li>If anything worries you before then, see a doctor — do not wait.</li>
+        <li>{t("Attend your screening camp.")} <Link href="/camps">{t("See camps")}</Link></li>
+        <li>{t("A clinician will examine your mouth and explain the result.")}</li>
+        <li>{t("If anything worries you before then, see a doctor — do not wait.")}</li>
       </ol>
-      <Link href="/register/status" className="btn btn-primary">View my status &amp; check-in QR</Link>
+      <Link href="/register/status" className="btn btn-primary">{t("View my status & check-in QR")}</Link>
     </div>
   );
 }
