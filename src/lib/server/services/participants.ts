@@ -86,7 +86,15 @@ export async function registerParticipant(input: Omit<RegistrationInput, "screen
         await audit({ actorType: actor.type === "staff" ? "staff" : "participant", actorId: actor.type === "staff" ? actor.staff.userId : null, action: "patient.register", outcome: "failure", correlationId, code: "duplicate_suspected" }, q);
         if (actor.type === "staff" && inCampScope(actor.staff.campScope, dup.camp_id)) throw Errors.conflict(`This person may already be registered as ${dup.display_id}. Open that record instead.`, "duplicate_suspected");
         if (actor.type === "staff") throw Errors.conflict("This person may already be registered at another camp. Ask a Super Admin to check.", "duplicate_suspected");
-        throw Errors.conflict("We could not complete registration automatically. Please ask camp staff for help.", "duplicate_suspected");
+        // Participants are told plainly that they are already registered (name + mobile both matched),
+        // but never given the record or a session: that needs their resume link, the status page or staff.
+        const help = `contact ${config().NOTIFY_CLINIC_NAME} at ${config().NOTIFY_CLINIC_PHONE}`;
+        throw Errors.conflict(
+          input.screeningMode === "virtual"
+            ? `You are already registered with this name and mobile number, so you do not need to register again. Use the resume link from your first registration to continue, or ${help}.`
+            : `You are already registered with this name and mobile number, so you do not need to register again. Please show this screen to the camp staff at the registration desk.`,
+          "duplicate_suspected",
+        );
       }
     }
 
