@@ -130,6 +130,9 @@ describe("end-to-end screening workflow (participant → clinician → report)",
     const dup = await call(register.POST, req("POST", "/api/intake/register", { body: { ...body, idempotencyKey: key() }, headers: { "x-forwarded-for": randomIp() } }));
     expect(dup.status).toBe(409);
     expect(dup.text).not.toMatch(/HAOC-DS/);
+    // Plain words for the participant: already registered, and what to do next.
+    expect(dup.text).toMatch(/already registered/);
+    expect(dup.text).toMatch(/camp staff/);
   });
 
   it("withdrawing photo consent deletes the photo and blocks new uploads", async () => {
